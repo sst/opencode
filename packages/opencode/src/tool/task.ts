@@ -4,19 +4,25 @@ import { ToolJsonSchema } from "./json-schema"
 import { SessionV1 } from "@opencode-ai/core/v1/session"
 import { BackgroundJob } from "@/background/job"
 import { Session } from "@/session/session"
+import { SESSION_SLUG_PATTERN } from "@/session/session"
 import { SessionID, MessageID } from "../session/schema"
 import { MessageV2 } from "../session/message-v2"
 import { Agent } from "../agent/agent"
 import { deriveSubagentSessionPermission } from "../agent/subagent-permissions"
 import type { SessionPrompt } from "../session/prompt"
 import { Config } from "@/config/config"
-import { Effect, Exit, Schema, Scope } from "effect"
+import { Effect, Exit, Option, Schema, Scope } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Database } from "@opencode-ai/core/database/database"
+import { ModelV2 } from "@opencode-ai/core/model"
+import { ProviderV2 } from "@opencode-ai/core/provider"
+import { PositiveInt } from "@opencode-ai/core/schema"
+import { createHash } from "crypto"
 
 export interface TaskPromptOps {
   cancel(sessionID: SessionID): Effect.Effect<void>
+  cancelRun(sessionID: SessionID): Effect.Effect<void>
   resolvePromptParts(template: string): Effect.Effect<SessionPrompt.PromptInput["parts"]>
   prompt(input: SessionPrompt.PromptInput): Effect.Effect<SessionV1.WithParts>
 }
@@ -40,15 +46,50 @@ const BACKGROUND_UPDATED = [
   "Work on non-overlapping tasks, or briefly tell the user what you sent and end your response.",
 ].join("\n")
 
+function isSlug(taskId: string): boolean {
+  return !taskId.startsWith("ses_")
+}
+
+function deriveSlugSessionID(slug: string, rootID: SessionID): SessionID {
+  // The 12-hex root hash namespaces the slug per session tree so different roots
+  // can reuse the same slug; within a tree the slug itself makes the ID unique.
+  const hash = createHash("sha256").update(rootID).digest("hex").slice(0, 12)
+  return SessionID.descending(`ses_${hash}_${slug}`)
+}
+
 const BaseParameterFields = {
   description: Schema.String.annotate({ description: "A short (3-5 words) description of the task" }),
   prompt: Schema.String.annotate({ description: "The task for the agent to perform" }),
   subagent_type: Schema.String.annotate({ description: "The type of specialized agent to use for this task" }),
+  model: Schema.optional(Schema.String).annotate({
+    description:
+      "Override the model for this subagent. Format: provider/model (e.g. anthropic/claude-sonnet-4, openai/gpt-4o). Takes precedence over the agent's configured model.",
+  }),
+  variant: Schema.optional(Schema.String).annotate({
+    description:
+      'Model variant for this dispatch (e.g. "thinking", "high", "none"). Variants are model-specific reasoning/effort presets; an unknown variant is ignored. Takes precedence over the parent turn\'s variant.',
+  }),
   task_id: Schema.optional(Schema.String).annotate({
     description:
-      "This should only be set if you mean to resume a previous task (you can pass a prior task_id and the task will continue the same subagent session as before instead of creating a fresh one)",
+      'A human-readable slug (e.g. "explore-auth") to create or resume a named task session within this root session. If the slug has not been used yet, a new task is created with that identifier and the child session adopts the slug as its display handle. If it already exists, the existing session is resumed. Also accepts full "ses_..." session IDs to resume a specific session directly.',
+  }),
+  resume: Schema.optional(Schema.Boolean).annotate({
+    description:
+      "Explicit consent to resume an existing idle task session named by task_id. Required when task_id refers to a session with no currently-running background job. A live background task still accepts task_id updates without this flag.",
   }),
   command: Schema.optional(Schema.String).annotate({ description: "The command that triggered this task" }),
+  timeout: Schema.optional(PositiveInt).annotate({
+    description:
+      "Maximum time in milliseconds for the subagent attempt. On expiry the attempt is interrupted; if fallback_model is set, the task is retried once on it, otherwise the task fails.",
+  }),
+  fallback_model: Schema.optional(Schema.String).annotate({
+    description:
+      "Model to retry on once (provider/model format) if the primary attempt times out or fails. Requires the model_override permission.",
+  }),
+  metadata: Schema.optional(Schema.Record(Schema.String, Schema.Any)).annotate({
+    description:
+      "Opaque structured metadata stored on the child task session (visible to plugins, events, and session queries). Not shown to the subagent. On resume, keys are shallow-merged into the existing metadata.",
+  }),
 }
 
 const BaseParameters = Schema.Struct(BaseParameterFields)
@@ -76,6 +117,19 @@ function renderOutput(input: {
     `</${tag}>`,
     "</task>",
   ].join("\n")
+}
+
+function parseModelOverride(model: string): Effect.Effect<{ modelID: ModelV2.ID; providerID: ProviderV2.ID }, Error> {
+  const slash = model.indexOf("/")
+  if (slash <= 0 || slash === model.length - 1) {
+    return Effect.fail(
+      new Error(`Invalid model format: "${model}". Expected provider/model (e.g. anthropic/claude-sonnet-4)`),
+    )
+  }
+  return Effect.succeed({
+    providerID: ProviderV2.ID.make(model.slice(0, slash)),
+    modelID: ModelV2.ID.make(model.slice(slash + 1)),
+  })
 }
 
 export const TaskTool = Tool.define(
@@ -116,6 +170,26 @@ export const TaskTool = Tool.define(
         )
       }
 
+      const modelOverride = params.model
+      const overrideModel = modelOverride === undefined ? undefined : yield* parseModelOverride(modelOverride)
+      const fallbackModel =
+        params.fallback_model === undefined ? undefined : yield* parseModelOverride(params.fallback_model)
+
+      const overridePatterns = [modelOverride, params.fallback_model].filter((x): x is string => x !== undefined)
+      if (overridePatterns.length > 0) {
+        yield* ctx.ask({
+          permission: "model_override",
+          patterns: overridePatterns,
+          always: overridePatterns,
+          metadata: {
+            description: params.description,
+            subagent_type: params.subagent_type,
+            ...(modelOverride ? { model: modelOverride } : {}),
+            ...(params.fallback_model ? { fallback_model: params.fallback_model } : {}),
+          },
+        })
+      }
+
       if (!ctx.extra?.bypassAgentCheck) {
         yield* ctx.ask({
           permission: id,
@@ -133,9 +207,51 @@ export const TaskTool = Tool.define(
         return yield* Effect.fail(new Error(`Unknown agent type: ${params.subagent_type} is not a valid agent type`))
       }
 
-      const session = params.task_id
-        ? yield* sessions.get(SessionID.make(params.task_id)).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
-        : undefined
+      const slugTaskId = params.task_id && isSlug(params.task_id) ? params.task_id : undefined
+      if (slugTaskId && !SESSION_SLUG_PATTERN.test(slugTaskId)) {
+        return yield* Effect.fail(
+          new Error(
+            `Invalid task_id slug: "${slugTaskId}". Slugs must be lowercase letters, digits, hyphens, or underscores (max 64 chars).`,
+          ),
+        )
+      }
+      const derivedID = slugTaskId ? deriveSlugSessionID(slugTaskId, yield* sessions.root(ctx.sessionID)) : undefined
+
+      const found = params.task_id
+        ? yield* sessions.get(derivedID ?? SessionID.make(params.task_id)).pipe(Effect.option)
+        : Option.none()
+      if (Option.isSome(found) && found.value.parentID !== ctx.sessionID) {
+        return yield* Effect.fail(
+          new Error(
+            slugTaskId
+              ? `task_id slug "${slugTaskId}" is already used by another session in this session tree`
+              : `task_id ${params.task_id} is not a child of this session`,
+          ),
+        )
+      }
+      const session = Option.getOrUndefined(found)
+      const resumedModel =
+        session?.model !== undefined
+          ? { modelID: session.model.id, providerID: session.model.providerID }
+          : undefined
+      const resumedVariant =
+        session?.model?.variant && session.model.variant !== "default" ? session.model.variant : undefined
+      // Resume gate: an idle (finished) session needs explicit consent; a session with a
+      // RUNNING background job passes here and reaches background.extend below unchanged.
+      if (session && params.resume !== true) {
+        const job = yield* background.get(session.id)
+        if (job?.status !== "running")
+          return yield* Effect.fail(
+            new Error(
+              `task_id ${params.task_id} refers to an existing idle task session; pass resume: true to continue it, or omit task_id to start a fresh task`,
+            ),
+          )
+      }
+      if (!session && params.resume === true) {
+        return yield* Effect.fail(
+          new Error(`resume: true was passed but task_id ${params.task_id} does not name an existing task session`),
+        )
+      }
       const childPermission = deriveSubagentSessionPermission({
         parentSessionPermission: parent.permission ?? [],
         subagent: next,
@@ -156,9 +272,14 @@ export const TaskTool = Tool.define(
       const nextSession =
         session ??
         (yield* sessions.create({
+          id: derivedID,
           parentID: ctx.sessionID,
           title: params.description + ` (@${next.name} subagent)`,
+          slug: slugTaskId,
           agent: next.name,
+          model: overrideModel
+            ? { id: overrideModel.modelID, providerID: overrideModel.providerID }
+            : undefined,
           permission: [
             ...childPermission,
             ...childToolDenies.filter(
@@ -169,7 +290,15 @@ export const TaskTool = Tool.define(
                 ),
             ),
           ],
+          metadata: params.metadata,
         }))
+
+      if (session && params.metadata) {
+        yield* sessions.setMetadata({
+          sessionID: session.id,
+          metadata: { ...session.metadata, ...params.metadata },
+        })
+      }
 
       const msg = yield* MessageV2.get({ sessionID: ctx.sessionID, messageID: ctx.messageID }).pipe(
         Effect.provideService(Database.Service, database),
@@ -178,7 +307,7 @@ export const TaskTool = Tool.define(
       if (msg.info.role !== "assistant") return yield* Effect.fail(new Error("Not an assistant message"))
       const variant = msg.info.variant
 
-      const model = next.model ?? {
+      const model = overrideModel ?? resumedModel ?? next.model ?? {
         modelID: msg.info.modelID,
         providerID: msg.info.providerID,
       }
@@ -197,16 +326,20 @@ export const TaskTool = Tool.define(
       const ops = ctx.extra?.promptOps as TaskPromptOps
       if (!ops) return yield* Effect.fail(new Error("TaskTool requires promptOps in ctx.extra"))
 
-      const runTask = Effect.fn("TaskTool.runTask")(function* () {
+      const runAttempt = Effect.fn("TaskTool.runAttempt")(function* (attempt: {
+        modelID: ModelV2.ID
+        providerID: ProviderV2.ID
+        variant: string | undefined
+      }) {
         const parts = yield* ops.resolvePromptParts(params.prompt)
         const result = yield* ops.prompt({
           messageID: MessageID.ascending(),
           sessionID: nextSession.id,
           model: {
-            modelID: model.modelID,
-            providerID: model.providerID,
+            modelID: attempt.modelID,
+            providerID: attempt.providerID,
           },
-          variant: next.model ? undefined : variant,
+          variant: attempt.variant,
           agent: next.name,
           parts,
         })
@@ -222,6 +355,29 @@ export const TaskTool = Tool.define(
           return yield* Effect.fail(new Error(`Subagent failed (task_id: ${nextSession.id}): ${failed.state.error}`))
         }
         return result.parts.findLast((item) => item.type === "text")?.text ?? ""
+      })
+
+      let fallbackUsed = false
+      const runTask = Effect.fn("TaskTool.runTask")(function* () {
+        const primaryVariant = params.variant ?? resumedVariant ?? (overrideModel || resumedModel || next.model ? undefined : variant)
+        const attempt = (m: { modelID: ModelV2.ID; providerID: ProviderV2.ID }, v: string | undefined) => {
+          const eff = runAttempt({ modelID: m.modelID, providerID: m.providerID, variant: v })
+          return params.timeout === undefined ? eff : eff.pipe(Effect.timeout(params.timeout))
+        }
+        const exit = yield* Effect.exit(attempt(model, primaryVariant))
+        if (Exit.isSuccess(exit)) return exit.value
+        // Only fall back for typed failures (timeout or genuine errors). Interrupts
+        // (parent abort) and defects (bugs) must propagate, not retry.
+        // No ops.cancel here: Effect.timeout already interrupted the ops.prompt fiber,
+        // and calling cancel on this same session would self-cancel the enclosing
+        // background job (cancelBackgroundJobs matches job.id === sessionID).
+        if (Exit.hasInterrupts(exit) || Exit.hasDies(exit) || fallbackModel === undefined)
+          return yield* Effect.failCause(exit.cause)
+        fallbackUsed = true
+        // Cancel the child session's prompt runner (not the background job)
+        // so the fallback prompt can start a fresh run on the same session.
+        yield* ops.cancelRun(nextSession.id).pipe(Effect.ignore)
+        return yield* attempt(fallbackModel, params.variant ?? resumedVariant)
       })
 
       const inject = Effect.fn("TaskTool.injectBackgroundResult")(function* (
@@ -264,6 +420,8 @@ export const TaskTool = Tool.define(
         )
       })
 
+      // The resume gate (above) already vetted idle sessions; a RUNNING job reaches
+      // this point without the resume: true flag and can be extended normally.
       if (yield* background.extend({ id: nextSession.id, run: runTask() })) {
         return {
           title: params.description,
@@ -338,9 +496,10 @@ export const TaskTool = Tool.define(
             if (result?.metadata?.background === true) return backgroundResult()
             if (result?.status === "error") return yield* Effect.fail(new Error(result.error ?? "Task failed"))
             if (result?.status === "cancelled") return yield* Effect.fail(new Error("Task cancelled"))
+            const displayMetadata = fallbackUsed ? { ...metadata, fallback_used: true as const } : metadata
             return {
               title: params.description,
-              metadata,
+              metadata: displayMetadata,
               output: renderOutput({ sessionID: nextSession.id, state: "completed", text: result?.output ?? "" }),
             }
           }),

@@ -982,11 +982,18 @@ export function variants(model: Provider.Model): Record<string, Record<string, a
       if (model.api.id.toLowerCase().includes("north-mini-code")) {
         return Object.fromEntries(["none", "high"].map((effort) => [effort, { reasoningEffort: effort }]))
       }
+      const isDeepseekV4 = model.api.id.toLowerCase().includes("deepseek-v4")
       const efforts = [...WIDELY_SUPPORTED_EFFORTS]
-      if (model.api.id.toLowerCase().includes("deepseek-v4")) {
+      if (isDeepseekV4) {
         efforts.push("max")
       }
-      return Object.fromEntries(efforts.map((effort) => [effort, { reasoningEffort: effort }]))
+      const result: Record<string, Record<string, any>> = Object.fromEntries(
+        efforts.map((effort) => [effort, { reasoningEffort: effort }]),
+      )
+      if (isDeepseekV4) {
+        result.none = { thinking: { type: "disabled" } }
+      }
+      return result
 
     case "@ai-sdk/azure":
       // https://v5.ai-sdk.dev/providers/ai-sdk-providers/azure

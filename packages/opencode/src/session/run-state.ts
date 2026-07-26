@@ -11,6 +11,7 @@ import { SessionStatus } from "./status"
 export interface Interface {
   readonly assertNotBusy: (sessionID: SessionID) => Effect.Effect<void, Session.BusyError>
   readonly cancel: (sessionID: SessionID) => Effect.Effect<void>
+  readonly cancelRun: (sessionID: SessionID) => Effect.Effect<void>
   readonly ensureRunning: (
     sessionID: SessionID,
     onInterrupt: Effect.Effect<SessionV1.WithParts>,
@@ -85,6 +86,20 @@ const layer = Layer.effect(
       yield* existing.cancel
     })
 
+    // Runner-only interrupt without cancelling background jobs.
+    // Exists so the Task tool fallback path can clear a stuck child prompt
+    // runner before re-prompting the same session, without self-cancelling
+    // the enclosing background job (the job's id equals the child session id).
+    const cancelRun = Effect.fn("SessionRunState.cancelRun")(function* (sessionID: SessionID) {
+      const data = yield* InstanceState.get(state)
+      const existing = data.runners.get(sessionID)
+      if (!existing) {
+        yield* status.set(sessionID, { type: "idle" })
+        return
+      }
+      yield* existing.cancel
+    })
+
     const ensureRunning = Effect.fn("SessionRunState.ensureRunning")(function* (
       sessionID: SessionID,
       onInterrupt: Effect.Effect<SessionV1.WithParts>,
@@ -104,7 +119,7 @@ const layer = Layer.effect(
         .pipe(Effect.catchTag("RunnerBusy", () => Effect.fail(busyError(sessionID))))
     })
 
-    return Service.of({ assertNotBusy, cancel, ensureRunning, startShell })
+    return Service.of({ assertNotBusy, cancel, cancelRun, ensureRunning, startShell })
   }),
 )
 

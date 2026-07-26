@@ -313,16 +313,43 @@ exports[`tool parameters JSON Schema (wire shape) task 1`] = `
       "description": "A short (3-5 words) description of the task",
       "type": "string",
     },
+    "fallback_model": {
+      "description": "Model to retry on once (provider/model format) if the primary attempt times out or fails. Requires the model_override permission.",
+      "type": "string",
+    },
+    "metadata": {
+      "description": "Opaque structured metadata stored on the child task session (visible to plugins, events, and session queries). Not shown to the subagent. On resume, keys are shallow-merged into the existing metadata.",
+      "type": "object",
+    },
+    "model": {
+      "description": "Override the model for this subagent. Format: provider/model (e.g. anthropic/claude-sonnet-4, openai/gpt-4o). Takes precedence over the agent's configured model.",
+      "type": "string",
+    },
     "prompt": {
       "description": "The task for the agent to perform",
       "type": "string",
+    },
+    "resume": {
+      "description": "Explicit consent to resume an existing idle task session named by task_id. Required when task_id refers to a session with no currently-running background job. A live background task still accepts task_id updates without this flag.",
+      "type": "boolean",
     },
     "subagent_type": {
       "description": "The type of specialized agent to use for this task",
       "type": "string",
     },
     "task_id": {
-      "description": "This should only be set if you mean to resume a previous task (you can pass a prior task_id and the task will continue the same subagent session as before instead of creating a fresh one)",
+      "description": "A human-readable slug (e.g. "explore-auth") to create or resume a named task session within this root session. If the slug has not been used yet, a new task is created with that identifier and the child session adopts the slug as its display handle. If it already exists, the existing session is resumed. Also accepts full "ses_..." session IDs to resume a specific session directly.",
+      "type": "string",
+    },
+    "timeout": {
+      "description": "Maximum time in milliseconds for the subagent attempt. On expiry the attempt is interrupted; if fallback_model is set, the task is retried once on it, otherwise the task fails.",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991,
+      "minimum": -9007199254740991,
+      "type": "integer",
+    },
+    "variant": {
+      "description": "Model variant for this dispatch (e.g. "thinking", "high", "none"). Variants are model-specific reasoning/effort presets; an unknown variant is ignored. Takes precedence over the parent turn's variant.",
       "type": "string",
     },
   },

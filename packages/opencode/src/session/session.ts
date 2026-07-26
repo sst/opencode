@@ -257,10 +257,15 @@ export const GlobalInfo = Schema.Struct({
 }).annotate({ identifier: "GlobalSession" })
 export type GlobalInfo = Types.DeepMutable<Schema.Schema.Type<typeof GlobalInfo>>
 
+// session.slug feeds filesystem paths (see plan()); restrict to id/path-safe characters.
+export const SESSION_SLUG_PATTERN = /^[a-z0-9][a-z0-9-_]{0,63}$/
+
 export const CreateInput = Schema.optional(
   Schema.Struct({
+    id: Schema.optional(SessionID),
     parentID: Schema.optional(SessionID),
     title: Schema.optional(Schema.String),
+    slug: Schema.optional(Schema.String),
     agent: Schema.optional(Schema.String),
     model: Schema.optional(Model),
     metadata: Schema.optional(Metadata),
@@ -414,8 +419,10 @@ export interface Interface {
   readonly list: (input?: ListInput) => Effect.Effect<Info[]>
   readonly listGlobal: (input?: GlobalListInput) => Effect.Effect<GlobalInfo[]>
   readonly create: (input?: {
+    id?: SessionID
     parentID?: SessionID
     title?: string
+    slug?: string
     agent?: string
     model?: Schema.Schema.Type<typeof Model>
     metadata?: typeof Metadata.Type
@@ -423,6 +430,7 @@ export interface Interface {
     workspaceID?: WorkspaceV2.ID
   }) => Effect.Effect<Info>
   readonly fork: (input: { sessionID: SessionID; messageID?: MessageID }) => Effect.Effect<Info, NotFound>
+  readonly root: (sessionID: SessionID) => Effect.Effect<SessionID, NotFound>
   readonly touch: (sessionID: SessionID) => Effect.Effect<void>
   readonly get: (id: SessionID) => Effect.Effect<Info, NotFound>
   readonly setTitle: (input: { sessionID: SessionID; title: string }) => Effect.Effect<void>
@@ -507,11 +515,14 @@ const layer: Layer.Layer<
       path?: string
       metadata?: typeof Metadata.Type
       permission?: PermissionV1.Ruleset
+      slug?: string
     }) {
+      if (input.slug !== undefined && !SESSION_SLUG_PATTERN.test(input.slug))
+        return yield* Effect.die(new Error(`Invalid session slug: "${input.slug}"`))
       const ctx = yield* InstanceState.context
       const result: Info = {
         id: SessionID.descending(input.id),
-        slug: Slug.create(),
+        slug: input.slug ?? Slug.create(),
         version: InstallationVersion,
         projectID: ctx.project.id,
         directory: input.directory,
@@ -665,8 +676,10 @@ const layer: Layer.Layer<
     })
 
     const create = Effect.fn("Session.create")(function* (input?: {
+      id?: SessionID
       parentID?: SessionID
       title?: string
+      slug?: string
       agent?: string
       model?: Schema.Schema.Type<typeof Model>
       metadata?: typeof Metadata.Type
@@ -676,10 +689,12 @@ const layer: Layer.Layer<
       const ctx = yield* InstanceState.context
       const workspace = yield* InstanceState.workspaceID
       return yield* createNext({
+        id: input?.id,
         parentID: input?.parentID,
         directory: ctx.directory,
         path: sessionPath(ctx.worktree, ctx.directory),
         title: input?.title,
+        slug: input?.slug,
         agent: input?.agent,
         model: input?.model,
         metadata: input?.metadata,
@@ -729,6 +744,15 @@ const layer: Layer.Layer<
         }
       }
       return session
+    })
+
+    const root = Effect.fn("Session.root")(function* (sessionID: SessionID) {
+      let current = sessionID
+      while (true) {
+        const s = yield* get(current)
+        if (!s.parentID) return current
+        current = s.parentID
+      }
     })
 
     const patch = (sessionID: SessionID, info: Patch) =>
@@ -908,6 +932,7 @@ const layer: Layer.Layer<
       listGlobal,
       create,
       fork,
+      root,
       touch,
       get,
       setTitle,
