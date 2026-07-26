@@ -49,6 +49,8 @@ import { TodoItem } from "../../component/todo-item"
 import { DialogMessage } from "./dialog-message"
 import type { PromptInfo } from "../../component/prompt/history"
 import { DialogConfirm } from "../../ui/dialog-confirm"
+import { DialogPrompt } from "../../ui/dialog-prompt"
+import { DialogSelect } from "../../ui/dialog-select"
 import { DialogTimeline } from "./dialog-timeline"
 import { DialogForkFromTimeline } from "./dialog-fork-from-timeline"
 import { DialogSessionRename } from "../../component/dialog-session-rename"
@@ -1081,6 +1083,69 @@ export function Session() {
         moveChild(-1)
       }),
     },
+    {
+      title: "Interrupt subagent session",
+      value: "session.subagent.interrupt",
+      category: "Session",
+      hidden: true,
+      enabled:
+        !!session()?.parentID && !!sync.data.config.experimental?.subagent_interrupt,
+      run: async () => {
+        const id = route.sessionID
+        // Two-step flow: first pick the action, then a reason. Either esc
+        // (reason === null) aborts the flow without sending an interrupt.
+        const action = await new Promise<"steer" | "cancel" | "abort" | null>((resolve) => {
+          dialog.replace(
+            () => (
+              <DialogSelect<"steer" | "cancel" | "abort">
+                title="Interrupt subagent"
+                options={[
+                  { title: "Steer", value: "steer", description: "Course-correct the subagent, then continue" },
+                  { title: "Cancel", value: "cancel", description: "Have the subagent wrap up and stop" },
+                  { title: "Abort", value: "abort", description: "Kill the subagent immediately" },
+                ]}
+                onSelect={(opt) => {
+                  resolve(opt.value)
+                  dialog.clear()
+                }}
+              />
+            ),
+            () => resolve(null),
+          )
+        })
+        if (action === null) return
+        const placeholder =
+          action === "abort" ? "optional reason — leave empty" : `reason for ${action}`
+        const reason = await DialogPrompt.show(dialog, `Interrupt subagent (${action})`, { placeholder })
+        if (reason === null) return
+        // DialogPrompt.show resolves on Enter but does not pop the dialog stack
+        // (only esc does). Close it ourselves so confirm visibly dismisses the modal.
+        dialog.clear()
+        const trimmed = reason.trim()
+        // For steer/cancel an empty reason is not useful — use a default the
+        // child can quote. For abort, omitting the reason is meaningful.
+        const finalReason =
+          trimmed.length > 0
+            ? trimmed
+            : action === "steer"
+              ? "Steered from TUI"
+              : action === "cancel"
+                ? "Stopped from TUI"
+                : ""
+        try {
+          await sdk.client.session.interrupt({
+            sessionID: id,
+            intent: action,
+            reason: finalReason,
+          })
+        } catch {
+          // Server rejects with 400 when the flag is off, the target isn't a
+          // subagent, or the child has already finished. The transcript marker
+          // is the success signal so we surface only failures here.
+          toast.show({ message: "Couldn't interrupt subagent", variant: "error" })
+        }
+      },
+    },
   ])
 
   const sessionCommands = createMemo(() =>
@@ -1110,6 +1175,13 @@ export function Session() {
   useBindings(() => ({
     mode: OPENCODE_BASE_MODE,
     bindings: tuiConfig.keybinds.gather("session", sessionBindingCommands),
+  }))
+
+  useBindings(() => ({
+    mode: OPENCODE_BASE_MODE,
+    enabled:
+      !!session()?.parentID && !!sync.data.config.experimental?.subagent_interrupt,
+    bindings: tuiConfig.keybinds.gather("session.subagent-interrupt", ["session.subagent.interrupt"]),
   }))
 
   useBindings(() => ({
@@ -1370,10 +1442,19 @@ function UserMessage(props: {
 }) {
   const ctx = use()
   const local = useLocal()
+  // Interrupt markers (steer/cancel/abort lines injected on a user message) are
+  // non-synthetic so they remain visible, but they aren't user prose — tag them
+  // via metadata.interrupt at write-time and split them off here so they render
+  // as a distinct system-event line below the user text rather than masquerading
+  // as something the user typed.
+  const isInterrupt = (
+    x: Part,
+  ): x is TextPart & { metadata: { interrupt: { intent: "steer" | "cancel" | "abort"; origin: "user" | "parent" } } } =>
+    x.type === "text" && !!(x.metadata as { interrupt?: unknown } | undefined)?.interrupt
   const text = createMemo(() => {
     const texts = props.parts
       .map((x) => {
-        if (x.type === "text" && !x.synthetic) {
+        if (x.type === "text" && !x.synthetic && !isInterrupt(x)) {
           return x.text
         }
         return null
@@ -1381,6 +1462,7 @@ function UserMessage(props: {
       .filter(Boolean)
     return texts.join("\n\n")
   })
+  const interrupts = createMemo(() => props.parts.filter(isInterrupt))
   const files = createMemo(() => props.parts.flatMap((x) => (x.type === "file" ? [x] : [])))
   const { theme } = useTheme()
   const [hover, setHover] = createSignal(false)
@@ -1453,6 +1535,16 @@ function UserMessage(props: {
           </box>
         </box>
       </Show>
+      <For each={interrupts()}>
+        {(part) => (
+          <box marginTop={1} paddingLeft={3}>
+            <text fg={theme.textMuted}>
+              <span style={{ fg: theme.textMuted, bold: true }}>Interrupt</span>
+              <span style={{ fg: theme.textMuted }}> · {part.text}</span>
+            </text>
+          </box>
+        )}
+      </For>
       <Show when={compaction()}>
         <box
           marginTop={1}

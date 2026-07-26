@@ -1,5 +1,6 @@
 import { Config } from "@/config/config"
 import { Provider } from "@/provider/provider"
+import { RuntimeFlags } from "@/effect/runtime-flags"
 import * as InstanceState from "@/effect/instance-state"
 import { Effect } from "effect"
 import { HttpApiBuilder } from "effect/unstable/httpapi"
@@ -10,9 +11,19 @@ export const configHandlers = HttpApiBuilder.group(InstanceHttpApi, "config", (h
   Effect.gen(function* () {
     const providerSvc = yield* Provider.Service
     const configSvc = yield* Config.Service
+    const flags = yield* RuntimeFlags.Service
 
     const get = Effect.fn("ConfigHttpApi.get")(function* () {
-      return yield* configSvc.get()
+      const info = yield* configSvc.get()
+      // Surface the subagent-interrupt runtime flag in the TUI-visible config.
+      // The HTTP endpoint (and TUI UX) is off-by-default and gated by env var.
+      return {
+        ...info,
+        experimental: {
+          ...info.experimental,
+          subagent_interrupt: flags.experimentalSubagentInterrupt,
+        },
+      }
     })
 
     const update = Effect.fn("ConfigHttpApi.update")(function* (ctx) {

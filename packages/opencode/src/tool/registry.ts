@@ -10,6 +10,7 @@ import { GlobTool } from "./glob"
 import { GrepTool } from "./grep"
 import { ReadTool } from "./read"
 import { TaskTool } from "./task"
+import { TaskSteerTool, TaskCancelTool, TaskAbortTool } from "./task-interrupt"
 import { Database } from "@opencode-ai/core/database/database"
 import { TodoWriteTool } from "./todo"
 import { WebFetchTool } from "./webfetch"
@@ -48,6 +49,7 @@ import { Agent } from "../agent/agent"
 import { Skill } from "../skill"
 import { Permission } from "@/permission"
 import { BackgroundJob } from "@/background/job"
+import { Interrupt } from "../session/interrupt"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { ProviderV2 } from "@opencode-ai/core/provider"
 import { ModelV2 } from "@opencode-ai/core/model"
@@ -100,6 +102,9 @@ const layer = Layer.effect(
 
     const invalid = yield* InvalidTool
     const task = yield* TaskTool
+    const taskSteer = yield* TaskSteerTool
+    const taskCancel = yield* TaskCancelTool
+    const taskAbort = yield* TaskAbortTool
     const read = yield* ReadTool
     const question = yield* QuestionTool
     const todo = yield* TodoWriteTool
@@ -215,6 +220,9 @@ const layer = Layer.effect(
           edit: Tool.init(edit),
           write: Tool.init(writetool),
           task: Tool.init(task),
+          task_steer: Tool.init(taskSteer),
+          task_cancel: Tool.init(taskCancel),
+          task_abort: Tool.init(taskAbort),
           fetch: Tool.init(webfetch),
           todo: Tool.init(todo),
           search: Tool.init(websearch),
@@ -238,6 +246,7 @@ const layer = Layer.effect(
             tool.edit,
             tool.write,
             tool.task,
+            ...(flags.experimentalSubagentInterrupt ? [tool.task_steer, tool.task_cancel, tool.task_abort] : []),
             tool.fetch,
             tool.todo,
             tool.search,
@@ -431,6 +440,7 @@ export const node = LayerNode.make({
     Config.node,
     Plugin.node,
     Question.node,
+    Permission.node,
     Todo.node,
     Agent.node,
     Skill.node,
@@ -441,6 +451,7 @@ export const node = LayerNode.make({
     Instruction.node,
     FSUtil.node,
     EventV2Bridge.node,
+    Interrupt.node,
     httpClient,
     CrossSpawnSpawner.node,
     Format.node,

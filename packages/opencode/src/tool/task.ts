@@ -10,10 +10,11 @@ import { Agent } from "../agent/agent"
 import { deriveSubagentSessionPermission } from "../agent/subagent-permissions"
 import type { SessionPrompt } from "../session/prompt"
 import { Config } from "@/config/config"
-import { Effect, Exit, Schema, Scope } from "effect"
+import { Effect, Exit, Option, Schema, Scope } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { Database } from "@opencode-ai/core/database/database"
+import { Interrupt } from "../session/interrupt"
 
 export interface TaskPromptOps {
   cancel(sessionID: SessionID): Effect.Effect<void>
@@ -61,22 +62,28 @@ export const Parameters = Schema.Struct({
   }),
 })
 
-function renderOutput(input: {
+// Escape untrusted strings rendered into the <task>/<summary> framing.
+function escapeBody(body: string) {
+  return body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+}
+
+export function renderOutput(input: {
   sessionID: SessionID
-  state: "running" | "completed" | "error"
+  state: "running" | "completed" | "error" | "aborted"
   summary?: string
   text: string
 }) {
-  const tag = input.state === "error" ? "task_error" : "task_result"
+  const tag = input.state === "error" ? "task_error" : input.state === "aborted" ? "task_aborted" : "task_result"
   return [
     `<task id="${input.sessionID}" state="${input.state}">`,
-    ...(input.summary ? [`<summary>${input.summary}</summary>`] : []),
+    ...(input.summary ? [`<summary>${escapeBody(input.summary)}</summary>`] : []),
     `<${tag}>`,
     input.text,
     `</${tag}>`,
     "</task>",
   ].join("\n")
 }
+
 
 export const TaskTool = Tool.define(
   id,
@@ -88,6 +95,7 @@ export const TaskTool = Tool.define(
     const scope = yield* Scope.Scope
     const flags = yield* RuntimeFlags.Service
     const database = yield* Database.Service
+    const interrupt = yield* Interrupt.Service
 
     const run = Effect.fn("TaskTool.execute")(function* (
       params: Schema.Schema.Type<typeof Parameters>,
@@ -225,8 +233,9 @@ export const TaskTool = Tool.define(
       })
 
       const inject = Effect.fn("TaskTool.injectBackgroundResult")(function* (
-        state: "completed" | "error",
+        state: "completed" | "error" | "aborted",
         text: string,
+        reason?: string,
       ) {
         const currentParent = yield* sessions.get(ctx.sessionID)
         yield* ops
@@ -244,7 +253,9 @@ export const TaskTool = Tool.define(
                   summary:
                     state === "completed"
                       ? `Background task completed: ${params.description}`
-                      : `Background task failed: ${params.description}`,
+                      : state === "aborted"
+                        ? `Background task aborted: ${reason ?? params.description}`
+                        : `Background task failed: ${params.description}`,
                   text,
                 }),
               },
@@ -253,16 +264,29 @@ export const TaskTool = Tool.define(
           .pipe(Effect.ignore, Effect.forkIn(scope, { startImmediately: true }))
       })
 
-      const notify = Effect.fn("TaskTool.notifyBackgroundResult")(function* (jobID: string) {
+      const notify = Effect.fn("TaskTool.notifyBackgroundResult")(function* (jobID: SessionID) {
         yield* background.wait({ id: jobID }).pipe(
-          Effect.flatMap((result) => {
-            if (result.info?.status === "completed") return inject("completed", result.info.output ?? "")
-            if (result.info?.status === "error") return inject("error", result.info.error ?? "")
-            return Effect.void
-          }),
+          Effect.flatMap((result) =>
+            Effect.gen(function* () {
+              // A graceful cancel completes normally (status "completed") but has a terminal
+              // record; a hard abort settles "cancelled". Both must render as aborted.
+              const aborted = yield* interrupt.terminal(jobID)
+              if (Option.isSome(aborted))
+                return yield* inject("aborted", result.info?.output ?? "", aborted.value.reason)
+              if (result.info?.status === "completed") return yield* inject("completed", result.info.output ?? "")
+              if (result.info?.status === "error") return yield* inject("error", result.info.error ?? "")
+              if (result.info?.status === "cancelled") return yield* inject("aborted", result.info.output ?? "", "Aborted")
+              return
+            }),
+          ),
           Effect.forkIn(scope, { startImmediately: true }),
         )
       })
+
+      // Clear any stale interrupt/terminal state from a prior run of this session
+      // before starting (or extending) so a reused task_id doesn't inherit a
+      // cancelled terminal record from its previous run.
+      yield* interrupt.clear(nextSession.id)
 
       if (yield* background.extend({ id: nextSession.id, run: runTask() })) {
         return {
@@ -314,7 +338,7 @@ export const TaskTool = Tool.define(
       }
 
       if (runInBackground) {
-        yield* notify(info.id)
+        yield* notify(SessionID.make(info.id))
         return backgroundResult()
       }
 
@@ -337,7 +361,31 @@ export const TaskTool = Tool.define(
             )
             if (result?.metadata?.background === true) return backgroundResult()
             if (result?.status === "error") return yield* Effect.fail(new Error(result.error ?? "Task failed"))
-            if (result?.status === "cancelled") return yield* Effect.fail(new Error("Task cancelled"))
+            if (result?.status === "cancelled") {
+              const aborted = yield* interrupt.terminal(nextSession.id)
+              return {
+                title: params.description,
+                metadata,
+                output: renderOutput({
+                  sessionID: nextSession.id,
+                  state: "aborted",
+                  summary: Option.isSome(aborted) ? `Aborted: ${aborted.value.reason}` : "Aborted",
+                  text: result?.output ?? "",
+                }),
+              }
+            }
+            const aborted = yield* interrupt.terminal(nextSession.id)
+            if (Option.isSome(aborted))
+              return {
+                title: params.description,
+                metadata,
+                output: renderOutput({
+                  sessionID: nextSession.id,
+                  state: "aborted",
+                  summary: `Aborted: ${aborted.value.reason}`,
+                  text: result?.output ?? "",
+                }),
+              }
             return {
               title: params.description,
               metadata,
