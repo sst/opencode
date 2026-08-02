@@ -674,6 +674,89 @@ it.instance("loop surfaces content-filter finishes as session errors", () =>
   }),
 )
 
+// This verifies end-to-end recovery; the error and one-continuation decisions are pinned by the following cases.
+it.instance("loop completes end-to-end recovery after a recoverable length finish", () =>
+  Effect.gen(function* () {
+    const { llm } = yield* useServerConfig(providerCfg)
+    const prompt = yield* SessionPrompt.Service
+    const sessions = yield* Session.Service
+    const chat = yield* sessions.create({ title: "Pinned" })
+    yield* prompt.prompt({
+      sessionID: chat.id,
+      agent: "build",
+      noReply: true,
+      parts: [{ type: "text", text: "hello" }],
+    })
+
+    yield* llm.push(reply().text("partial").length(), reply().text("complete").stop())
+    const result = yield* prompt.loop({ sessionID: chat.id })
+    expect(yield* llm.hits).toHaveLength(2)
+    expect(result.info).toMatchObject({ role: "assistant", finish: "stop" })
+    expect(result.parts).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "text", text: "complete" })]),
+    )
+  }),
+)
+
+it.instance("loop surfaces reasoning-only length finish as an error", () =>
+  Effect.gen(function* () {
+    const { llm } = yield* useServerConfig(providerCfg)
+    const prompt = yield* SessionPrompt.Service
+    const sessions = yield* Session.Service
+    const chat = yield* sessions.create({ title: "Pinned" })
+    yield* prompt.prompt({
+      sessionID: chat.id,
+      agent: "build",
+      noReply: true,
+      parts: [{ type: "text", text: "hello" }],
+    })
+
+    yield* llm.push(reply().reason("unfinished reasoning").length())
+    const result = yield* prompt.loop({ sessionID: chat.id })
+    const stored = yield* MessageV2.get({ sessionID: chat.id, messageID: result.info.id })
+    expect(yield* llm.hits).toHaveLength(1)
+    expect(result.info.role).toBe("assistant")
+    if (result.info.role === "assistant") {
+      expect(result.info).toMatchObject({
+        finish: "length",
+        error: { name: "MessageOutputLengthError", data: {} },
+      })
+      expect(stored.info).toMatchObject({ error: result.info.error })
+    }
+    expect(result.parts).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "reasoning", text: "unfinished reasoning" })]),
+    )
+  }),
+)
+
+it.instance("loop bounds continuation after a second length finish", () =>
+  Effect.gen(function* () {
+    const { llm } = yield* useServerConfig(providerCfg)
+    const prompt = yield* SessionPrompt.Service
+    const sessions = yield* Session.Service
+    const chat = yield* sessions.create({ title: "Pinned" })
+    yield* prompt.prompt({
+      sessionID: chat.id,
+      agent: "build",
+      noReply: true,
+      parts: [{ type: "text", text: "hello" }],
+    })
+
+    yield* llm.push(
+      reply().text("first partial").length(),
+      reply().text("second partial").length(),
+      reply().text("must not run").stop(),
+    )
+    const result = yield* prompt.loop({ sessionID: chat.id })
+    expect(yield* llm.hits).toHaveLength(2)
+    expect(result.info).toMatchObject({
+      role: "assistant",
+      finish: "length",
+      error: { name: "MessageOutputLengthError", data: {} },
+    })
+  }),
+)
+
 it.instance("loop stops provider overflow instead of auto-compacting when disabled", () =>
   Effect.gen(function* () {
     const { llm } = yield* useServerConfig((url) => ({

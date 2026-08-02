@@ -493,6 +493,14 @@ export class Reply {
     return this
   }
 
+  length() {
+    this.#finish = "length"
+    this.#hang = false
+    this.#error = undefined
+    this.#reset = false
+    return this
+  }
+
   contentFilter() {
     this.#finish = "content_filter"
     this.#hang = false

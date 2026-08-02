@@ -1110,7 +1110,9 @@ const layer = Layer.effect(
 
           if (
             lastAssistant?.finish &&
-            !["tool-calls", "unknown"].includes(lastAssistant.finish) &&
+            // A recoverable length finish must reach the continuation decision below;
+            // otherwise this history reload exits before the extra provider turn can run.
+            !["tool-calls", "unknown", "length"].includes(lastAssistant.finish) &&
             !hasToolCalls &&
             lastAssistant.parentID === lastUser.id
           ) {
@@ -1288,6 +1290,23 @@ const layer = Layer.effect(
             if (structured !== undefined) {
               handle.message.structured = structured
               handle.message.finish = handle.message.finish ?? "stop"
+              yield* sessions.updateMessage(handle.message)
+              return "break" as const
+            }
+
+            if (handle.message.finish === "length") {
+              // A length finish truncates provider output. Persisted parts identify
+              // text or tools worth one continuation; reasoning-only output must
+              // surface an error instead of ending silently. The previous finish
+              // bounds this to one attempt without adding loop state.
+              const current = yield* MessageV2.get({ sessionID, messageID: handle.message.id }).pipe(
+                Effect.provideService(Database.Service, database),
+                Effect.orElseSucceed(() => undefined),
+              )
+              const usable = current?.parts.some((part) => part.type === "text" || part.type === "tool") ?? false
+              if (usable && lastAssistant?.finish !== "length") return "continue" as const
+
+              handle.message.error = new SessionV1.OutputLengthError({}).toObject()
               yield* sessions.updateMessage(handle.message)
               return "break" as const
             }
