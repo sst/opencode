@@ -6,6 +6,7 @@ import { FSUtil } from "@opencode-ai/core/fs-util"
 import { LSP } from "@/lsp/lsp"
 import DESCRIPTION from "./read.txt"
 import { InstanceState } from "@/effect/instance-state"
+import { permissionPath } from "@/project/instance-context"
 import { assertExternalDirectoryEffect } from "./external-directory"
 import { Instruction } from "../session/instruction"
 import { isPdfAttachment, sniffAttachmentMime } from "@/util/media"
@@ -254,7 +255,7 @@ export const ReadTool = Tool.define<
 
       yield* ctx.ask({
         permission: "read",
-        patterns: [path.relative(instance.worktree, filepath)],
+        patterns: [permissionPath(filepath, instance)],
         always: ["*"],
         metadata: {},
       })

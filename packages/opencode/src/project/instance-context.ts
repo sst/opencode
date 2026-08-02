@@ -1,4 +1,5 @@
 import { LocalContext } from "@/util/local-context"
+import path from "path"
 import { FSUtil } from "@opencode-ai/core/fs-util"
 import type * as Project from "./project"
 
@@ -21,4 +22,10 @@ export function containsPath(filepath: string, ctx: InstanceContext): boolean {
   // Skip worktree check in this case to preserve external_directory permissions.
   if (ctx.worktree === "/") return false
   return FSUtil.contains(ctx.worktree, filepath)
+}
+
+export function permissionPath(filepath: string, ctx: InstanceContext): string {
+  // A root worktree is the non-git sentinel, not a project boundary.
+  if (ctx.worktree === "/" || !containsPath(filepath, ctx)) return filepath
+  return path.relative(ctx.worktree, filepath)
 }

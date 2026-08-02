@@ -13,6 +13,8 @@ import { EventV2Bridge } from "../../src/event-v2-bridge"
 import { Truncate } from "@/tool/truncate"
 import { TestInstance } from "../fixture/fixture"
 import { SessionID, MessageID } from "../../src/session/schema"
+import { PermissionV1 } from "@opencode-ai/core/v1/permission"
+import { Permission } from "../../src/permission"
 import { testEffect } from "../lib/effect"
 
 const it = testEffect(
@@ -73,6 +75,24 @@ const makeCtx = () => {
   return { ctx, calls }
 }
 
+const makeRulesCtx = (ruleset: PermissionV1.Ruleset) => {
+  const calls: AskInput[] = []
+  const ctx: ToolCtx = {
+    ...baseCtx,
+    ask: (input) =>
+      Effect.sync(() => {
+        calls.push(input)
+        if (input.permission === "external_directory") return
+        for (const pattern of input.patterns) {
+          const rule = Permission.evaluate(input.permission, pattern, ruleset)
+          if (rule.action !== "allow") throw new Error(`permission ${rule.action}: ${pattern}`)
+        }
+      }),
+  }
+
+  return { ctx, calls }
+}
+
 const readText = (filepath: string) => Effect.promise(() => fs.readFile(filepath, "utf-8"))
 const writeText = (filepath: string, content: string) => Effect.promise(() => fs.writeFile(filepath, content, "utf-8"))
 const makeDir = (dir: string) => Effect.promise(() => fs.mkdir(dir, { recursive: true }))
@@ -85,6 +105,33 @@ const expectFailure = <A, E, R>(effect: Effect.Effect<A, E, R>, message?: string
   })
 
 const expectReadFailure = (filepath: string) => expectFailure(readText(filepath))
+
+describe("tool.apply_patch permission paths", () => {
+  it.instance(
+    "checks absolute rules for every outside path in a multi-file patch",
+    () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        const outer = yield* Effect.promise(() => fs.mkdtemp(path.join(path.dirname(test.directory), "opencode-outside-")))
+        const first = path.join(outer, "first.txt")
+        const second = path.join(outer, "second.txt")
+        const firstRelative = path.relative(test.directory, first).replaceAll("\\", "/")
+        const secondRelative = path.relative(test.directory, second).replaceAll("\\", "/")
+        const patchText = `*** Begin Patch\n*** Add File: ${firstRelative}\n+first\n*** Add File: ${secondRelative}\n+second\n*** End Patch`
+        const { ctx, calls } = makeRulesCtx(
+          Permission.fromConfig({ edit: { "*": "allow", [`${outer}/**`]: "deny" } }),
+        )
+
+        const exit = yield* execute({ patchText }, ctx).pipe(Effect.exit)
+        expect(exit._tag).toBe("Failure")
+        expect(calls.at(-1)?.patterns).toEqual([first, second].map((file) => file.replaceAll("\\", "/")))
+        expect(yield* Effect.promise(() => fs.stat(first).catch(() => undefined))).toBeUndefined()
+        expect(yield* Effect.promise(() => fs.stat(second).catch(() => undefined))).toBeUndefined()
+        yield* Effect.promise(() => fs.rm(outer, { recursive: true, force: true }))
+      }),
+    { git: true },
+  )
+})
 
 describe("tool.apply_patch freeform", () => {
   it.live("requires patchText", () =>

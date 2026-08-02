@@ -3,6 +3,8 @@ import { afterEach, describe, expect } from "bun:test"
 import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { Cause, Effect, Exit, Layer, Stream } from "effect"
 import path from "path"
+import os from "os"
+import * as fs from "fs/promises"
 import { Agent } from "../../src/agent/agent"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { FSUtil } from "@opencode-ai/core/fs-util"
@@ -147,6 +149,54 @@ const asks = () => {
     },
   }
 }
+
+const askWithRules = (ruleset: PermissionV1.Ruleset) => ({
+  ...ctx,
+  ask: (input: Omit<PermissionV1.Request, "id" | "sessionID" | "tool">) =>
+    Effect.sync(() => {
+      if (input.permission === "external_directory") return
+      for (const pattern of input.patterns) {
+        const rule = Permission.evaluate(input.permission, pattern, ruleset)
+        if (rule.action !== "allow") throw new Error(`permission ${rule.action}: ${pattern}`)
+      }
+    }),
+})
+
+describe("tool.read permission paths", () => {
+  it.live("allows an outside-worktree absolute rule", () =>
+    Effect.gen(function* () {
+      const outer = yield* tmpdirScoped()
+      const dir = yield* tmpdirScoped({ git: true })
+      const filepath = path.join(outer, "allowed.txt")
+      yield* put(filepath, "allowed")
+
+      const result = yield* exec(
+        dir,
+        { filePath: filepath },
+        askWithRules(Permission.fromConfig({ read: { [`${outer}/**`]: "allow" } })),
+      )
+      expect(result.output).toContain("allowed")
+    }),
+  )
+
+  it.live("expands a tilde rule for an outside-worktree home path", () =>
+    Effect.gen(function* () {
+      const outer = yield* Effect.promise(() => fs.mkdtemp(path.join(os.homedir(), "opencode-permission-")))
+      const dir = yield* tmpdirScoped({ git: true })
+      const filepath = path.join(outer, "home-file.txt")
+      yield* put(filepath, "home content")
+
+      const rule = `~/${path.relative(os.homedir(), outer).replaceAll("\\", "/")}/**`
+      const result = yield* exec(
+        dir,
+        { filePath: filepath },
+        askWithRules(Permission.fromConfig({ read: { [rule]: "allow" } })),
+      )
+      expect(result.output).toContain("home content")
+      yield* Effect.promise(() => fs.rm(outer, { recursive: true, force: true }))
+    }),
+  )
+})
 
 describe("tool.read external_directory permission", () => {
   it.live("allows reading absolute path inside project directory", () =>
