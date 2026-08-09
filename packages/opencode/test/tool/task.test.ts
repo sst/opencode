@@ -1941,6 +1941,87 @@ describe("tool.task", () => {
     }),
   )
 
+  it.instance("cancels the child runner when the fallback attempt fails", () =>
+    Effect.gen(function* () {
+      const { chat, assistant } = yield* seed()
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      const prompts: SessionPrompt.PromptInput[] = []
+      const cancelRuns: number[] = []
+      const ops: TaskPromptOps = {
+        cancel: () => Effect.void,
+        cancelRun: () => Effect.sync(() => { cancelRuns.push(1) }),
+        resolvePromptParts: (template) => Effect.succeed([{ type: "text", text: template }]),
+        prompt: (input) => {
+          prompts.push(input)
+          return Effect.never
+        },
+      }
+
+      const exit = yield* def
+        .execute(
+          {
+            description: "d",
+            prompt: "p",
+            subagent_type: "general",
+            timeout: 100,
+            fallback_model: "openai/gpt-4o",
+          },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps: ops },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+        .pipe(Effect.exit)
+
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(prompts).toHaveLength(2)
+      expect(cancelRuns).toHaveLength(2)
+    }),
+  )
+
+  it.instance("does not cancel the child runner when the task succeeds", () =>
+    Effect.gen(function* () {
+      const { chat, assistant } = yield* seed()
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      const cancelRuns: number[] = []
+      const ops: TaskPromptOps = {
+        ...stubOps({
+          onPrompt: () => undefined,
+        }),
+        cancelRun: () => Effect.sync(() => { cancelRuns.push(1) }),
+      }
+
+      const result = yield* def.execute(
+        {
+          description: "d",
+          prompt: "p",
+          subagent_type: "general",
+        },
+        {
+          sessionID: chat.id,
+          messageID: assistant.id,
+          agent: "build",
+          abort: new AbortController().signal,
+          extra: { promptOps: ops },
+          messages: [],
+          metadata: () => Effect.void,
+          ask: () => Effect.void,
+        },
+      )
+
+      expect(result.output).toContain("done")
+      expect(cancelRuns).toHaveLength(0)
+    }),
+  )
+
   it.instance("timeout without fallback fails the task", () =>
     Effect.gen(function* () {
       const { chat, assistant } = yield* seed()

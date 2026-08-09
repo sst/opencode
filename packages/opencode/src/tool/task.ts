@@ -364,15 +364,21 @@ export const TaskTool = Tool.define(
           const eff = runAttempt({ modelID: m.modelID, providerID: m.providerID, variant: v })
           return params.timeout === undefined ? eff : eff.pipe(Effect.timeout(params.timeout))
         }
+        const cancelRun = () => ops.cancelRun(nextSession.id).pipe(Effect.ignore)
         const exit = yield* Effect.exit(attempt(model, primaryVariant))
         if (Exit.isSuccess(exit)) return exit.value
-        // Timeout interrupts the await, not the child runner; cancelRun stops that
+        // The timeout interrupts the await, not the child runner; cancelRun stops that
         // runner without canceling the enclosing background job.
-        yield* ops.cancelRun(nextSession.id).pipe(Effect.ignore)
+        yield* cancelRun()
         if (Exit.hasInterrupts(exit) || Exit.hasDies(exit) || fallbackModel === undefined)
           return yield* Effect.failCause(exit.cause)
         fallbackUsed = true
-        return yield* attempt(fallbackModel, params.variant ?? resumedVariant)
+        const fallbackExit = yield* Effect.exit(attempt(fallbackModel, params.variant ?? resumedVariant))
+        if (Exit.isFailure(fallbackExit)) {
+          yield* cancelRun()
+          return yield* Effect.failCause(fallbackExit.cause)
+        }
+        return fallbackExit.value
       })
 
       const inject = Effect.fn("TaskTool.injectBackgroundResult")(function* (
