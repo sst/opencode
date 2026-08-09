@@ -1946,9 +1946,25 @@ describe("tool.task", () => {
       const { chat, assistant } = yield* seed()
       const tool = yield* TaskTool
       const def = yield* tool.init()
+      const promptSessionIDs: SessionID[] = []
+      const cancelRunSessionIDs: SessionID[] = []
+      const cancelRunCalled = yield* Deferred.make<void>()
       const ops: TaskPromptOps = {
-        ...stubOps(),
-        prompt: () => Effect.never,
+        ...stubOps({
+          onPrompt: (input) => {
+            promptSessionIDs.push(input.sessionID)
+          },
+        }),
+        cancelRun: (sessionID) =>
+          Effect.gen(function* () {
+            cancelRunSessionIDs.push(sessionID)
+            yield* Deferred.succeed(cancelRunCalled, undefined)
+          }),
+        prompt: (input) =>
+          Effect.gen(function* () {
+            promptSessionIDs.push(input.sessionID)
+            return yield* (Effect.never as Effect.Effect<SessionV1.WithParts>)
+          }),
       }
 
       const exit = yield* def
@@ -1973,6 +1989,8 @@ describe("tool.task", () => {
         .pipe(Effect.exit)
 
       expect(Exit.isFailure(exit)).toBe(true)
+      yield* Deferred.await(cancelRunCalled).pipe(Effect.timeout("2 seconds"))
+      expect(cancelRunSessionIDs).toEqual([promptSessionIDs[0]])
     }),
   )
 

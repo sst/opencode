@@ -366,17 +366,12 @@ export const TaskTool = Tool.define(
         }
         const exit = yield* Effect.exit(attempt(model, primaryVariant))
         if (Exit.isSuccess(exit)) return exit.value
-        // Only fall back for typed failures (timeout or genuine errors). Interrupts
-        // (parent abort) and defects (bugs) must propagate, not retry.
-        // No ops.cancel here: Effect.timeout already interrupted the ops.prompt fiber,
-        // and calling cancel on this same session would self-cancel the enclosing
-        // background job (cancelBackgroundJobs matches job.id === sessionID).
+        // Timeout interrupts the await, not the child runner; cancelRun stops that
+        // runner without canceling the enclosing background job.
+        yield* ops.cancelRun(nextSession.id).pipe(Effect.ignore)
         if (Exit.hasInterrupts(exit) || Exit.hasDies(exit) || fallbackModel === undefined)
           return yield* Effect.failCause(exit.cause)
         fallbackUsed = true
-        // Cancel the child session's prompt runner (not the background job)
-        // so the fallback prompt can start a fresh run on the same session.
-        yield* ops.cancelRun(nextSession.id).pipe(Effect.ignore)
         return yield* attempt(fallbackModel, params.variant ?? resumedVariant)
       })
 
