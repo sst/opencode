@@ -182,8 +182,10 @@ describe("SessionSummary", () => {
           additions: 3,
           deletions: 2,
           files: 1,
-          diffs: [{ file: "side.ts", additions: 3, deletions: 2, status: "modified" }],
         })
+        expect(updated?.info.summary?.diffs).toEqual([
+          { file: "side.ts", additions: 3, deletions: 2, status: "modified" },
+        ])
         const diffs = yield* MessageDiff.Service
         expect(yield* diffs.get(messageID)).toEqual([...sideTableDiffs])
       }),
