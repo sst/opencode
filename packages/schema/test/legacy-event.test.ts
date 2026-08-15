@@ -13,6 +13,7 @@ describe("legacy public event schemas", () => {
       "session.deleted",
       "message.updated",
       "message.removed",
+      "message.diff.updated",
       "message.part.updated",
       "message.part.removed",
       "message.part.delta",
