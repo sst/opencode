@@ -178,12 +178,15 @@ describe("SessionSummary", () => {
         yield* sessionSummary.summarize({ sessionID, messageID })
         const session = yield* SessionNs.Service
         const updated = (yield* session.messages({ sessionID })).find((item) => item.info.id === messageID)
-        expect(updated?.info.summary).toMatchObject({
+        if (!updated || updated.info.role !== "user" || !updated.info.summary) {
+          throw new Error("expected a summarized user message")
+        }
+        expect(updated.info.summary).toMatchObject({
           additions: 3,
           deletions: 2,
           files: 1,
         })
-        expect(updated?.info.summary?.diffs).toEqual([
+        expect(updated.info.summary.diffs).toEqual([
           { file: "side.ts", additions: 3, deletions: 2, status: "modified" },
         ])
         const diffs = yield* MessageDiff.Service
