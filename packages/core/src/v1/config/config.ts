@@ -166,6 +166,13 @@ export const Info = Schema.Struct({
       }),
     }),
   ),
+  retention: Schema.optional(
+    Schema.Struct({
+      event_idle_days: Schema.optional(Schema.Number).annotate({
+        description: "Delete durable event history for sessions idle longer than this many days",
+      }),
+    }),
+  ).annotate({ description: "Retention settings for durable event history" }),
   experimental: Schema.optional(
     Schema.Struct({
       disable_paste_summary: Schema.optional(Schema.Boolean),
