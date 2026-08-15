@@ -64,6 +64,10 @@ function unquoteGitPath(input: string) {
   return Buffer.from(bytes).toString()
 }
 
+function stripPatches(diffs: ReadonlyArray<Snapshot.FileDiff>) {
+  return diffs.map(({ patch: _, ...diff }) => diff)
+}
+
 export interface Interface {
   readonly summarize: (input: { sessionID: SessionID; messageID: MessageID }) => Effect.Effect<void>
   readonly diff: (input: { sessionID: SessionID; messageID?: MessageID }) => Effect.Effect<Snapshot.FileDiff[]>
@@ -134,7 +138,7 @@ const layer = Layer.effect(
       )
       yield* messageDiffs.put({ messageID: input.messageID, diffs: msgDiffs })
        yield* sessions.setSummary({ sessionID: input.sessionID, summary: totals })
-       target.info.summary = { ...target.info.summary, ...totals, diffs: msgDiffs }
+       target.info.summary = { ...target.info.summary, ...totals, diffs: stripPatches(msgDiffs) }
        yield* sessions.updateMessage(target.info)
        yield* events.publish(Session.Event.DiffUpdated, { sessionID: input.sessionID, messageID: input.messageID })
      })
@@ -145,7 +149,7 @@ const layer = Layer.effect(
         (item) => item.info.id === input.messageID,
       )
       if (!message || message.info.role !== "user") return []
-      const diffs = (yield* messageDiffs.get(input.messageID)) ?? message.info.summary?.diffs ?? []
+       const diffs = (yield* messageDiffs.get(input.messageID)) ?? message.info.summary?.diffs ?? []
       return diffs.map((item) => {
         if (item.file === undefined) return item
         const file = unquoteGitPath(item.file)
