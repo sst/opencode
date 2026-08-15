@@ -115,7 +115,7 @@ describe("SessionSummary", () => {
   it.instance("returns the stored side-table row", () =>
     withSession(({ sessionID }) =>
       Effect.gen(function* () {
-        const messageID = yield* addUser({ sessionID, diffs: legacyDiffs })
+        const messageID = yield* addUser({ sessionID, diffs: [] })
         const diffs = yield* MessageDiff.Service
         yield* diffs.put({ messageID, diffs: sideTableDiffs })
         const summary = yield* SessionSummary.Service
