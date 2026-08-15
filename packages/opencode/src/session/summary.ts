@@ -1,6 +1,7 @@
 import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { Effect, Layer, Context, Schema } from "effect"
 import { SessionV1 } from "@opencode-ai/core/v1/session"
+import { MessageDiff } from "@opencode-ai/core/session/message-diff"
 import { EventV2Bridge } from "@/event-v2-bridge"
 import { Snapshot } from "@/snapshot"
 import { Session } from "./session"
@@ -75,6 +76,7 @@ const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const sessions = yield* Session.Service
+    const messageDiffs = yield* MessageDiff.Service
     const snapshot = yield* Snapshot.Service
     const events = yield* EventV2Bridge.Service
     const config = yield* Config.Service
@@ -122,7 +124,17 @@ const layer = Layer.effect(
       const target = messages.find((m) => m.info.id === input.messageID)
       if (!target || target.info.role !== "user") return
       const msgDiffs = yield* computeDiff({ messages })
-      target.info.summary = { ...target.info.summary, diffs: msgDiffs }
+      const totals = msgDiffs.reduce<{ additions: number; deletions: number; files: number }>(
+        (result, item) => ({
+          additions: result.additions + item.additions,
+          deletions: result.deletions + item.deletions,
+          files: result.files + 1,
+        }),
+        { additions: 0, deletions: 0, files: 0 },
+      )
+      yield* messageDiffs.put({ messageID: input.messageID, diffs: msgDiffs })
+      yield* sessions.setSummary({ sessionID: input.sessionID, summary: totals })
+      target.info.summary = { ...target.info.summary, ...totals, diffs: msgDiffs }
       yield* sessions.updateMessage(target.info)
     })
 
@@ -132,7 +144,7 @@ const layer = Layer.effect(
         (item) => item.info.id === input.messageID,
       )
       if (!message || message.info.role !== "user") return []
-      const diffs = message.info.summary?.diffs ?? []
+      const diffs = (yield* messageDiffs.get(input.messageID)) ?? message.info.summary?.diffs ?? []
       return diffs.map((item) => {
         if (item.file === undefined) return item
         const file = unquoteGitPath(item.file)
@@ -154,7 +166,7 @@ export type DiffInput = Schema.Schema.Type<typeof DiffInput>
 export const node = LayerNode.make({
   service: Service,
   layer: layer,
-  deps: [Session.node, Snapshot.node, EventV2Bridge.node, Config.node],
+  deps: [Session.node, MessageDiff.node, Snapshot.node, EventV2Bridge.node, Config.node],
 })
 
 export * as SessionSummary from "./summary"

@@ -337,11 +337,14 @@ export const User = Schema.Struct({
   }),
   format: Schema.optional(Format),
   summary: Schema.optional(
-    Schema.Struct({
-      title: Schema.optional(Schema.String),
-      body: Schema.optional(Schema.String),
-      diffs: Schema.Array(FileDiff.Info),
-    }),
+      Schema.Struct({
+        title: Schema.optional(Schema.String),
+        body: Schema.optional(Schema.String),
+        additions: optional(Schema.Finite),
+        deletions: optional(Schema.Finite),
+        files: optional(Schema.Finite),
+        diffs: Schema.Array(FileDiff.Info),
+      }),
   ),
   agent: Schema.String,
   model: Schema.Struct({
