@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import type { retry } from "@opencode-ai/core/util/retry"
 import type { FileDiffInfo, OpenCodeEvent, SessionApi } from "@opencode-ai/client/promise"
 import type { Message, OpencodeClient, Part, Session } from "@opencode-ai/sdk/v2/client"
+import { expandMessageDiff } from "@opencode-ai/session-ui/session-diff"
 import { createServerSession } from "./server-session"
 import type { ServerApi } from "@/utils/server"
 
@@ -402,6 +403,34 @@ describe("server session", () => {
 
     expect(store.data.message_diff[user.id]).toEqual([legacyDiff])
     expect(client.diffRequests).toEqual([])
+  })
+
+  test("defers stripped message diff patches until expansion", async () => {
+    const strippedDiff = {
+      file: "post-branch.ts",
+      additions: 1,
+      deletions: 1,
+      status: "modified" as const,
+    }
+    const user = userMessage("msg_user", {
+      summary: { additions: 1, deletions: 1, files: 1, diffs: [strippedDiff] } as UserMessage["summary"],
+    })
+    const client = messageClient(response([{ info: user, parts: [] }]))
+    const store = createServerSession(client)
+
+    await store.sync("child")
+
+    expect(client.diffRequests).toEqual([])
+
+    expandMessageDiff({
+      diff: strippedDiff,
+      cache: store.data.message_diff[user.id],
+      sessionID: user.sessionID,
+      messageID: user.id,
+      fetch: store.fetchMessageDiff,
+    })
+
+    expect(client.diffRequests).toEqual([{ sessionID: "child", messageID: user.id }])
   })
 
   test("fetches diffs for loaded user message count metadata", async () => {
