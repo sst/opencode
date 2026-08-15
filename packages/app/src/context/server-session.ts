@@ -43,6 +43,29 @@ function needsOlderTurnRoot(source: readonly SessionMessageInfo[]) {
   return boundary?.type === "assistant"
 }
 
+function normalizeMessageDiffs(
+  source: readonly {
+    file?: string
+    patch?: string
+    additions: number
+    deletions: number
+    status?: FileDiffInfo["status"]
+  }[],
+) {
+  return source.flatMap((diff) => {
+    if (diff.file === undefined || diff.patch === undefined) return []
+    return [
+      {
+        file: diff.file,
+        patch: diff.patch,
+        additions: diff.additions,
+        deletions: diff.deletions,
+        status: diff.status ?? "modified",
+      },
+    ]
+  })
+}
+
 type OptimisticItem = {
   message: Message
   parts: Part[]
@@ -197,6 +220,7 @@ export function createServerSession(
     info: {} as Record<string, Session | undefined>,
     session_status: {} as Record<string, SessionStatus>,
     session_diff: {} as Record<string, FileDiffInfo[]>,
+    message_diff: {} as Record<string, FileDiffInfo[] | undefined>,
     todo: {} as Record<string, Todo[]>,
     permission: {} as Record<string, PermissionRequest[]>,
     question: {} as Record<string, QuestionRequest[]>,
@@ -211,6 +235,9 @@ export function createServerSession(
   const requests = new Map<string, Promise<Session>>()
   const inflight = new Map<string, Promise<void>>()
   const inflightTodo = new Map<string, Promise<void>>()
+  const inflightMessageDiff = new Map<string, Promise<void>>()
+  const messageDiffGenerations = new Map<string, object>()
+  const messageDiffSessions = new Map<string, string>()
   const optimistic = new Map<string, Map<string, OptimisticItem>>()
   const v2 = createV2SessionReducer()
   const messageLoads = new Map<string, MessageLoadState>()
@@ -238,6 +265,47 @@ export function createServerSession(
     const created = {}
     generations.set(sessionID, created)
     return created
+  }
+  const clearMessageDiff = (messageID: string) => {
+    messageDiffGenerations.delete(messageID)
+    messageDiffSessions.delete(messageID)
+    inflightMessageDiff.delete(messageID)
+    setData(
+      produce((draft) => {
+        delete draft.message_diff[messageID]
+      }),
+    )
+  }
+  const seedMessageDiff = (message: Message) => {
+    if (message.role !== "user") return
+    const diffs = message.summary?.diffs
+    if (diffs !== undefined && (diffs.length > 0 || message.summary?.files === undefined || message.summary.files === 0)) {
+      messageDiffGenerations.set(message.id, {})
+      messageDiffSessions.set(message.id, message.sessionID)
+      setData("message_diff", message.id, normalizeMessageDiffs(diffs))
+      return
+    }
+    if (message.summary?.files === undefined) return
+    void fetchMessageDiff(message.sessionID, message.id)
+  }
+  const fetchMessageDiff = (sessionID: string, messageID: string) => {
+    const active = messageDiffGenerations.get(messageID) ?? {}
+    messageDiffGenerations.set(messageID, active)
+    messageDiffSessions.set(messageID, sessionID)
+    return runInflight(inflightMessageDiff, messageID, async () => {
+      try {
+        const response = await client.session.diff({ sessionID, messageID })
+        if (messageDiffGenerations.get(messageID) !== active) return
+        setData("message_diff", messageID, normalizeMessageDiffs(response.data ?? []))
+      } catch (error) {
+        if (import.meta.env.DEV)
+          console.debug("[session] failed to fetch message diff", {
+            sessionID,
+            messageID,
+            error: String(error).slice(0, 256),
+          })
+      }
+    })
   }
   const [meta, setMeta] = createStore({
     limit: {} as Record<string, number | undefined>,
@@ -494,6 +562,18 @@ export function createServerSession(
     })
     setData(
       produce((draft) => {
+        const messageIDs = new Set(messageDiffSessions.keys())
+        for (const sessionID of evicted) {
+          for (const message of draft.message[sessionID] ?? []) messageIDs.add(message.id)
+        }
+        for (const messageID of messageIDs) {
+          const sessionID = messageDiffSessions.get(messageID)
+          if (sessionID && !evicted.has(sessionID)) continue
+          messageDiffGenerations.delete(messageID)
+          messageDiffSessions.delete(messageID)
+          inflightMessageDiff.delete(messageID)
+          delete draft.message_diff[messageID]
+        }
         dropSessionCaches(draft, sessionIDs)
       }),
     )
@@ -609,7 +689,13 @@ export function createServerSession(
     setData("message", sessionID, reconcile(messages, { key: "id" }))
     setData(
       produce((draft) => {
-        for (const message of dropped) deleteMessageParts(draft, message.id)
+        for (const message of dropped) {
+          deleteMessageParts(draft, message.id)
+          delete draft.message_diff[message.id]
+          messageDiffGenerations.delete(message.id)
+          messageDiffSessions.delete(message.id)
+          inflightMessageDiff.delete(message.id)
+        }
       }),
     )
     return messageIDs
@@ -715,6 +801,7 @@ export function createServerSession(
     batch(() => {
       if (source) setData("session_message", sessionID, reconcile(source))
       const messageIDs = replaceMessages(sessionID, messages)
+      merged.session.forEach(seedMessageDiff)
       replaceParts(sessionID, merged.part, messageIDs, load)
       const orphans = orphanParts.get(sessionID)
       if (cleanupOrphans && page.complete && orphans) {
@@ -1048,6 +1135,7 @@ export function createServerSession(
         const messages = data.message[info.sessionID]
         if (!messages) {
           setData("message", info.sessionID, [info])
+          seedMessageDiff(info)
           return
         }
         const result = Binary.search(messages, messageKey(info), messageKey)
@@ -1058,6 +1146,7 @@ export function createServerSession(
             next.splice(result.index, 0, info)
             return next
           })
+        seedMessageDiff(info)
         return
       }
       case "message.removed": {
@@ -1079,6 +1168,7 @@ export function createServerSession(
         removedMessagesForSession.add(props.messageID)
         removedMessages.set(props.sessionID, removedMessagesForSession)
         clearOptimistic(props.sessionID, props.messageID)
+        clearMessageDiff(props.messageID)
         setData(
           produce((draft) => {
             const messages = draft.message[props.sessionID]
@@ -1089,6 +1179,11 @@ export function createServerSession(
             deleteMessageParts(draft, props.messageID)
           }),
         )
+        return
+      }
+      case "message.diff.updated": {
+        const props = event.properties as { sessionID: string; messageID: string }
+        void fetchMessageDiff(props.sessionID, props.messageID)
         return
       }
       case "message.part.updated": {

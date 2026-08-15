@@ -28,6 +28,9 @@ type Data = {
   session_diff: {
     [sessionID: string]: (SnapshotFileDiff | FileDiffInfo)[]
   }
+  message_diff: {
+    [messageID: string]: FileDiffInfo[] | undefined
+  }
   session_diff_preload?: {
     [sessionID: string]: PreloadMultiFileDiffResult<any>[]
   }

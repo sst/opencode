@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { retry } from "@opencode-ai/core/util/retry"
-import type { OpenCodeEvent, SessionApi } from "@opencode-ai/client/promise"
+import type { FileDiffInfo, OpenCodeEvent, SessionApi } from "@opencode-ai/client/promise"
 import type { Message, OpencodeClient, Part, Session } from "@opencode-ai/sdk/v2/client"
 import { createServerSession } from "./server-session"
 import type { ServerApi } from "@/utils/server"
@@ -26,6 +26,15 @@ type MessageResponse = {
   response: { headers: Headers }
 }
 type SingleMessageResponse = { data: MessageResponse["data"][number] }
+type DiffResponse = { data: FileDiffInfo[] }
+
+const fetchedDiff: FileDiffInfo = {
+  file: "fetched.ts",
+  patch: "@@ -1 +1 @@\n-old\n+new",
+  additions: 1,
+  deletions: 1,
+  status: "modified",
+}
 
 const userMessage = (id: string, input: Partial<UserMessage> = {}): UserMessage => ({
   id,
@@ -70,10 +79,12 @@ const response = (data: MessageResponse["data"] = [], cursor?: string): MessageR
 const singleResponse = (info: Message, parts: Part[] = []): SingleMessageResponse => ({ data: { info, parts } })
 
 const deferredResponse = () => Promise.withResolvers<MessageResponse>()
+const deferredDiffResponse = () => Promise.withResolvers<DiffResponse>()
 
 function messageClient(...responses: Array<MessageResponse | Promise<MessageResponse>>) {
   let index = 0
   const requests: unknown[] = []
+  const diffRequests: unknown[] = []
   const waiting = new Map<number, () => void>()
   const client = {
     session: {
@@ -83,6 +94,35 @@ function messageClient(...responses: Array<MessageResponse | Promise<MessageResp
         waiting.get(requests.length)?.()
         waiting.delete(requests.length)
         return responses[index++]
+      },
+      diff: async (input: unknown) => {
+        diffRequests.push(input)
+        return { data: [fetchedDiff] }
+      },
+    },
+  } as unknown as OpencodeClient
+  return Object.assign(client, {
+    requests,
+    diffRequests,
+    requested(count: number) {
+      if (requests.length >= count) return Promise.resolve()
+      return new Promise<void>((resolve) => waiting.set(count, resolve))
+    },
+  })
+}
+
+function pendingDiffClient(diff: Promise<DiffResponse>) {
+  const requests: unknown[] = []
+  const waiting = new Map<number, () => void>()
+  const client = {
+    session: {
+      get: async () => ({ data: session("child", "root") }),
+      messages: async () => response(),
+      diff: (input: unknown) => {
+        requests.push(input)
+        waiting.get(requests.length)?.()
+        waiting.delete(requests.length)
+        return diff
       },
     },
   } as unknown as OpencodeClient
@@ -342,6 +382,103 @@ describe("server session", () => {
 
     store.apply({ type: "message.removed", properties: { sessionID: "root", messageID: next.id } })
     expect(store.data.session_message.root.map((message) => message.id)).toEqual([user.id, assistant.id])
+  })
+
+  test("seeds inline message diffs when reopening without notifications", async () => {
+    const legacyDiff: FileDiffInfo = {
+      file: "legacy.ts",
+      patch: "@@ -1 +1 @@\n-old\n+new",
+      additions: 1,
+      deletions: 1,
+      status: "modified",
+    }
+    const user = userMessage("msg_user", {
+      summary: { additions: 1, deletions: 1, files: 1, diffs: [legacyDiff] } as UserMessage["summary"],
+    })
+    const client = messageClient(response([{ info: user, parts: [] }]))
+    const store = createServerSession(client)
+
+    await store.sync("child")
+
+    expect(store.data.message_diff[user.id]).toEqual([legacyDiff])
+    expect(client.diffRequests).toEqual([])
+  })
+
+  test("fetches diffs for loaded user message count metadata", async () => {
+    const user = userMessage("msg_user", {
+      summary: { additions: 1, deletions: 1, files: 1 } as UserMessage["summary"],
+    })
+    const client = messageClient(response([{ info: user, parts: [] }]))
+    const store = createServerSession(client)
+
+    await store.sync("child")
+
+    expect(client.diffRequests).toEqual([{ sessionID: "child", messageID: user.id }])
+    expect(store.data.message_diff[user.id]).toEqual([fetchedDiff])
+  })
+
+  test("refreshes message diffs from a deduplicated update without clearing the previous cache", async () => {
+    const next: FileDiffInfo = {
+      file: "updated.ts",
+      patch: "@@ -1 +1 @@\n-before\n+after",
+      additions: 2,
+      deletions: 1,
+      status: "modified",
+    }
+    const pending = deferredDiffResponse()
+    const client = pendingDiffClient(pending.promise)
+    const store = createServerSession(client)
+    const user = userMessage("msg_user", {
+      summary: { additions: 1, deletions: 1, files: 1 } as UserMessage["summary"],
+    })
+    store.set("message", "child", [user])
+    store.set("message_diff", user.id, [fetchedDiff])
+
+    store.apply({ type: "message.diff.updated", properties: { sessionID: "child", messageID: user.id } })
+    store.apply({ type: "message.diff.updated", properties: { sessionID: "child", messageID: user.id } })
+    await client.requested(1)
+
+    expect(client.requests).toEqual([{ sessionID: "child", messageID: user.id }])
+    expect(store.data.message_diff[user.id]).toEqual([fetchedDiff])
+
+    pending.resolve({ data: [next] })
+    await Promise.resolve()
+
+    expect(store.data.message_diff[user.id]).toEqual([next])
+  })
+
+  test("drops cached message diffs when its message is removed", () => {
+    const user = userMessage("msg_user")
+    const store = setup({ child: session("child") }).store
+    store.set("message", "child", [user])
+    store.set("message_diff", user.id, [fetchedDiff])
+
+    store.apply({ type: "message.removed", properties: { sessionID: "child", messageID: user.id } })
+
+    expect(store.data.message_diff[user.id]).toBeUndefined()
+  })
+
+  test("drops cached message diffs when its session is evicted", () => {
+    const user = userMessage("msg_user")
+    const store = setup({ child: session("child") }).store
+    store.set("message", "child", [user])
+    store.set("message_diff", user.id, [fetchedDiff])
+
+    store.apply({ type: "session.deleted", properties: { sessionID: "child" } })
+
+    expect(store.data.message_diff[user.id]).toBeUndefined()
+  })
+
+  test("drops cached message diffs when a refresh removes their message", async () => {
+    const user = userMessage("msg_user")
+    const client = messageClient(response([{ info: user, parts: [] }]), response())
+    const store = createServerSession(client)
+    await store.sync("child")
+    store.set("message_diff", user.id, [fetchedDiff])
+
+    await store.sync("child", { force: true })
+
+    expect(store.data.message_diff[user.id]).toBeUndefined()
   })
 
   test("backfills an assistant-only initial page through its user root", async () => {

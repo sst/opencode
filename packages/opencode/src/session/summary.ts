@@ -133,10 +133,11 @@ const layer = Layer.effect(
         { additions: 0, deletions: 0, files: 0 },
       )
       yield* messageDiffs.put({ messageID: input.messageID, diffs: msgDiffs })
-      yield* sessions.setSummary({ sessionID: input.sessionID, summary: totals })
-      target.info.summary = { ...target.info.summary, ...totals, diffs: msgDiffs }
-      yield* sessions.updateMessage(target.info)
-    })
+       yield* sessions.setSummary({ sessionID: input.sessionID, summary: totals })
+       target.info.summary = { ...target.info.summary, ...totals, diffs: msgDiffs }
+       yield* sessions.updateMessage(target.info)
+       yield* events.publish(Session.Event.DiffUpdated, { sessionID: input.sessionID, messageID: input.messageID })
+     })
 
     const diff = Effect.fn("SessionSummary.diff")(function* (input: { sessionID: SessionID; messageID?: MessageID }) {
       if (!input.messageID) return []

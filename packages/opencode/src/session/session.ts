@@ -325,6 +325,7 @@ export const Event = {
   Updated: SessionV1.Event.Updated,
   Deleted: SessionV1.Event.Deleted,
   Diff: SessionV1.Event.Diff,
+  DiffUpdated: SessionV1.Event.DiffUpdated,
   Error: SessionV1.Event.Error,
 }
 

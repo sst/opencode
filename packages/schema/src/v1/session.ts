@@ -612,6 +612,14 @@ const events = {
       messageID: MessageID,
     },
   }),
+  DiffUpdated: define({
+    type: "message.diff.updated",
+    ...options,
+    schema: {
+      sessionID: SessionID,
+      messageID: MessageID,
+    },
+  }),
   PartUpdated: define({
     type: "message.part.updated",
     ...options,
@@ -670,6 +678,7 @@ export const Event = {
     events.Deleted,
     events.MessageUpdated,
     events.MessageRemoved,
+    events.DiffUpdated,
     events.PartUpdated,
     events.PartRemoved,
     PartDelta,

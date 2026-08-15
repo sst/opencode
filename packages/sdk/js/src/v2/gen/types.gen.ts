@@ -14,6 +14,7 @@ export type Event =
   | EventSessionDeleted
   | EventMessageUpdated
   | EventMessageRemoved
+  | EventMessageDiffUpdated
   | EventMessagePartUpdated
   | EventMessagePartRemoved
   | EventSessionNextAgentSwitched
@@ -247,6 +248,9 @@ export type UserMessage = {
   summary?: {
     title?: string
     body?: string
+    additions?: number
+    deletions?: number
+    files?: number
     diffs: Array<SnapshotFileDiff>
   }
   agent: string
@@ -795,6 +799,14 @@ export type GlobalEvent = {
     | {
         id: string
         type: "message.removed"
+        properties: {
+          sessionID: string
+          messageID: string
+        }
+      }
+    | {
+        id: string
+        type: "message.diff.updated"
         properties: {
           sessionID: string
           messageID: string
@@ -1606,6 +1618,7 @@ export type GlobalEvent = {
     | SyncEventSessionDeleted
     | SyncEventMessageUpdated
     | SyncEventMessageRemoved
+    | SyncEventMessageDiffUpdated
     | SyncEventMessagePartUpdated
     | SyncEventMessagePartRemoved
     | SyncEventSessionNextAgentSwitched
@@ -2865,6 +2878,7 @@ export type V2Event =
   | SessionDeleted
   | MessageUpdated
   | MessageRemoved
+  | MessageDiffUpdated
   | MessagePartUpdated
   | MessagePartRemoved
   | SessionNextAgentSwitched
@@ -3259,6 +3273,21 @@ export type SyncEventMessageRemoved = {
   id: string
   syncEvent: {
     type: "message.removed.1"
+    id: string
+    seq: number
+    aggregateID: string
+    data: {
+      sessionID: string
+      messageID: string
+    }
+  }
+}
+
+export type SyncEventMessageDiffUpdated = {
+  type: "sync"
+  id: string
+  syncEvent: {
+    type: "message.diff.updated.1"
     id: string
     seq: number
     aggregateID: string
@@ -5182,6 +5211,24 @@ export type MessageRemoved = {
   }
 }
 
+export type MessageDiffUpdated = {
+  id: string
+  metadata?: {
+    [key: string]: unknown
+  }
+  type: "message.diff.updated"
+  durable?: {
+    aggregateID: string
+    seq: number
+    version: number
+  }
+  location?: LocationRef
+  data: {
+    sessionID: string
+    messageID: string
+  }
+}
+
 export type MessagePartUpdated = {
   id: string
   metadata?: {
@@ -6225,6 +6272,15 @@ export type EventMessageUpdated = {
 export type EventMessageRemoved = {
   id: string
   type: "message.removed"
+  properties: {
+    sessionID: string
+    messageID: string
+  }
+}
+
+export type EventMessageDiffUpdated = {
+  id: string
+  type: "message.diff.updated"
   properties: {
     sessionID: string
     messageID: string

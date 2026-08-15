@@ -58,6 +58,7 @@ function directoryState() {
       return this.session_status[id]?.type !== "idle"
     },
     session_diff: {},
+    message_diff: {},
     todo: {},
     permission: {},
     question: {},

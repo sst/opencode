@@ -35,15 +35,29 @@ export function message(value: Message): Message {
 
   const title = typeof raw.title === "string" ? raw.title : undefined
   const body = typeof raw.body === "string" ? raw.body : undefined
+  const additions = typeof raw.additions === "number" ? raw.additions : undefined
+  const deletions = typeof raw.deletions === "number" ? raw.deletions : undefined
+  const files = typeof raw.files === "number" ? raw.files : undefined
   const next = diffs(raw.diffs)
 
-  if (title === raw.title && body === raw.body && next === raw.diffs) return value
+  if (
+    title === raw.title &&
+    body === raw.body &&
+    additions === raw.additions &&
+    deletions === raw.deletions &&
+    files === raw.files &&
+    next === raw.diffs
+  )
+    return value
 
   return {
     ...value,
     summary: {
       ...(title === undefined ? {} : { title }),
       ...(body === undefined ? {} : { body }),
+      ...(additions === undefined ? {} : { additions }),
+      ...(deletions === undefined ? {} : { deletions }),
+      ...(files === undefined ? {} : { files }),
       diffs: next,
     },
   }
