@@ -612,9 +612,12 @@ const events = {
       messageID: MessageID,
     },
   }),
+  // Ephemeral: the message_diff side table holds the state, so a missed
+  // notification costs a stale row until the next fetch. Durable would make
+  // readAfter's decode throw InvalidDurableEventError on any reader whose
+  // manifest predates this event.
   DiffUpdated: define({
     type: "message.diff.updated",
-    ...options,
     schema: {
       sessionID: SessionID,
       messageID: MessageID,
