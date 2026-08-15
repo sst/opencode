@@ -1395,6 +1395,7 @@ export function createServerSession(
     peek: (sessionID: string) => data.info[sessionID],
     remember,
     resolve,
+    fetchMessageDiff,
     lineage: {
       peek: peekLineage,
       async resolve(sessionID: string) {

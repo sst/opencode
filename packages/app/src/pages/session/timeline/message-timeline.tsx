@@ -52,11 +52,12 @@ import type {
   ToolPart,
   UserMessage,
 } from "@opencode-ai/sdk/v2"
+import type { FileDiffInfo } from "@opencode-ai/client/promise"
 import { showToast } from "@/utils/toast"
 import { downloadSessionExport, fetchSessionExport, sessionExportFilename } from "@/utils/session-export"
 import { getDirectory, getFilename } from "@opencode-ai/core/util/path"
 import { Popover as KobaltePopover } from "@kobalte/core/popover"
-import { normalize } from "@opencode-ai/session-ui/session-diff"
+import { expandMessageDiff, normalize, resolveMessageDiff } from "@opencode-ai/session-ui/session-diff"
 import { useFileComponent } from "@opencode-ai/ui/context/file"
 import { shouldMarkBoundaryGesture, normalizeWheelDelta } from "@/pages/session/message-gesture"
 import { SessionContextUsage } from "@/components/session-context-usage"
@@ -142,8 +143,9 @@ function TimelineThinkingRow(props: { reasoningHeading?: string; showReasoningSu
   )
 }
 
-function TimelineDiffSummaryRow(props: { diffs: SummaryDiff[] }) {
+function TimelineDiffSummaryRow(props: { diffs: SummaryDiff[]; sessionID: string; messageID: string }) {
   const language = useLanguage()
+  const sync = useSync()
   const maxFiles = 10
   const [state, setState] = createStore({
     showAll: false,
@@ -176,7 +178,20 @@ function TimelineDiffSummaryRow(props: { diffs: SummaryDiff[] }) {
           multiple
           style={{ "--sticky-accordion-offset": "44px" }}
           value={expanded()}
-          onChange={(value) => setState("expanded", Array.isArray(value) ? value : value ? [value] : [])}
+          onChange={(value) => {
+            const next = Array.isArray(value) ? value : value ? [value] : []
+            setState("expanded", next)
+            for (const diff of visible()) {
+              if (!next.includes(diff.file)) continue
+              void expandMessageDiff({
+                diff,
+                cache: sync().data.message_diff[props.messageID],
+                sessionID: props.sessionID,
+                messageID: props.messageID,
+                fetch: sync().session.fetchMessageDiff,
+              })
+            }
+          }}
         >
           <For each={visible()}>
             {(diff) => {
@@ -206,7 +221,7 @@ function TimelineDiffSummaryRow(props: { diffs: SummaryDiff[] }) {
                   </StickyAccordionHeader>
                   <Accordion.Content>
                     <Show when={opened()}>
-                      <TimelineDiffView diff={diff} />
+                      <TimelineDiffView diff={diff} cache={sync().data.message_diff[props.messageID]} />
                     </Show>
                   </Accordion.Content>
                 </Accordion.Item>
@@ -224,14 +239,18 @@ function TimelineDiffSummaryRow(props: { diffs: SummaryDiff[] }) {
   )
 }
 
-function TimelineDiffView(props: { diff: SummaryDiff }) {
+function TimelineDiffView(props: { diff: SummaryDiff; cache?: FileDiffInfo[] }) {
   const fileComponent = useFileComponent()
-  const view = normalize(props.diff)
+  const source = createMemo(() => resolveMessageDiff(props.diff, props.cache))
+  const view = createMemo(() => normalize(source()))
+  const loaded = createMemo(() => typeof source().patch === "string")
 
   return (
-    <div data-slot="session-turn-diff-view" data-scrollable>
-      <Dynamic component={fileComponent} mode="diff" virtualize={false} fileDiff={view.fileDiff} />
-    </div>
+    <Show when={loaded()}>
+      <div data-slot="session-turn-diff-view" data-scrollable>
+        <Dynamic component={fileComponent} mode="diff" virtualize={false} fileDiff={view().fileDiff} />
+      </div>
+    </Show>
   )
 }
 
@@ -1206,7 +1225,11 @@ export function MessageTimeline(props: {
         return (
           <TimelineRowFrame row={diffSummaryRow}>
             <div data-slot="session-turn-message-container" class="w-full px-4 md:px-5">
-              <TimelineDiffSummaryRow diffs={diffSummaryRow().diffs} />
+              <TimelineDiffSummaryRow
+                diffs={diffSummaryRow().diffs}
+                sessionID={sessionID()!}
+                messageID={diffSummaryRow().userMessageID}
+              />
             </div>
           </TimelineRowFrame>
         )

@@ -25,7 +25,7 @@ import { SessionRetry } from "./session-retry"
 import { TextReveal } from "@opencode-ai/ui/text-reveal"
 import { createAutoScroll } from "@opencode-ai/ui/hooks"
 import { useI18n } from "@opencode-ai/ui/context/i18n"
-import { normalize } from "./session-diff"
+import { expandMessageDiff, normalize, resolveMessageDiff } from "./session-diff"
 
 function record(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value)
@@ -451,15 +451,30 @@ export function SessionTurn(
                     </Show>
                   </div>
                   <div data-component="session-turn-diffs-content">
-                    <Accordion
-                      multiple
-                      style={{ "--sticky-accordion-offset": "44px" }}
-                      value={expanded()}
-                      onChange={(value) => setState("expanded", Array.isArray(value) ? value : value ? [value] : [])}
+                        <Accordion
+                          multiple
+                          style={{ "--sticky-accordion-offset": "44px" }}
+                          value={expanded()}
+                          onChange={(value) => {
+                            const next = Array.isArray(value) ? value : value ? [value] : []
+                            setState("expanded", next)
+                            for (const diff of visible()) {
+                              if (!next.includes(diff.file)) continue
+                              void expandMessageDiff({
+                                diff,
+                                cache: data.store.message_diff[props.messageID],
+                                sessionID: props.sessionID,
+                                messageID: props.messageID,
+                                fetch: data.fetchMessageDiff,
+                              })
+                            }
+                          }}
                     >
                       <For each={visible()}>
                         {(diff) => {
-                          const view = normalize(diff)
+                          const source = createMemo(() => resolveMessageDiff(diff, data.store.message_diff[props.messageID]))
+                          const view = createMemo(() => normalize(source()))
+                          const loaded = createMemo(() => typeof source().patch === "string")
                           const active = createMemo(() => expanded().includes(diff.file))
                           const [shown, setShown] = createSignal(false)
 
@@ -507,9 +522,11 @@ export function SessionTurn(
                               </StickyAccordionHeader>
                               <Accordion.Content>
                                 <Show when={shown()}>
-                                  <div data-slot="session-turn-diff-view" data-scrollable>
-                                    <Dynamic component={fileComponent} mode="diff" fileDiff={view.fileDiff} />
-                                  </div>
+                                  <Show when={loaded()}>
+                                    <div data-slot="session-turn-diff-view" data-scrollable>
+                                      <Dynamic component={fileComponent} mode="diff" fileDiff={view().fileDiff} />
+                                    </div>
+                                  </Show>
                                 </Show>
                               </Accordion.Content>
                             </Accordion.Item>

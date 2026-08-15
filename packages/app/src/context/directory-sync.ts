@@ -12,6 +12,7 @@ const sessionFields = new Set([
   "session_status",
   "session_working",
   "session_diff",
+  "message_diff",
   "todo",
   "permission",
   "question",
@@ -118,6 +119,7 @@ export const createDirSyncContext = (
       },
       todo: serverSync.session.todo,
       history: serverSync.session.history,
+      fetchMessageDiff: serverSync.session.fetchMessageDiff,
       evict(sessionID: string) {
         serverSync.session.evict(sessionID)
       },
