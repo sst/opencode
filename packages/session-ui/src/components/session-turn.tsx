@@ -453,31 +453,35 @@ export function SessionTurn(
                     </Show>
                   </div>
                   <div data-component="session-turn-diffs-content">
-                        <Accordion
-                          multiple
-                          style={{ "--sticky-accordion-offset": "44px" }}
-                          value={expanded()}
-                          onChange={(value) => {
-                            const next = Array.isArray(value) ? value : value ? [value] : []
-                            setState("expanded", next)
-                            for (const diff of visible()) {
-                              if (!next.includes(diff.file)) continue
-                              void expandMessageDiff({
-                                diff,
-                                cache: data.store.message_diff[props.messageID],
-                                sessionID: props.sessionID,
-                                messageID: props.messageID,
-                                fetch: data.fetchMessageDiff,
-                              })
-                            }
-                          }}
+                    <Accordion
+                      multiple
+                      style={{ "--sticky-accordion-offset": "44px" }}
+                      value={expanded()}
+                      onChange={(value) => {
+                        const next = Array.isArray(value) ? value : value ? [value] : []
+                        setState("expanded", next)
+                        for (const diff of visible()) {
+                          if (!next.includes(diff.file)) continue
+                          void expandMessageDiff({
+                            diff,
+                            cache: data.store.message_diff[props.messageID],
+                            sessionID: props.sessionID,
+                            messageID: props.messageID,
+                            fetch: data.fetchMessageDiff,
+                          })
+                        }
+                      }}
                     >
                       <For each={visible()}>
                         {(diff) => {
-                          const source = createMemo(() => resolveMessageDiff(diff, data.store.message_diff[props.messageID]))
+                          const source = createMemo(() =>
+                            resolveMessageDiff(diff, data.store.message_diff[props.messageID]),
+                          )
                           const view = createMemo(() => normalize(source()))
                           const loaded = createMemo(() => typeof source().patch === "string")
-                          const diffState = createMemo(() => data.store.message_diff_status?.[props.messageID] ?? "absent")
+                          const diffState = createMemo(
+                            () => data.store.message_diff_status?.[props.messageID] ?? "absent",
+                          )
                           const active = createMemo(() => expanded().includes(diff.file))
                           const [shown, setShown] = createSignal(false)
 

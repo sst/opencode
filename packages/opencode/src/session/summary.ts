@@ -137,11 +137,11 @@ const layer = Layer.effect(
         { additions: 0, deletions: 0, files: 0 },
       )
       yield* messageDiffs.put({ messageID: input.messageID, diffs: msgDiffs })
-       yield* sessions.setSummary({ sessionID: input.sessionID, summary: totals })
-       target.info.summary = { ...target.info.summary, ...totals, diffs: stripPatches(msgDiffs) }
-       yield* sessions.updateMessage(target.info)
-       yield* events.publish(Session.Event.DiffUpdated, { sessionID: input.sessionID, messageID: input.messageID })
-     })
+      yield* sessions.setSummary({ sessionID: input.sessionID, summary: totals })
+      target.info.summary = { ...target.info.summary, ...totals, diffs: stripPatches(msgDiffs) }
+      yield* sessions.updateMessage(target.info)
+      yield* events.publish(Session.Event.DiffUpdated, { sessionID: input.sessionID, messageID: input.messageID })
+    })
 
     const diff = Effect.fn("SessionSummary.diff")(function* (input: { sessionID: SessionID; messageID?: MessageID }) {
       if (!input.messageID) return []
@@ -149,7 +149,7 @@ const layer = Layer.effect(
         (item) => item.info.id === input.messageID,
       )
       if (!message || message.info.role !== "user") return []
-       const diffs = (yield* messageDiffs.get(input.messageID)) ?? message.info.summary?.diffs ?? []
+      const diffs = (yield* messageDiffs.get(input.messageID)) ?? message.info.summary?.diffs ?? []
       return diffs.map((item) => {
         if (item.file === undefined) return item
         const file = unquoteGitPath(item.file)
