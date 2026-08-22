@@ -373,6 +373,68 @@ describe("tool.task", () => {
     }),
   )
 
+  it.instance("uses a fallback when a foreground task error string is blank", () =>
+    Effect.gen(function* () {
+      const { chat, assistant } = yield* seed()
+      let error = ""
+      const fakeBackground: BackgroundJob.Interface = {
+        list: () => Effect.succeed([]),
+        get: () => Effect.succeed(undefined),
+        start: (input) =>
+          Effect.succeed({
+            id: input.id ?? "task",
+            type: input.type,
+            title: input.title,
+            status: "running",
+            started_at: 0,
+            metadata: input.metadata,
+          }),
+        extend: () => Effect.succeed(false),
+        wait: () => Effect.succeed({ timedOut: false, info: { id: "task", type: "task", status: "error", started_at: 0, error } }),
+        waitForPromotion: () => Effect.never,
+        promote: () => Effect.succeed(undefined),
+        cancel: () => Effect.succeed(undefined),
+      }
+      const task = yield* TaskTool.pipe(Effect.provideService(BackgroundJob.Service, fakeBackground))
+      const def = yield* task.init()
+      const execute = () =>
+        def.execute(
+          {
+            description: "inspect bug",
+            prompt: "look into the cache key path",
+            subagent_type: "general",
+          },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps: stubOps() },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+
+      const blank = yield* execute().pipe(Effect.exit)
+      expect(Exit.isFailure(blank)).toBe(true)
+      if (Exit.isFailure(blank)) {
+        const failure = Cause.squash(blank.cause)
+        expect(failure).toBeInstanceOf(Error)
+        if (failure instanceof Error) expect(failure.message).toBe("Task failed")
+      }
+
+      error = "real task error"
+      const real = yield* execute().pipe(Effect.exit)
+      expect(Exit.isFailure(real)).toBe(true)
+      if (Exit.isFailure(real)) {
+        const failure = Cause.squash(real.cause)
+        expect(failure).toBeInstanceOf(Error)
+        if (failure instanceof Error) expect(failure.message).toBe("real task error")
+      }
+    }),
+  )
+
   it.instance("persists dispatch metadata on the child session", () =>
     Effect.gen(function* () {
       const sessions = yield* Session.Service
@@ -1145,6 +1207,95 @@ describe("tool.task", () => {
       expect(result.metadata.background).toBe(true)
       expect(result.output).toContain(`state="running"`)
       expect(job?.status).toBe("running")
+    }),
+  )
+
+  background.instance("notifies the parent with a fallback when a background task error is blank", () =>
+    Effect.gen(function* () {
+      const { chat, assistant } = yield* seed()
+      const injected = yield* Deferred.make<SessionPrompt.PromptInput>()
+      let error = ""
+      const fakeBackground: BackgroundJob.Interface = {
+        list: () => Effect.succeed([]),
+        get: () => Effect.succeed(undefined),
+        start: (input) =>
+          Effect.succeed({
+            id: input.id ?? "task",
+            type: input.type,
+            title: input.title,
+            status: "running",
+            started_at: 0,
+            metadata: input.metadata,
+          }),
+        extend: () => Effect.succeed(false),
+        wait: () => Effect.succeed({ timedOut: false, info: { id: "task", type: "task", status: "error", started_at: 0, error } }),
+        waitForPromotion: () => Effect.never,
+        promote: () => Effect.succeed(undefined),
+        cancel: () => Effect.succeed(undefined),
+      }
+      const task = yield* TaskTool.pipe(Effect.provideService(BackgroundJob.Service, fakeBackground))
+      const def = yield* task.init()
+      const promptOps: TaskPromptOps = {
+        cancel: () => Effect.void,
+        cancelRun: () => Effect.void,
+        resolvePromptParts: (template) => Effect.succeed([{ type: "text" as const, text: template }]),
+        prompt: (input) => {
+          if (input.sessionID === chat.id) return Deferred.succeed(injected, input).pipe(Effect.as(reply(input, "injected")))
+          return Effect.succeed(reply(input, "done"))
+        },
+      }
+      const execute = () =>
+        def.execute(
+          {
+            description: "inspect bug",
+            prompt: "look into the cache key path",
+            subagent_type: "general",
+            background: true,
+          },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+
+      yield* execute()
+      const blank = yield* Deferred.await(injected)
+      expect(blank.parts[0]?.type).toBe("text")
+      if (blank.parts[0]?.type === "text") expect(blank.parts[0].text).toContain("Task failed")
+
+      error = "real task error"
+      const injectedReal = yield* Deferred.make<SessionPrompt.PromptInput>()
+      const realPromptOps: TaskPromptOps = {
+        ...promptOps,
+        prompt: (input) => Deferred.succeed(injectedReal, input).pipe(Effect.as(reply(input, "injected"))),
+      }
+      yield* def.execute(
+        {
+          description: "inspect bug",
+          prompt: "look into the cache key path",
+          subagent_type: "general",
+          background: true,
+        },
+        {
+          sessionID: chat.id,
+          messageID: assistant.id,
+          agent: "build",
+          abort: new AbortController().signal,
+          extra: { promptOps: realPromptOps },
+          messages: [],
+          metadata: () => Effect.void,
+          ask: () => Effect.void,
+        },
+      )
+      const real = yield* Deferred.await(injectedReal)
+      expect(real.parts[0]?.type).toBe("text")
+      if (real.parts[0]?.type === "text") expect(real.parts[0].text).toContain("real task error")
     }),
   )
 
