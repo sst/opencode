@@ -536,25 +536,35 @@ export function SessionTurn(
                                 <Show when={shown() && !loaded() && diffState() === "pending"}>
                                   <div data-slot="session-turn-diff-loading" class="flex items-center gap-2">
                                     <Spinner class="size-4" />
-                                    <span>{i18n.t("ui.sessionTurn.diffs.loading")}</span>
+                                    <span>
+                                      {i18n.t("ui.fileMedia.state.loading", {
+                                        kind: i18n.t("ui.fileMedia.kind.diff"),
+                                      })}
+                                    </span>
                                   </div>
                                 </Show>
                                 <Show when={shown() && !loaded() && diffState() === "failed"}>
                                   <Card variant="error" class="error-card" data-slot="session-turn-diff-error">
                                     <div class="flex items-center gap-2">
-                                      <span>{i18n.t("ui.sessionTurn.diffs.failed")}</span>
+                                      <span>
+                                        {i18n.t("ui.fileMedia.state.error", {
+                                          kind: i18n.t("ui.fileMedia.kind.diff"),
+                                        })}
+                                      </span>
                                       <Button
                                         size="small"
                                         onClick={() => void data.fetchMessageDiff?.(props.sessionID, props.messageID)}
                                       >
-                                        {i18n.t("ui.sessionTurn.diffs.retry")}
+                                        {i18n.t("ui.common.retry")}
                                       </Button>
                                     </div>
                                   </Card>
                                 </Show>
                                 <Show when={shown() && !loaded() && diffState() === "absent"}>
                                   <div data-slot="session-turn-diff-unavailable">
-                                    {i18n.t("ui.sessionTurn.diffs.unavailable")}
+                                    {i18n.t("ui.fileMedia.state.unavailable", {
+                                      kind: i18n.t("ui.fileMedia.kind.diff"),
+                                    })}
                                   </div>
                                 </Show>
                               </Accordion.Content>
