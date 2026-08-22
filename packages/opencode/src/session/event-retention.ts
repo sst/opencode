@@ -46,11 +46,8 @@ export const layer = Layer.effect(
         .pipe(Effect.orDie)
       if (!sessions.length) return { sessions: 0, events: 0 }
 
-      const history = yield* db
-        .select({ id: EventTable.id })
-        .from(EventTable)
-        .where(inArray(EventTable.aggregate_id, sessions.map((session) => session.id)))
-        .all()
+      const eventCount = yield* db
+        .$count(EventTable, inArray(EventTable.aggregate_id, sessions.map((session) => session.id)))
         .pipe(Effect.orDie)
 
       yield* Effect.forEach(
@@ -62,8 +59,8 @@ export const layer = Layer.effect(
         { concurrency: 1 },
       )
 
-      yield* Effect.logInfo("swept event history", { sessions: sessions.length, events: history.length })
-      return { sessions: sessions.length, events: history.length }
+      yield* Effect.logInfo("swept event history", { sessions: sessions.length, events: eventCount })
+      return { sessions: sessions.length, events: eventCount }
     })
 
     yield* Effect.suspend(() => sweep(Date.now())).pipe(
