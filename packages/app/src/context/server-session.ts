@@ -221,6 +221,7 @@ export function createServerSession(
     session_status: {} as Record<string, SessionStatus>,
     session_diff: {} as Record<string, FileDiffInfo[]>,
     message_diff: {} as Record<string, FileDiffInfo[] | undefined>,
+    message_diff_status: {} as Record<string, "pending" | "failed" | "absent" | undefined>,
     todo: {} as Record<string, Todo[]>,
     permission: {} as Record<string, PermissionRequest[]>,
     question: {} as Record<string, QuestionRequest[]>,
@@ -273,6 +274,7 @@ export function createServerSession(
     setData(
       produce((draft) => {
         delete draft.message_diff[messageID]
+        delete draft.message_diff_status[messageID]
       }),
     )
   }
@@ -283,6 +285,7 @@ export function createServerSession(
       messageDiffGenerations.set(message.id, {})
       messageDiffSessions.set(message.id, message.sessionID)
       setData("message_diff", message.id, normalizeMessageDiffs(diffs))
+      setData("message_diff_status", message.id, undefined)
       return
     }
     if (message.summary?.files === undefined) return
@@ -292,12 +295,17 @@ export function createServerSession(
     const active = messageDiffGenerations.get(messageID) ?? {}
     messageDiffGenerations.set(messageID, active)
     messageDiffSessions.set(messageID, sessionID)
+    setData("message_diff_status", messageID, "pending")
     return runInflight(inflightMessageDiff, messageID, async () => {
       try {
         const response = await client.session.diff({ sessionID, messageID })
         if (messageDiffGenerations.get(messageID) !== active) return
-        setData("message_diff", messageID, normalizeMessageDiffs(response.data ?? []))
+        const diffs = normalizeMessageDiffs(response.data ?? [])
+        setData("message_diff", messageID, diffs)
+        setData("message_diff_status", messageID, diffs.length ? undefined : "absent")
       } catch (error) {
+        if (messageDiffGenerations.get(messageID) !== active) return
+        setData("message_diff_status", messageID, "failed")
         if (import.meta.env.DEV)
           console.debug("[session] failed to fetch message diff", {
             sessionID,
@@ -573,6 +581,7 @@ export function createServerSession(
           messageDiffSessions.delete(messageID)
           inflightMessageDiff.delete(messageID)
           delete draft.message_diff[messageID]
+          delete draft.message_diff_status[messageID]
         }
         dropSessionCaches(draft, sessionIDs)
       }),
@@ -692,6 +701,7 @@ export function createServerSession(
         for (const message of dropped) {
           deleteMessageParts(draft, message.id)
           delete draft.message_diff[message.id]
+          delete draft.message_diff_status[message.id]
           messageDiffGenerations.delete(message.id)
           messageDiffSessions.delete(message.id)
           inflightMessageDiff.delete(message.id)

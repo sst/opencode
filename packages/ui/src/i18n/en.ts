@@ -64,6 +64,10 @@ export const dict: Record<string, string> = {
   "ui.sessionTurn.diffs.showAll": "Show all",
   "ui.sessionTurn.diffs.showLess": "Show less",
   "ui.sessionTurn.diffs.more": "+{{count}} more files",
+  "ui.sessionTurn.diffs.loading": "Loading diff",
+  "ui.sessionTurn.diffs.failed": "Couldn't load diff",
+  "ui.sessionTurn.diffs.retry": "Retry",
+  "ui.sessionTurn.diffs.unavailable": "Diff is no longer available",
 
   "ui.sessionTurn.retry.retrying": "retrying",
   "ui.sessionTurn.retry.inSeconds": "in {{seconds}}s",

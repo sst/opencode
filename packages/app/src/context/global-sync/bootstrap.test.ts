@@ -59,6 +59,7 @@ function directoryState() {
     },
     session_diff: {},
     message_diff: {},
+    message_diff_status: {},
     todo: {},
     permission: {},
     question: {},

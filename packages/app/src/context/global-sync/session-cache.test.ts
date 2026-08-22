@@ -28,6 +28,7 @@ describe("app session cache", () => {
       session_status: Record<string, SessionStatus | undefined>
       session_diff: Record<string, FileDiffInfo[] | undefined>
       message_diff: Record<string, FileDiffInfo[] | undefined>
+      message_diff_status: Record<string, "pending" | "failed" | "absent" | undefined>
       todo: Record<string, Todo[] | undefined>
       message: Record<string, Message[] | undefined>
       session_message: Record<string, never[] | undefined>
@@ -39,6 +40,7 @@ describe("app session cache", () => {
       session_status: { ses_1: { type: "busy" } as SessionStatus },
       session_diff: { ses_1: [] },
       message_diff: { msg_dropped: [] },
+      message_diff_status: { msg_dropped: "failed" },
       todo: { ses_1: [] as Todo[] },
       message: { ses_1: [msg("msg_dropped", "ses_1")] },
       session_message: {},
@@ -52,6 +54,7 @@ describe("app session cache", () => {
 
     expect(store.message.ses_1).toBeUndefined()
     expect(store.message_diff.msg_dropped).toBeUndefined()
+    expect(store.message_diff_status.msg_dropped).toBeUndefined()
     expect(store.part.msg_1).toBeUndefined()
     expect(store.part_text_accum_delta.prt_1).toBeUndefined()
     expect(store.todo.ses_1).toBeUndefined()
@@ -67,6 +70,7 @@ describe("app session cache", () => {
       session_status: Record<string, SessionStatus | undefined>
       session_diff: Record<string, FileDiffInfo[] | undefined>
       message_diff: Record<string, FileDiffInfo[] | undefined>
+      message_diff_status: Record<string, "pending" | "failed" | "absent" | undefined>
       todo: Record<string, Todo[] | undefined>
       message: Record<string, Message[] | undefined>
       session_message: Record<string, never[] | undefined>
@@ -78,6 +82,7 @@ describe("app session cache", () => {
       session_status: {},
       session_diff: {},
       message_diff: {},
+      message_diff_status: {},
       todo: {},
       message: { ses_1: [m] },
       session_message: {},

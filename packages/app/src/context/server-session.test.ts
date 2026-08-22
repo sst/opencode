@@ -112,7 +112,8 @@ function messageClient(...responses: Array<MessageResponse | Promise<MessageResp
   })
 }
 
-function pendingDiffClient(diff: Promise<DiffResponse>) {
+function pendingDiffClient(...diffs: Array<DiffResponse | Promise<DiffResponse>>) {
+  let index = 0
   const requests: unknown[] = []
   const waiting = new Map<number, () => void>()
   const client = {
@@ -123,7 +124,7 @@ function pendingDiffClient(diff: Promise<DiffResponse>) {
         requests.push(input)
         waiting.get(requests.length)?.()
         waiting.delete(requests.length)
-        return diff
+        return diffs[index++]
       },
     },
   } as unknown as OpencodeClient
@@ -431,6 +432,50 @@ describe("server session", () => {
     })
 
     expect(client.diffRequests).toEqual([{ sessionID: "child", messageID: user.id }])
+  })
+
+  test("marks unloaded message diffs unavailable when no stored patch is returned", async () => {
+    const user = userMessage("msg_user", {
+      summary: { additions: 1, deletions: 1, files: 1 } as UserMessage["summary"],
+    })
+    const store = createServerSession(pendingDiffClient({ data: [] }))
+
+    store.set("message", "child", [user])
+    await store.fetchMessageDiff(user.sessionID, user.id)
+
+    expect(store.data.message_diff_status[user.id]).toBe("absent")
+  })
+
+  test("marks failed message diff fetches and retries them", async () => {
+    const failed = deferredDiffResponse()
+    const retried = deferredDiffResponse()
+    const user = userMessage("msg_user", {
+      summary: { additions: 1, deletions: 1, files: 1 } as UserMessage["summary"],
+    })
+    const client = pendingDiffClient(failed.promise, retried.promise)
+    const store = createServerSession(client)
+
+    store.set("message", "child", [user])
+    const loading = store.fetchMessageDiff(user.sessionID, user.id)
+    await client.requested(1)
+
+    expect(store.data.message_diff_status[user.id]).toBe("pending")
+
+    failed.reject(new Error("diff unavailable"))
+    await loading
+
+    expect(store.data.message_diff_status[user.id]).toBe("failed")
+
+    const retrying = store.fetchMessageDiff(user.sessionID, user.id)
+    await client.requested(2)
+
+    expect(store.data.message_diff_status[user.id]).toBe("pending")
+
+    retried.resolve({ data: [fetchedDiff] })
+    await retrying
+
+    expect(store.data.message_diff_status[user.id]).toBeUndefined()
+    expect(store.data.message_diff[user.id]).toEqual([fetchedDiff])
   })
 
   test("fetches diffs for loaded user message count metadata", async () => {

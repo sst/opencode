@@ -31,6 +31,9 @@ type Data = {
   message_diff: {
     [messageID: string]: FileDiffInfo[] | undefined
   }
+  message_diff_status?: {
+    [messageID: string]: "pending" | "failed" | "absent" | undefined
+  }
   session_diff_preload?: {
     [sessionID: string]: PreloadMultiFileDiffResult<any>[]
   }
