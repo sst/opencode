@@ -1,4 +1,5 @@
 import { LayerNode } from "@opencode-ai/core/effect/layer-node"
+import { stampFirstToken } from "@opencode-ai/core/session/tokens"
 import { PermissionV1 } from "@opencode-ai/core/v1/permission"
 import { Image } from "@/image/image"
 import { SessionV1 } from "@opencode-ai/core/v1/session"
@@ -119,6 +120,10 @@ const layer = Layer.effect(
           providerID: input.model.providerID,
           aborted,
         })
+
+      const markFirstToken = () => {
+        stampFirstToken(ctx.assistantMessage.time, Date.now())
+      }
 
       const settleToolCall = Effect.fn("SessionProcessor.settleToolCall")(function* (toolCallID: string) {
         const done = ctx.toolcalls[toolCallID]?.done
@@ -279,6 +284,7 @@ const layer = Layer.effect(
         switch (value.type) {
           case "reasoning-start":
             if (value.id in ctx.reasoningMap) return
+            markFirstToken()
             ctx.reasoningMap[value.id] = {
               id: PartID.ascending(),
               messageID: ctx.assistantMessage.id,
@@ -294,6 +300,7 @@ const layer = Layer.effect(
           case "reasoning-delta":
             // Match dev: silently drop orphan deltas (no preceding reasoning-start).
             if (!(value.id in ctx.reasoningMap)) return
+            markFirstToken()
             ctx.reasoningMap[value.id].text += value.text
             if (value.providerMetadata) ctx.reasoningMap[value.id].metadata = value.providerMetadata
             yield* session.updatePartDelta({
@@ -316,15 +323,18 @@ const layer = Layer.effect(
             if (ctx.assistantMessage.summary) {
               throw new Error(`Tool call not allowed while generating summary: ${value.name}`)
             }
+            markFirstToken()
             yield* ensureToolCall(value)
             return
 
           case "tool-input-delta":
             yield* ensureToolCall(value)
+            markFirstToken()
             return
 
           case "tool-input-end": {
             yield* ensureToolCall(value)
+            markFirstToken()
             return
           }
 
@@ -332,6 +342,7 @@ const layer = Layer.effect(
             if (ctx.assistantMessage.summary) {
               throw new Error(`Tool call not allowed while generating summary: ${value.name}`)
             }
+            markFirstToken()
             yield* ensureToolCall(value)
             const input = isRecord(value.input) ? value.input : { value: value.input }
             yield* updateToolCall(value.id, (match) => ({
@@ -433,6 +444,7 @@ const layer = Layer.effect(
             return
 
           case "step-finish": {
+            markFirstToken()
             const completedSnapshot = yield* snapshot.track()
             yield* Effect.forEach(Object.keys(ctx.reasoningMap), finishReasoning)
             // Anthropic reports thinking blocks it removed before the model saw the
@@ -498,6 +510,7 @@ const layer = Layer.effect(
           }
 
           case "text-start":
+            markFirstToken()
             ctx.currentText = {
               id: PartID.ascending(),
               messageID: ctx.assistantMessage.id,
@@ -512,6 +525,7 @@ const layer = Layer.effect(
 
           case "text-delta":
             if (!ctx.currentText) return
+            markFirstToken()
             ctx.currentText.text += value.text
             if (value.providerMetadata) ctx.currentText.metadata = value.providerMetadata
             yield* session.updatePartDelta({
@@ -546,6 +560,7 @@ const layer = Layer.effect(
             return
 
           case "finish":
+            markFirstToken()
             return
         }
       })
