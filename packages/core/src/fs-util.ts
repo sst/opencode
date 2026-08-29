@@ -2,6 +2,7 @@ import { NodeFileSystem } from "@effect/platform-node"
 import { dirname, isAbsolute, join, relative, resolve as pathResolve, sep } from "path"
 import { realpathSync } from "fs"
 import * as NFS from "fs/promises"
+import { randomUUID } from "crypto"
 import { lookup } from "mime-types"
 import { Context, Effect, FileSystem, Layer, Schema } from "effect"
 import type { PlatformError } from "effect/PlatformError"
@@ -35,6 +36,7 @@ export namespace FSUtil {
     readonly readFileStringSafe: (path: string) => Effect.Effect<string | undefined, Error>
     readonly readJson: (path: string) => Effect.Effect<unknown, Error>
     readonly writeJson: (path: string, data: unknown, mode?: number) => Effect.Effect<void, Error>
+    readonly writeJsonAtomic: (path: string, data: unknown, mode?: number) => Effect.Effect<void, Error>
     readonly ensureDir: (path: string) => Effect.Effect<void, Error>
     readonly writeWithDirs: (path: string, content: string | Uint8Array, mode?: number) => Effect.Effect<void, Error>
     readonly readDirectoryEntries: (path: string) => Effect.Effect<DirEntry[], Error>
@@ -111,6 +113,18 @@ export namespace FSUtil {
         const content = JSON.stringify(data, null, 2)
         yield* fs.writeFileString(path, content)
         if (mode) yield* fs.chmod(path, mode)
+      })
+
+      const writeJsonAtomic = Effect.fn("FileSystem.writeJsonAtomic")(function* (path: string, data: unknown, mode?: number) {
+        const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`
+        yield* ensureDir(dirname(path))
+        yield* Effect.gen(function* () {
+          // The mode is applied at create so the temp is never briefly world-readable, and rename
+          // carries it to the target. A chmod after the rename would follow a symlink planted in
+          // the window between the two.
+          yield* fs.writeFileString(temporary, JSON.stringify(data, null, 2), mode ? { flag: "wx", mode } : { flag: "wx" })
+          yield* fs.rename(temporary, path)
+        }).pipe(Effect.ensuring(fs.remove(temporary, { force: true }).pipe(Effect.ignore)))
       })
 
       const ensureDir = Effect.fn("FileSystem.ensureDir")(function* (path: string) {
@@ -207,6 +221,7 @@ export namespace FSUtil {
         resolve,
         readJson,
         writeJson,
+        writeJsonAtomic,
         ensureDir,
         writeWithDirs,
         findUp,

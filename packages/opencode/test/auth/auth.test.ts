@@ -47,6 +47,44 @@ describe("Auth", () => {
     }),
   )
 
+  it.instance("preserves both providers from concurrent writes", () =>
+    Effect.gen(function* () {
+      const auth = yield* Auth.Service
+      const file = path.join(Global.Path.data, "auth.json")
+
+      yield* Effect.promise(() => fs.writeFile(file, JSON.stringify({ existing: { type: "api", key: "sk-existing" } })))
+      yield* Effect.all(
+        [
+          auth.set("concurrent-a", { type: "api", key: "sk-a" }),
+          auth.set("concurrent-b", { type: "api", key: "sk-b" }),
+        ],
+        { concurrency: "unbounded" },
+      )
+
+      const onDisk = JSON.parse(yield* Effect.promise(() => fs.readFile(file, "utf8"))) as Record<string, unknown>
+      expect(onDisk.existing).toEqual({ type: "api", key: "sk-existing" })
+      expect(onDisk["concurrent-a"]).toEqual({ type: "api", key: "sk-a" })
+      expect(onDisk["concurrent-b"]).toEqual({ type: "api", key: "sk-b" })
+    }),
+  )
+
+  it.instance("writes auth.json atomically with mode 0600 and no temporary file", () =>
+    Effect.gen(function* () {
+      const auth = yield* Auth.Service
+      const file = path.join(Global.Path.data, "auth.json")
+      const before = yield* Effect.promise(() => fs.readdir(Global.Path.data))
+
+      yield* auth.set("atomic-provider", { type: "api", key: "sk-atomic" })
+
+      const stats = yield* Effect.promise(() => fs.stat(file))
+      const after = yield* Effect.promise(() => fs.readdir(Global.Path.data))
+      expect(stats.mode & 0o777).toBe(0o600)
+      expect(after.filter((entry) => /^auth\.json\.\d+\..+\.tmp$/.test(entry))).toEqual(
+        before.filter((entry) => /^auth\.json\.\d+\..+\.tmp$/.test(entry)),
+      )
+    }),
+  )
+
   it.instance("set cleans up pre-existing trailing-slash entry", () =>
     Effect.gen(function* () {
       const auth = yield* Auth.Service
