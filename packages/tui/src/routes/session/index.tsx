@@ -53,6 +53,7 @@ import { DialogTimeline } from "./dialog-timeline"
 import { DialogForkFromTimeline } from "./dialog-fork-from-timeline"
 import { DialogSessionRename } from "../../component/dialog-session-rename"
 import { Sidebar } from "./sidebar"
+import { clampSidebarWidth } from "../../util/sidebar-width"
 import { SubagentFooter } from "./subagent-footer.tsx"
 import { filetype } from "../../util/filetype"
 import parsers from "../../parsers-config"
@@ -274,8 +275,9 @@ export function Session() {
     if (sidebar() === "auto" && wide()) return true
     return false
   })
+  const sidebarWidth = createMemo(() => clampSidebarWidth(tuiConfig.sidebar_width, dimensions().width))
   const showTimestamps = createMemo(() => timestamps() === "show")
-  const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? 42 : 0) - 4)
+  const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? sidebarWidth() : 0) - 4)
   const providers = createMemo(() => Model.index(sync.data.provider))
 
   const scrollAcceleration = createMemo(() => getScrollAcceleration(tuiConfig))
@@ -1338,7 +1340,7 @@ export function Session() {
           <Show when={sidebarVisible()}>
             <Switch>
               <Match when={wide()}>
-                <Sidebar sessionID={route.sessionID} />
+                <Sidebar sessionID={route.sessionID} width={sidebarWidth()} />
               </Match>
               <Match when={!wide()}>
                 <box
@@ -1350,7 +1352,7 @@ export function Session() {
                   alignItems="flex-end"
                   backgroundColor={RGBA.fromInts(0, 0, 0, 70)}
                 >
-                  <Sidebar sessionID={route.sessionID} />
+                  <Sidebar sessionID={route.sessionID} width={sidebarWidth()} />
                 </box>
               </Match>
             </Switch>

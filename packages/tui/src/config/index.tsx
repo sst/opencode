@@ -19,6 +19,7 @@ export const PluginOptions = Schema.Record(Schema.String, Schema.Unknown)
 export const PluginSpec = Schema.Union([Schema.String, Schema.mutable(Schema.Tuple([Schema.String, PluginOptions]))])
 
 export const LeaderTimeoutDefault = 2000
+export const SidebarWidthDefault = 42
 export const LeaderTimeout = Schema.Int.check(Schema.isGreaterThan(0)).annotate({
   description: "Leader key timeout in milliseconds",
 })
@@ -51,6 +52,7 @@ export const Attention = Schema.Struct({
 }).annotate({ description: "Attention notification and sound settings" })
 
 const PromptSize = Schema.Int.check(Schema.isGreaterThan(0))
+const SidebarWidth = Schema.Int.check(Schema.isGreaterThan(0))
 export const Prompt = Schema.Struct({
   max_height: Schema.optional(PromptSize).annotate({ description: "Prompt textarea max height" }),
   max_width: Schema.optional(Schema.Union([PromptSize, Schema.Literal("auto")])).annotate({
@@ -72,10 +74,11 @@ export const Info = Schema.Struct({
   diff_style: Schema.optional(DiffStyle),
   cursor: Schema.optional(Cursor),
   mouse: Schema.optional(Schema.Boolean).annotate({ description: "Enable or disable mouse capture (default: true)" }),
+  sidebar_width: Schema.optional(SidebarWidth).annotate({ description: "Sidebar width in columns (default: 42)" }),
 })
 export type Info = Schema.Schema.Type<typeof Info>
 
-export type Resolved = Omit<Info, "attention" | "keybinds" | "leader_timeout" | "mouse" | "cursor"> & {
+export type Resolved = Omit<Info, "attention" | "keybinds" | "leader_timeout" | "mouse" | "cursor" | "sidebar_width"> & {
   attention: {
     enabled: boolean
     notifications: boolean
@@ -87,6 +90,7 @@ export type Resolved = Omit<Info, "attention" | "keybinds" | "leader_timeout" | 
   keybinds: TuiKeybind.BindingLookupView
   leader_timeout: number
   mouse: boolean
+  sidebar_width: number
   cursor?: {
     style: "block" | "underline" | "line" | "default"
     blinking: boolean
@@ -126,6 +130,7 @@ export function resolve(input: Info, options: ResolveOptions): Resolved {
     }),
     leader_timeout: input.leader_timeout ?? LeaderTimeoutDefault,
     mouse: input.mouse ?? true,
+    sidebar_width: input.sidebar_width ?? SidebarWidthDefault,
     cursor: input.cursor
       ? {
           style: input.cursor.style ?? "block",
