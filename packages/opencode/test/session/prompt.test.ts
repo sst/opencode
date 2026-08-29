@@ -5,6 +5,7 @@ import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { SessionProjector } from "@opencode-ai/core/session/projector"
 import { eq } from "drizzle-orm"
 import { EventV2Bridge } from "@/event-v2-bridge"
+import { Identifier } from "@/id/id"
 import { expect } from "bun:test"
 import { Cause, Deferred, Duration, Effect, Exit, Fiber, Layer } from "effect"
 import path from "path"
@@ -441,6 +442,34 @@ const boot = Effect.fn("test.boot")(function* (input?: { title?: string }) {
   const chat = yield* sessions.create(input ?? { title: "Pinned" })
   return { prompt, run, sessions, chat }
 })
+
+it.instance("prompt persists the timestamp embedded in its freshly minted message ID", () =>
+  Effect.acquireUseRelease(
+    Effect.sync(() => {
+      const original = Date.now
+      let reads = 0
+      Date.now = () => 1_000 + reads++
+      return original
+    }),
+    () =>
+      Effect.gen(function* () {
+        const { prompt, chat } = yield* boot()
+        const message = yield* prompt.prompt({
+          sessionID: chat.id,
+          agent: "build",
+          model: ref,
+          noReply: true,
+          parts: [{ type: "text", text: "timestamp invariant" }],
+        })
+
+        expect(Identifier.timestamp(message.info.id)).toBe(message.info.time.created)
+      }),
+    (original) =>
+      Effect.sync(() => {
+        Date.now = original
+      }),
+  ),
+)
 
 // Loop semantics
 

@@ -3,6 +3,7 @@ import { SessionV1 } from "@opencode-ai/core/v1/session"
 import { ConfigV1 } from "@opencode-ai/core/v1/config/config"
 import { Session } from "./session"
 import { SessionID, MessageID, PartID } from "./schema"
+import { Identifier } from "@/id/id"
 import { Provider } from "@/provider/provider"
 import { MessageV2 } from "./message-v2"
 import { Token } from "@/util/token"
@@ -390,8 +391,9 @@ const layer = Layer.effect(
           .filter(Boolean)
           .join("\n\n")
       const ctx = yield* InstanceState.context
+      const created = Date.now()
       const msg: SessionV1.Assistant = {
-        id: MessageID.ascending(),
+        id: MessageID.ascending(Identifier.create("msg", "ascending", created)),
         role: "assistant",
         parentID: input.parentID,
         sessionID: input.sessionID,
@@ -412,9 +414,7 @@ const layer = Layer.effect(
         },
         modelID: model.id,
         providerID: model.providerID,
-        time: {
-          created: Date.now(),
-        },
+        time: { created },
       }
       yield* session.updateMessage(msg)
       const processor = yield* processors.create({
@@ -468,11 +468,12 @@ const layer = Layer.effect(
       if (result === "continue" && input.auto) {
         if (replay) {
           const original = replay.info
+          const created = Date.now()
           const replayMsg = yield* session.updateMessage({
-            id: MessageID.ascending(),
+            id: MessageID.ascending(Identifier.create("msg", "ascending", created)),
             role: "user",
             sessionID: input.sessionID,
-            time: { created: Date.now() },
+            time: { created },
             agent: original.agent,
             model: original.model,
             format: original.format,
@@ -516,11 +517,12 @@ const layer = Layer.effect(
               { enabled: true },
             )).enabled
           ) {
+            const created = Date.now()
             const continueMsg = yield* session.updateMessage({
-              id: MessageID.ascending(),
+              id: MessageID.ascending(Identifier.create("msg", "ascending", created)),
               role: "user",
               sessionID: input.sessionID,
-              time: { created: Date.now() },
+              time: { created },
               agent: userMessage.agent,
               model: userMessage.model,
             })
@@ -563,13 +565,14 @@ const layer = Layer.effect(
       auto: boolean
       overflow?: boolean
     }) {
+      const created = Date.now()
       const msg = yield* session.updateMessage({
-        id: MessageID.ascending(),
+        id: MessageID.ascending(Identifier.create("msg", "ascending", created)),
         role: "user",
         model: input.model,
         sessionID: input.sessionID,
         agent: input.agent,
-        time: { created: Date.now() },
+        time: { created },
       })
       yield* session.updatePart({
         id: PartID.ascending(),

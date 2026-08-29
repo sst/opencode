@@ -7,6 +7,7 @@ import { Session } from "@/session/session"
 import { MessageV2 } from "../session/message-v2"
 import { Provider } from "@/provider/provider"
 import { InstanceState } from "@/effect/instance-state"
+import { Identifier } from "@/id/id"
 import { MessageID, PartID } from "../session/schema"
 import EXIT_DESCRIPTION from "./plan-exit.txt"
 
@@ -50,11 +51,12 @@ export const PlanExitTool = Tool.define(
           const model =
             lastUser?.info.role === "user" && lastUser.info.model ? lastUser.info.model : yield* provider.defaultModel()
 
+          const created = Date.now()
           const msg: SessionV1.User = {
-            id: MessageID.ascending(),
+            id: MessageID.ascending(Identifier.create("msg", "ascending", created)),
             sessionID: ctx.sessionID,
             role: "user",
-            time: { created: Date.now() },
+            time: { created },
             agent: "build",
             model,
           }

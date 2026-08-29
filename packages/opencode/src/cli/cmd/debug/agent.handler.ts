@@ -8,6 +8,7 @@ import { Provider } from "@/provider/provider"
 import { Session } from "@/session/session"
 import type { MessageV2 } from "../../../session/message-v2"
 import { MessageID, PartID } from "../../../session/schema"
+import { Identifier } from "@/id/id"
 import { ToolRegistry } from "@/tool/registry"
 import { Permission } from "../../../permission"
 import { iife } from "../../../util/iife"
@@ -129,7 +130,6 @@ const createToolContext = Effect.fn("Cli.debug.agent.createToolContext")(functio
 ) {
   const sessionSvc = yield* Session.Service
   const session = yield* sessionSvc.create({ title: `Debug tool run (${agent.name})` })
-  const messageID = MessageID.ascending()
   const model = agent.model
     ? agent.model
     : yield* Effect.gen(function* () {
@@ -149,12 +149,13 @@ const createToolContext = Effect.fn("Cli.debug.agent.createToolContext")(functio
           }),
         )
       })
-  const now = Date.now()
+  const created = Date.now()
+  const messageID = MessageID.ascending(Identifier.create("msg", "ascending", created))
   const message: SessionV1.Assistant = {
     id: messageID,
     sessionID: session.id,
     role: "assistant",
-    time: { created: now },
+    time: { created },
     parentID: messageID,
     modelID: model.modelID,
     providerID: model.providerID,
