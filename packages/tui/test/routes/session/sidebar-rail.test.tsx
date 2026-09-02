@@ -145,7 +145,7 @@ describe("sidebar layout", () => {
     expect(sidebarLayout({ wide: true, sidebarOpen: false, state: "collapsed" })).toStrictEqual({
       inline: "collapsed",
       visible: false,
-      rail: 1,
+      rail: 2,
     })
   })
 
@@ -192,15 +192,45 @@ describe("sidebar rail rendering", () => {
     }
   })
 
-  test("renders the collapse glyph without sidebar content", async () => {
-    const rendered = await renderRegion({ wide: true, inline: "collapsed", visible: false })
+  test("renders the collapse glyph in the second rail column", async () => {
+    const rendered = await renderRegion({
+      wide: true,
+      inline: "collapsed",
+      visible: false,
+      drag: true,
+      kv: { sidebar: "collapsed" },
+      terminalWidth: 160,
+    })
     try {
-      expect(findRail(rendered.app.renderer.root)).toBeInstanceOf(BoxRenderable)
-      expect(rendered.app.captureCharFrame()).toContain("▸")
-      expect(findBox(rendered.app.renderer.root, (box) => box.width === 42)).toBeUndefined()
+      const rail = findRail(rendered.app.renderer.root)
+      const glyph = rail.getChildren()[0]
+      if (!glyph) throw new Error("collapsed rail glyph was not rendered")
+      const row = rendered.app.captureCharFrame().split("\n")[0]
+      const borderColumn = row.lastIndexOf("│")
+      const glyphColumn = row.indexOf("▸")
+
+      expect(glyph.x).toBe(159)
+      expect(borderColumn).toBe(158)
+      expect(glyphColumn).toBe(159)
+      expect(glyphColumn).toBe(borderColumn + 1)
     } finally {
       rendered.app.renderer.destroy()
       await rendered.dispose()
+    }
+
+    const expanded = await renderRegion({
+      wide: true,
+      inline: "expanded",
+      visible: true,
+      drag: true,
+      kv: { sidebar: "auto" },
+      terminalWidth: 160,
+    })
+    try {
+      expect(expanded.app.captureCharFrame().split("\n")[0]).not.toContain("▸")
+    } finally {
+      expanded.app.renderer.destroy()
+      await expanded.dispose()
     }
   })
 
@@ -493,6 +523,13 @@ function RegionProbe(props: {
   const inline = createMemo(() => props.input.inline)
   const visible = createMemo(() => props.input.visible)
   const width = createMemo(() => props.input.width ?? 42)
+  const railWidth = createMemo(() =>
+    sidebarLayout({
+      wide: props.input.wide,
+      sidebarOpen: props.input.visible,
+      state: props.input.inline === "collapsed" ? "collapsed" : props.input.inline === "expanded" ? "auto" : "hide",
+    }).rail,
+  )
   const mouseEnabled = createMemo(() => props.input.mouseEnabled ?? true)
   return (
     <SidebarRegion
@@ -501,6 +538,7 @@ function RegionProbe(props: {
       sidebarInline={inline}
       sidebarVisible={visible}
       sidebarWidth={width}
+      railWidth={railWidth}
       mouseEnabled={mouseEnabled}
     />
   )
@@ -530,6 +568,7 @@ function DragRegionProbe(props: {
       sidebarInline={() => layout().inline}
       sidebarVisible={() => layout().visible}
       sidebarWidth={width}
+      railWidth={() => layout().rail}
       mouseEnabled={() => props.input.mouseEnabled ?? true}
       drag={drag}
       setDrag={setDrag}
@@ -549,7 +588,14 @@ async function renderRail(props: { collapsed: boolean; mouseEnabled: boolean; on
         <TuiConfigProvider config={createTuiResolvedConfig()}>
           <KVProvider>
             <ThemeProvider mode="dark">
-              <SidebarRail {...props} />
+              <SidebarRail
+                {...props}
+                width={sidebarLayout({
+                  wide: true,
+                  sidebarOpen: false,
+                  state: props.collapsed ? "collapsed" : "auto",
+                }).rail}
+              />
             </ThemeProvider>
           </KVProvider>
         </TuiConfigProvider>

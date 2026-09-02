@@ -4,6 +4,7 @@ import { useTheme } from "../../context/theme"
 
 export function SidebarRail(props: {
   collapsed: boolean
+  width: number
   mouseEnabled: boolean
   onMouseDown?: (evt: MouseEvent) => void
   onExpand?: () => void
@@ -19,7 +20,7 @@ export function SidebarRail(props: {
   }
 
   return (
-    <box id="sidebar-rail" width={1} flexShrink={0} border={["left"]} borderColor={theme.border} {...handlers()}>
+    <box id="sidebar-rail" width={props.width} flexShrink={0} border={["left"]} borderColor={theme.border} {...handlers()}>
       <Show when={props.collapsed}>
         <text fg={theme.textMuted}>▸</text>
       </Show>

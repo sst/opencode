@@ -1270,6 +1270,7 @@ export function Session() {
           sidebarInline={sidebarInline}
           sidebarVisible={sidebarVisible}
           sidebarWidth={sidebarWidth}
+          railWidth={railWidth}
           mouseEnabled={mouseEnabled}
           drag={drag}
           setDrag={setDrag}
@@ -1447,6 +1448,7 @@ export function SidebarRegion(props: {
   sidebarInline: () => SidebarInline
   sidebarVisible: () => boolean
   sidebarWidth: () => number
+  railWidth: () => number
   mouseEnabled: () => boolean
   onExpand?: () => void
   onRailMouseDown?: (evt: MouseEvent) => void
@@ -1458,6 +1460,7 @@ export function SidebarRegion(props: {
           <box flexDirection="row">
             <SidebarRail
               collapsed={props.sidebarInline() === "collapsed"}
+              width={props.railWidth()}
               mouseEnabled={props.mouseEnabled()}
               onMouseDown={props.onRailMouseDown}
               onExpand={props.onExpand}
@@ -1493,6 +1496,7 @@ export function SidebarDragRegion(props: {
   sidebarInline: () => SidebarInline
   sidebarVisible: () => boolean
   sidebarWidth: () => number
+  railWidth: () => number
   mouseEnabled: () => boolean
   drag: () => SidebarDrag | undefined
   setDrag: Setter<SidebarDrag | undefined>
@@ -1547,6 +1551,7 @@ export function SidebarDragRegion(props: {
         sidebarInline={props.sidebarInline}
         sidebarVisible={props.sidebarVisible}
         sidebarWidth={props.sidebarWidth}
+        railWidth={props.railWidth}
         mouseEnabled={props.mouseEnabled}
         onExpand={expand}
         onRailMouseDown={startDrag}

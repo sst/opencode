@@ -33,7 +33,7 @@ export function sidebarLayout(input: {
   return {
     inline,
     visible: input.sidebarOpen || inline === "expanded",
-    rail: inline ? 1 : 0,
+    rail: inline === "collapsed" ? 2 : inline ? 1 : 0,
   }
 }
 
