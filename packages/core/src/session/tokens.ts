@@ -38,7 +38,7 @@ type TPSMessage = {
 function tpsInputs(msg: TPSMessage): { totalTokens: number; elapsedMs: number } | undefined {
   if (msg.summary) return undefined
   if (!msg.finish) return undefined
-  if (["tool-calls", "unknown", "error"].includes(msg.finish)) return undefined
+  if (msg.finish === "error") return undefined
 
   const totalTokens = totalGeneratedTokens(msg.tokens)
   if (totalTokens <= 0) return undefined

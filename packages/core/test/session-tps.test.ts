@@ -30,12 +30,12 @@ describe("getMessageTPS", () => {
     expect(getMessageTPS({ ...validMessage, finish: null })).toBeUndefined()
   })
 
-  test("returns no value for tool-call finishes", () => {
-    expect(getMessageTPS({ ...validMessage, finish: "tool-calls" })).toBeUndefined()
+  test("calculates tokens per second for tool-call finishes", () => {
+    expect(getMessageTPS({ ...validMessage, finish: "tool-calls" })?.rate).toBe(150)
   })
 
-  test("returns no value for unknown finishes", () => {
-    expect(getMessageTPS({ ...validMessage, finish: "unknown" })).toBeUndefined()
+  test("calculates tokens per second for unknown finishes", () => {
+    expect(getMessageTPS({ ...validMessage, finish: "unknown" })?.rate).toBe(150)
   })
 
   test("returns no value for error finishes", () => {
