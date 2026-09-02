@@ -279,7 +279,7 @@ describe("sidebar drag gesture", () => {
       drag: true,
       terminalWidth: 200,
     })
-    const { app, file } = rendered
+    const { app, file, kv } = rendered
     try {
       const rail = findRail(app.renderer.root)
       const row = findDragRow(app.renderer.root)
@@ -287,25 +287,30 @@ describe("sidebar drag gesture", () => {
       await settle(app)
       expect(findBox(app.renderer.root, (box) => box.width === 42)).toBeInstanceOf(BoxRenderable)
       expect(readFileSync(file, "utf8")).not.toContain("sidebar_width")
+      expect(kv.writes).toBe(0)
 
       fireMouse(row, "drag", 92)
       await settle(app)
       expect(findBox(app.renderer.root, (box) => box.width === 50)).toBeInstanceOf(BoxRenderable)
       expect(readFileSync(file, "utf8")).not.toContain("sidebar_width")
+      expect(kv.writes).toBe(0)
 
       fireMouse(row, "drag", 84)
       await settle(app)
       expect(findBox(app.renderer.root, (box) => box.width === 58)).toBeInstanceOf(BoxRenderable)
       expect(readFileSync(file, "utf8")).not.toContain("sidebar_width")
+      expect(kv.writes).toBe(0)
 
       fireMouse(row, "drag-end", 84)
       await wait(() => readFileSync(file, "utf8").includes("sidebar_width"))
       expect(JSON.parse(readFileSync(file, "utf8"))).toMatchObject({ sidebar_width: 58 })
+      expect(kv.writes).toBe(1)
 
       fireMouse(row, "drag", 80)
       await settle(app)
       expect(findBox(app.renderer.root, (box) => box.width === 58)).toBeInstanceOf(BoxRenderable)
       expect(JSON.parse(readFileSync(file, "utf8"))).toMatchObject({ sidebar_width: 58 })
+      expect(kv.writes).toBe(1)
     } finally {
       app.renderer.destroy()
       await rendered.dispose()
@@ -321,7 +326,7 @@ describe("sidebar drag gesture", () => {
       kv: { sidebar: "collapsed" },
       terminalWidth: 200,
     })
-    const { app, file } = rendered
+    const { app, file, kv } = rendered
     try {
       await wait(() => findSidebarBox(app.renderer.root) === undefined)
       const rail = findRail(app.renderer.root)
@@ -329,6 +334,7 @@ describe("sidebar drag gesture", () => {
       fireMouse(rail, "down", 79)
       await settle(app)
       expect(findSidebarBox(app.renderer.root)).toBeUndefined()
+      expect(kv.writes).toBe(0)
 
       fireMouse(row, "drag", 69)
       await settle(app)
@@ -336,15 +342,18 @@ describe("sidebar drag gesture", () => {
       const persisted = JSON.parse(readFileSync(file, "utf8"))
       expect(persisted).toMatchObject({ sidebar: "auto" })
       expect(persisted).not.toHaveProperty("sidebar_width")
+      expect(kv.writes).toBe(1)
 
       fireMouse(row, "drag", 59)
       await settle(app)
       expect(findSidebarBox(app.renderer.root)?.width).toBe(40)
       expect(JSON.parse(readFileSync(file, "utf8"))).not.toHaveProperty("sidebar_width")
+      expect(kv.writes).toBe(1)
 
       fireMouse(row, "drag-end", 59)
       await wait(() => readFileSync(file, "utf8").includes("sidebar_width"))
       expect(JSON.parse(readFileSync(file, "utf8"))).toMatchObject({ sidebar: "auto", sidebar_width: 40 })
+      expect(kv.writes).toBe(2)
     } finally {
       app.renderer.destroy()
       await rendered.dispose()
@@ -360,7 +369,7 @@ describe("sidebar drag gesture", () => {
       kv: { sidebar: "collapsed" },
       terminalWidth: 200,
     })
-    const { app, file } = rendered
+    const { app, file, kv } = rendered
     try {
       await wait(() => findSidebarBox(app.renderer.root) === undefined)
       const rail = findRail(app.renderer.root)
@@ -371,10 +380,78 @@ describe("sidebar drag gesture", () => {
       const persisted = JSON.parse(readFileSync(file, "utf8"))
       expect(persisted).toMatchObject({ sidebar: "auto" })
       expect(persisted).not.toHaveProperty("sidebar_width")
+      expect(kv.writes).toBe(1)
 
       fireMouse(findDragRow(app.renderer.root), "drag-end", 79)
       await settle(app)
       expect(JSON.parse(readFileSync(file, "utf8"))).not.toHaveProperty("sidebar_width")
+      expect(kv.writes).toBe(1)
+    } finally {
+      app.renderer.destroy()
+      await rendered.dispose()
+    }
+  })
+
+  test("release does not double-expand after a captured drag", async () => {
+    const rendered = await renderRegion({
+      wide: true,
+      inline: "collapsed",
+      visible: false,
+      drag: true,
+      kv: { sidebar: "collapsed" },
+      terminalWidth: 200,
+    })
+    const { app, file, kv } = rendered
+    try {
+      await wait(() => findSidebarBox(app.renderer.root) === undefined)
+      const rail = findRail(app.renderer.root)
+      const row = findDragRow(app.renderer.root)
+      fireMouse(rail, "down", 79)
+      await settle(app)
+      fireMouse(row, "drag", 69)
+      await settle(app)
+      expect(kv.writes).toBe(1)
+
+      // Release dispatches drag-end and up in one burst, and the up can re-target the rail.
+      fireMouse(row, "drag-end", 69)
+      fireMouse(rail, "up", 79)
+      await settle(app)
+      expect(kv.writes).toBe(2)
+      expect(JSON.parse(readFileSync(file, "utf8"))).toMatchObject({ sidebar: "auto", sidebar_width: 30 })
+    } finally {
+      app.renderer.destroy()
+      await rendered.dispose()
+    }
+  })
+
+  test("release does not double-expand a no-movement gesture", async () => {
+    const rendered = await renderRegion({
+      wide: true,
+      inline: "collapsed",
+      visible: false,
+      drag: true,
+      kv: { sidebar: "collapsed" },
+      terminalWidth: 200,
+    })
+    const { app, file, kv } = rendered
+    try {
+      await wait(() => findSidebarBox(app.renderer.root) === undefined)
+      const rail = findRail(app.renderer.root)
+      const row = findDragRow(app.renderer.root)
+      fireMouse(rail, "down", 79)
+      await settle(app)
+      fireMouse(row, "drag", 79)
+      await settle(app)
+      expect(kv.writes).toBe(0)
+
+      // drag-end expands and the up re-targets the rail within the same dispatch burst.
+      fireMouse(row, "drag-end", 79)
+      fireMouse(rail, "up", 79)
+      await settle(app)
+      expect(kv.writes).toBe(1)
+      const persisted = JSON.parse(readFileSync(file, "utf8"))
+      expect(persisted).toMatchObject({ sidebar: "auto" })
+      expect(persisted).not.toHaveProperty("sidebar_width")
     } finally {
       app.renderer.destroy()
       await rendered.dispose()
@@ -448,6 +525,7 @@ async function renderRegion(input: {
   const state = await tmpdir()
   await Bun.write(`${state.path}/kv.json`, JSON.stringify(input.kv ?? {}))
   let sync!: ReturnType<typeof useSync>
+  let kv!: ReturnType<typeof useKV>
   let ready!: () => void
   const mounted = new Promise<void>((resolve) => {
     ready = resolve
@@ -473,8 +551,9 @@ async function renderRegion(input: {
                             {input.drag ? (
                               <DragRegionProbe
                                 input={input}
-                                onMount={(value) => {
+                                onMount={(value, kvContext) => {
                                   sync = value
+                                  kv = kvContext
                                   ready()
                                 }}
                               />
@@ -504,7 +583,7 @@ async function renderRegion(input: {
   await mounted
   await wait(() => sync.status === "complete")
   await settle(app)
-  return { app, file: `${state.path}/kv.json`, dispose: () => state[Symbol.asyncDispose]() }
+  return { app, file: `${state.path}/kv.json`, kv, dispose: () => state[Symbol.asyncDispose]() }
 }
 
 function RegionProbe(props: {
@@ -523,12 +602,13 @@ function RegionProbe(props: {
   const inline = createMemo(() => props.input.inline)
   const visible = createMemo(() => props.input.visible)
   const width = createMemo(() => props.input.width ?? 42)
-  const railWidth = createMemo(() =>
-    sidebarLayout({
-      wide: props.input.wide,
-      sidebarOpen: props.input.visible,
-      state: props.input.inline === "collapsed" ? "collapsed" : props.input.inline === "expanded" ? "auto" : "hide",
-    }).rail,
+  const railWidth = createMemo(
+    () =>
+      sidebarLayout({
+        wide: props.input.wide,
+        sidebarOpen: props.input.visible,
+        state: props.input.inline === "collapsed" ? "collapsed" : props.input.inline === "expanded" ? "auto" : "hide",
+      }).rail,
   )
   const mouseEnabled = createMemo(() => props.input.mouseEnabled ?? true)
   return (
@@ -552,11 +632,11 @@ function DragRegionProbe(props: {
     width?: number
     mouseEnabled?: boolean
   }
-  onMount: (sync: ReturnType<typeof useSync>) => void
+  onMount: (sync: ReturnType<typeof useSync>, kv: ReturnType<typeof useKV>) => void
 }) {
   const sync = useSync()
   const kv = useKV()
-  onMount(() => props.onMount(sync))
+  onMount(() => props.onMount(sync, kv))
   const [sidebar, setSidebar] = kv.signal<"auto" | "collapsed" | "hide">("sidebar", "auto")
   const [drag, setDrag] = createSignal<SidebarDrag>()
   const layout = createMemo(() => sidebarLayout({ wide: props.input.wide, sidebarOpen: false, state: sidebar() }))
@@ -590,11 +670,13 @@ async function renderRail(props: { collapsed: boolean; mouseEnabled: boolean; on
             <ThemeProvider mode="dark">
               <SidebarRail
                 {...props}
-                width={sidebarLayout({
-                  wide: true,
-                  sidebarOpen: false,
-                  state: props.collapsed ? "collapsed" : "auto",
-                }).rail}
+                width={
+                  sidebarLayout({
+                    wide: true,
+                    sidebarOpen: false,
+                    state: props.collapsed ? "collapsed" : "auto",
+                  }).rail
+                }
               />
             </ThemeProvider>
           </KVProvider>

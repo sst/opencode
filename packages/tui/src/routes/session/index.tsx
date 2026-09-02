@@ -1505,11 +1505,13 @@ export function SidebarDragRegion(props: {
 }) {
   const kv = useKV()
   const dimensions = useTerminalDimensions()
-  // A 1-column rail is never the captured renderable — the first drag event lands on an
-  // adjacent column — so the drag lifecycle binds here on the common ancestor of the
-  // content column and the sidebar.
+  // The drag lifecycle binds here on the common ancestor of the content column and the
+  // sidebar: a rail drag captures the renderable under the cursor — off the rail that is
+  // a neighboring column — and captured events bubble here.
   const expand = () => {
-    // A captured release reaches drag-end first; only an un-captured click still carries drag state.
+    // Release sends drag-end to the captured renderable, then may re-dispatch the up to the
+    // current hit — which can be the rail. Drag-end clears the gesture first, so this guard
+    // drops the rail's duplicate expand.
     if (!props.drag()) return
     props.setDrag(undefined)
     props.onExpand?.()
