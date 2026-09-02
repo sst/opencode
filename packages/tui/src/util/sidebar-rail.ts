@@ -33,6 +33,8 @@ export function sidebarLayout(input: {
   return {
     inline,
     visible: input.sidebarOpen || inline === "expanded",
+    // 2, not 1: a width-1 border box places its child one column past itself, off-screen at
+    // the right edge — the glyph needs a second column to render in.
     rail: inline === "collapsed" ? 2 : inline ? 1 : 0,
   }
 }

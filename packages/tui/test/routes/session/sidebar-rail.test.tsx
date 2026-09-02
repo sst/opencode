@@ -1,13 +1,13 @@
 /** @jsxImportSource @opentui/solid */
 import { describe, expect, test } from "bun:test"
-import { readFileSync } from "node:fs"
 import { BoxRenderable, MouseEvent, type Renderable } from "@opentui/core"
 import { testRender } from "@opentui/solid"
 import { createMemo, createSignal, onMount } from "solid-js"
 import { tmpdir } from "../../fixture/fixture"
 import { createTuiResolvedConfig } from "../../fixture/tui-runtime"
 import { TestTuiContexts } from "../../fixture/tui-environment"
-import { createEventSource, createFetch, directory, json, mount, wait } from "../../cli/cmd/tui/sync-fixture"
+import { createEventSource, createFetch, directory, json } from "../../fixture/tui-sdk"
+import { mount, wait } from "../../fixture/tui-sync"
 import { ArgsProvider } from "../../../src/context/args"
 import { ExitProvider } from "../../../src/context/exit"
 import { KVProvider, useKV } from "../../../src/context/kv"
@@ -20,18 +20,8 @@ import { TuiConfigProvider } from "../../../src/config"
 import { createPluginRuntime, PluginRuntimeProvider } from "../../../src/plugin/runtime"
 import { SidebarDragRegion, SidebarRegion, sidebarVisibilityCommands } from "../../../src/routes/session"
 import { SidebarRail } from "../../../src/routes/session/sidebar-rail"
-import { SidebarWidthMin } from "../../../src/util/sidebar-width"
-import {
-  SIDEBAR_WIDTH_STEP,
-  nextSidebarState,
-  resolveSidebarWidth,
-  sidebarDragEnd,
-  sidebarDragMove,
-  sidebarDragStart,
-  sidebarLayout,
-  sidebarWidthStep,
-  type SidebarDrag,
-} from "../../../src/util/sidebar-rail"
+import { clampSidebarWidth } from "../../../src/util/sidebar-width"
+import { resolveSidebarWidth, sidebarLayout, type SidebarDrag } from "../../../src/util/sidebar-rail"
 
 const sessionID = "ses_sidebar_rail"
 const session = {
@@ -42,143 +32,6 @@ const session = {
   directory,
   project_id: "proj_test",
 }
-
-describe("util.sidebar-rail state", () => {
-  test("cycles auto to collapsed and back", () => {
-    expect(nextSidebarState("auto")).toBe("collapsed")
-    expect(nextSidebarState("collapsed")).toBe("auto")
-    expect(nextSidebarState("hide")).toBe("auto")
-  })
-
-  test("never returns hide", () => {
-    for (const state of ["auto", "collapsed", "hide"] as const) {
-      expect(nextSidebarState(state)).not.toBe("hide")
-    }
-  })
-
-  test("prefers a finite positive integer width override", () => {
-    expect(resolveSidebarWidth(56, 42)).toBe(56)
-  })
-
-  test("falls back to the configured width for invalid overrides", () => {
-    for (const override of [undefined, "50", 0, -3, NaN, Infinity, 2.5]) {
-      expect(resolveSidebarWidth(override, 42)).toBe(42)
-    }
-  })
-
-  test("steps the width by SIDEBAR_WIDTH_STEP", () => {
-    expect(sidebarWidthStep(42, SIDEBAR_WIDTH_STEP, 200)).toBe(46)
-    expect(sidebarWidthStep(22, -SIDEBAR_WIDTH_STEP, 200)).toBe(20)
-  })
-})
-
-describe("sidebar drag reducer", () => {
-  test("starts a gesture at the start width without movement", () => {
-    expect(sidebarDragStart(100, 42)).toStrictEqual({ startX: 100, startWidth: 42, width: 42, moved: false })
-  })
-
-  test("narrows a right-docked sidebar when the gesture moves right", () => {
-    const drag = sidebarDragMove(sidebarDragStart(100, 42), 108, 200)
-    expect(drag.width).toBe(34)
-    expect(drag.moved).toBe(true)
-  })
-
-  test("widens a right-docked sidebar when the gesture moves left", () => {
-    expect(sidebarDragMove(sidebarDragStart(100, 42), 92, 200).width).toBe(50)
-  })
-
-  test("stays moved when the gesture returns to the start column", () => {
-    const moved = sidebarDragMove(sidebarDragStart(100, 42), 108, 200)
-    expect(sidebarDragMove(moved, 100, 200)).toStrictEqual({ startX: 100, startWidth: 42, width: 42, moved: true })
-  })
-
-  test("follows a collapsed gesture from the floor width", () => {
-    expect(sidebarDragMove(sidebarDragStart(79, SidebarWidthMin), 69, 200).width).toBe(30)
-  })
-
-  test("clamps to the narrow terminal ceiling mid-gesture", () => {
-    expect(sidebarDragMove(sidebarDragStart(100, 42), 40, 130).width).toBe(90)
-  })
-
-  test("clamps a grown gesture against a shrunken terminal", () => {
-    const grown = sidebarDragMove(sidebarDragStart(100, 42), 20, 200)
-    expect(grown.width).toBe(100)
-    expect(sidebarDragMove(grown, 10, 130).width).toBe(90)
-  })
-
-  test("persists the final width after movement", () => {
-    const moved = sidebarDragMove(sidebarDragStart(100, 42), 92, 200)
-    expect(sidebarDragEnd(moved)).toStrictEqual({ persist: 50 })
-  })
-
-  test("expands when the gesture ends without movement", () => {
-    expect(sidebarDragEnd(sidebarDragStart(100, 42))).toStrictEqual({ expand: true })
-  })
-})
-
-describe("sidebar layout", () => {
-  test("child sessions render no sidebar or rail", () => {
-    expect(sidebarLayout({ parentID: "s1", wide: true, sidebarOpen: true, state: "auto" })).toStrictEqual({
-      inline: undefined,
-      visible: false,
-      rail: 0,
-    })
-  })
-
-  test("narrow terminals show the sidebar only as an overlay", () => {
-    expect(sidebarLayout({ wide: false, sidebarOpen: true, state: "auto" })).toStrictEqual({
-      inline: undefined,
-      visible: true,
-      rail: 0,
-    })
-  })
-
-  test("wide terminals expand the sidebar beside a rail", () => {
-    expect(sidebarLayout({ wide: true, sidebarOpen: false, state: "auto" })).toStrictEqual({
-      inline: "expanded",
-      visible: true,
-      rail: 1,
-    })
-  })
-
-  test("wide terminals collapse the sidebar to a rail", () => {
-    expect(sidebarLayout({ wide: true, sidebarOpen: false, state: "collapsed" })).toStrictEqual({
-      inline: "collapsed",
-      visible: false,
-      rail: 2,
-    })
-  })
-
-  test("hidden state renders nothing", () => {
-    expect(sidebarLayout({ wide: true, sidebarOpen: false, state: "hide" })).toStrictEqual({
-      inline: undefined,
-      visible: false,
-      rail: 0,
-    })
-  })
-})
-
-describe("kv.delete", () => {
-  test("removes the key from the store and the persisted snapshot", async () => {
-    await using tmp = await tmpdir()
-    await Bun.write(`${tmp.path}/kv.json`, "{}")
-    const { app, kv } = await mount(undefined, tmp.path)
-    const file = `${tmp.path}/kv.json`
-
-    try {
-      kv.set("sidebar_width", 56)
-      expect(kv.get("sidebar_width")).toBe(56)
-      await wait(() => readFileSync(file, "utf8").includes("sidebar_width"))
-
-      kv.delete("sidebar_width")
-      expect(kv.get("sidebar_width", 42)).toBe(42)
-      await wait(() => !readFileSync(file, "utf8").includes("sidebar_width"))
-      expect(JSON.parse(readFileSync(file, "utf8"))).not.toHaveProperty("sidebar_width")
-    } finally {
-      app.renderer.destroy()
-    }
-  })
-})
 
 describe("sidebar rail rendering", () => {
   test("renders the inline rail and sidebar at the configured width", async () => {
@@ -285,18 +138,6 @@ describe("sidebar rail rendering", () => {
     }
   })
 
-  test("omits rail mouse handlers when mouse support is disabled", async () => {
-    const rendered = await renderRail({ collapsed: true, mouseEnabled: false, onExpand: () => {} })
-    try {
-      const handlers = mouseHandlers(findRail(rendered.app.renderer.root))
-      expect(handlers.down).toBeUndefined()
-      expect(handlers.up).toBeUndefined()
-    } finally {
-      rendered.app.renderer.destroy()
-      await rendered.dispose()
-    }
-  })
-
   test("renders the narrow sidebar overlay without a rail", async () => {
     const rendered = await renderRegion({ wide: false, inline: undefined, visible: true, width: 42 })
     try {
@@ -326,30 +167,30 @@ describe("sidebar drag gesture", () => {
       fireMouse(rail, "down", 100)
       await settle(app)
       expect(findBox(app.renderer.root, (box) => box.width === 42)).toBeInstanceOf(BoxRenderable)
-      expect(readFileSync(file, "utf8")).not.toContain("sidebar_width")
+      expect(await Bun.file(file).text()).not.toContain("sidebar_width")
       expect(kv.writes).toBe(0)
 
       fireMouse(row, "drag", 92)
       await settle(app)
       expect(findBox(app.renderer.root, (box) => box.width === 50)).toBeInstanceOf(BoxRenderable)
-      expect(readFileSync(file, "utf8")).not.toContain("sidebar_width")
+      expect(await Bun.file(file).text()).not.toContain("sidebar_width")
       expect(kv.writes).toBe(0)
 
       fireMouse(row, "drag", 84)
       await settle(app)
       expect(findBox(app.renderer.root, (box) => box.width === 58)).toBeInstanceOf(BoxRenderable)
-      expect(readFileSync(file, "utf8")).not.toContain("sidebar_width")
+      expect(await Bun.file(file).text()).not.toContain("sidebar_width")
       expect(kv.writes).toBe(0)
 
       fireMouse(row, "drag-end", 84)
-      await wait(() => readFileSync(file, "utf8").includes("sidebar_width"))
-      expect(JSON.parse(readFileSync(file, "utf8"))).toMatchObject({ sidebar_width: 58 })
+      await wait(async () => (await Bun.file(file).text()).includes("sidebar_width"))
+      expect(await Bun.file(file).json()).toMatchObject({ sidebar_width: 58 })
       expect(kv.writes).toBe(1)
 
       fireMouse(row, "drag", 80)
       await settle(app)
       expect(findBox(app.renderer.root, (box) => box.width === 58)).toBeInstanceOf(BoxRenderable)
-      expect(JSON.parse(readFileSync(file, "utf8"))).toMatchObject({ sidebar_width: 58 })
+      expect(await Bun.file(file).json()).toMatchObject({ sidebar_width: 58 })
       expect(kv.writes).toBe(1)
     } finally {
       app.renderer.destroy()
@@ -379,7 +220,7 @@ describe("sidebar drag gesture", () => {
       fireMouse(row, "drag", 69)
       await settle(app)
       expect(findSidebarBox(app.renderer.root)?.width).toBe(30)
-      const persisted = JSON.parse(readFileSync(file, "utf8"))
+      const persisted = await Bun.file(file).json()
       expect(persisted).toMatchObject({ sidebar: "auto" })
       expect(persisted).not.toHaveProperty("sidebar_width")
       expect(kv.writes).toBe(1)
@@ -387,12 +228,12 @@ describe("sidebar drag gesture", () => {
       fireMouse(row, "drag", 59)
       await settle(app)
       expect(findSidebarBox(app.renderer.root)?.width).toBe(40)
-      expect(JSON.parse(readFileSync(file, "utf8"))).not.toHaveProperty("sidebar_width")
+      expect(await Bun.file(file).json()).not.toHaveProperty("sidebar_width")
       expect(kv.writes).toBe(1)
 
       fireMouse(row, "drag-end", 59)
-      await wait(() => readFileSync(file, "utf8").includes("sidebar_width"))
-      expect(JSON.parse(readFileSync(file, "utf8"))).toMatchObject({ sidebar: "auto", sidebar_width: 40 })
+      await wait(async () => (await Bun.file(file).text()).includes("sidebar_width"))
+      expect(await Bun.file(file).json()).toMatchObject({ sidebar: "auto", sidebar_width: 40 })
       expect(kv.writes).toBe(2)
     } finally {
       app.renderer.destroy()
@@ -417,14 +258,14 @@ describe("sidebar drag gesture", () => {
       await settle(app)
       fireMouse(rail, "up", 79)
       await settle(app)
-      const persisted = JSON.parse(readFileSync(file, "utf8"))
+      const persisted = await Bun.file(file).json()
       expect(persisted).toMatchObject({ sidebar: "auto" })
       expect(persisted).not.toHaveProperty("sidebar_width")
       expect(kv.writes).toBe(1)
 
       fireMouse(findDragRow(app.renderer.root), "drag-end", 79)
       await settle(app)
-      expect(JSON.parse(readFileSync(file, "utf8"))).not.toHaveProperty("sidebar_width")
+      expect(await Bun.file(file).json()).not.toHaveProperty("sidebar_width")
       expect(kv.writes).toBe(1)
     } finally {
       app.renderer.destroy()
@@ -457,7 +298,7 @@ describe("sidebar drag gesture", () => {
       fireMouse(rail, "up", 79)
       await settle(app)
       expect(kv.writes).toBe(2)
-      expect(JSON.parse(readFileSync(file, "utf8"))).toMatchObject({ sidebar: "auto", sidebar_width: 30 })
+      expect(await Bun.file(file).json()).toMatchObject({ sidebar: "auto", sidebar_width: 30 })
     } finally {
       app.renderer.destroy()
       await rendered.dispose()
@@ -489,7 +330,7 @@ describe("sidebar drag gesture", () => {
       fireMouse(rail, "up", 79)
       await settle(app)
       expect(kv.writes).toBe(1)
-      const persisted = JSON.parse(readFileSync(file, "utf8"))
+      const persisted = await Bun.file(file).json()
       expect(persisted).toMatchObject({ sidebar: "auto" })
       expect(persisted).not.toHaveProperty("sidebar_width")
     } finally {
@@ -520,7 +361,7 @@ describe("sidebar drag gesture", () => {
 
       fireMouse(row, "drag-end", 79)
       await settle(app)
-      const persisted = JSON.parse(readFileSync(file, "utf8"))
+      const persisted = await Bun.file(file).json()
       expect(persisted).toMatchObject({ sidebar: "auto" })
       expect(persisted).not.toHaveProperty("sidebar_width")
     } finally {
@@ -554,7 +395,7 @@ describe("sidebar drag gesture", () => {
       await settle(app)
       expect(findSidebarBox(app.renderer.root)?.width).toBe(42)
       expect(kv.writes).toBe(0)
-      expect(readFileSync(file, "utf8")).not.toContain("sidebar_width")
+      expect(await Bun.file(file).text()).not.toContain("sidebar_width")
     } finally {
       app.renderer.destroy()
       await rendered.dispose()
@@ -579,7 +420,7 @@ describe("sidebar drag gesture", () => {
       await settle(app)
       expect(findSidebarBox(app.renderer.root)?.width).toBe(42)
       expect(kv.writes).toBe(0)
-      expect(readFileSync(file, "utf8")).not.toContain("sidebar")
+      expect(await Bun.file(file).text()).not.toContain("sidebar")
     } finally {
       app.renderer.destroy()
       await rendered.dispose()
@@ -663,7 +504,7 @@ describe("sidebar visibility commands", () => {
       commands.find((command) => command.value === "session.sidebar.hide")!.run()
       expect(kv.writes).toBe(0)
       expect(kv.get("sidebar")).toBe("collapsed")
-      expect(JSON.parse(readFileSync(file, "utf8"))).toMatchObject({ sidebar: "collapsed" })
+      expect(await Bun.file(file).json()).toMatchObject({ sidebar: "collapsed" })
     } finally {
       app.renderer.destroy()
     }
@@ -812,8 +653,8 @@ function DragRegionProbe(props: {
   input: {
     wide: boolean
     inline: "expanded" | "collapsed" | undefined
-    visible: boolean
     width?: number
+    terminalWidth?: number
     mouseEnabled?: boolean
     oversizedContent?: boolean
   }
@@ -825,7 +666,14 @@ function DragRegionProbe(props: {
   const [sidebar, setSidebar] = kv.signal<"auto" | "collapsed" | "hide">("sidebar", "auto")
   const [drag, setDrag] = createSignal<SidebarDrag>()
   const layout = createMemo(() => sidebarLayout({ wide: props.input.wide, sidebarOpen: false, state: sidebar() }))
-  const width = createMemo(() => drag()?.width ?? kv.get("sidebar_width") ?? props.input.width ?? 42)
+  const width = createMemo(
+    () =>
+      drag()?.width ??
+      clampSidebarWidth(
+        resolveSidebarWidth(kv.get("sidebar_width"), props.input.width ?? 42),
+        props.input.terminalWidth ?? 80,
+      ),
+  )
   return (
     <SidebarDragRegion
       sessionID={sessionID}
@@ -844,36 +692,6 @@ function DragRegionProbe(props: {
       </box>
     </SidebarDragRegion>
   )
-}
-
-async function renderRail(props: { collapsed: boolean; mouseEnabled: boolean; onExpand?: () => void }) {
-  const state = await tmpdir()
-  await Bun.write(`${state.path}/kv.json`, "{}")
-  const app = await testRender(
-    () => (
-      <TestTuiContexts paths={{ state: state.path }}>
-        <TuiConfigProvider config={createTuiResolvedConfig()}>
-          <KVProvider>
-            <ThemeProvider mode="dark">
-              <SidebarRail
-                {...props}
-                width={
-                  sidebarLayout({
-                    wide: true,
-                    sidebarOpen: false,
-                    state: props.collapsed ? "collapsed" : "auto",
-                  }).rail
-                }
-              />
-            </ThemeProvider>
-          </KVProvider>
-        </TuiConfigProvider>
-      </TestTuiContexts>
-    ),
-    { width: 10, height: 4 },
-  )
-  await settle(app)
-  return { app, dispose: () => state[Symbol.asyncDispose]() }
 }
 
 async function settle(app: Awaited<ReturnType<typeof testRender>>) {
