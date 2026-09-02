@@ -1,8 +1,25 @@
 /** @jsxImportSource @opentui/solid */
 import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
+import { BoxRenderable, type Renderable } from "@opentui/core"
+import { testRender } from "@opentui/solid"
+import { createMemo, onMount } from "solid-js"
 import { tmpdir } from "../../fixture/fixture"
-import { mount, wait } from "../../cli/cmd/tui/sync-fixture"
+import { createTuiResolvedConfig } from "../../fixture/tui-runtime"
+import { TestTuiContexts } from "../../fixture/tui-environment"
+import { createEventSource, createFetch, directory, json, mount, wait } from "../../cli/cmd/tui/sync-fixture"
+import { ArgsProvider } from "../../../src/context/args"
+import { ExitProvider } from "../../../src/context/exit"
+import { KVProvider } from "../../../src/context/kv"
+import { PermissionProvider } from "../../../src/context/permission"
+import { ProjectProvider } from "../../../src/context/project"
+import { SDKProvider } from "../../../src/context/sdk"
+import { SyncProvider, useSync } from "../../../src/context/sync"
+import { ThemeProvider } from "../../../src/context/theme"
+import { TuiConfigProvider } from "../../../src/config"
+import { createPluginRuntime, PluginRuntimeProvider } from "../../../src/plugin/runtime"
+import { SidebarRegion } from "../../../src/routes/session"
+import { SidebarRail } from "../../../src/routes/session/sidebar-rail"
 import {
   SIDEBAR_WIDTH_STEP,
   nextSidebarState,
@@ -10,6 +27,16 @@ import {
   sidebarLayout,
   sidebarWidthStep,
 } from "../../../src/util/sidebar-rail"
+
+const sessionID = "ses_sidebar_rail"
+const session = {
+  id: sessionID,
+  title: "Sidebar rail session",
+  time: { created: 0, updated: 0 },
+  version: "1.14.42",
+  directory,
+  project_id: "proj_test",
+}
 
 describe("util.sidebar-rail state", () => {
   test("cycles auto to collapsed and back", () => {
@@ -103,3 +130,189 @@ describe("kv.delete", () => {
     }
   })
 })
+
+describe("sidebar rail rendering", () => {
+  test("renders the inline rail and sidebar at the configured width", async () => {
+    const rendered = await renderRegion({ wide: true, inline: "expanded", visible: true, width: 42 })
+    try {
+      expect(findRail(rendered.app.renderer.root)).toBeInstanceOf(BoxRenderable)
+      expect(findBox(rendered.app.renderer.root, (box) => box.width === 42)).toBeInstanceOf(BoxRenderable)
+    } finally {
+      rendered.app.renderer.destroy()
+      await rendered.dispose()
+    }
+  })
+
+  test("renders the collapse glyph without sidebar content", async () => {
+    const rendered = await renderRegion({ wide: true, inline: "collapsed", visible: false })
+    try {
+      expect(findRail(rendered.app.renderer.root)).toBeInstanceOf(BoxRenderable)
+      expect(rendered.app.captureCharFrame()).toContain("▸")
+      expect(findBox(rendered.app.renderer.root, (box) => box.width === 42)).toBeUndefined()
+    } finally {
+      rendered.app.renderer.destroy()
+      await rendered.dispose()
+    }
+  })
+
+  test("renders neither rail nor sidebar when inline layout is absent", async () => {
+    const rendered = await renderRegion({ wide: true, inline: undefined, visible: false })
+    try {
+      expect(findBox(rendered.app.renderer.root, (box) => box.id === "sidebar-rail")).toBeUndefined()
+      expect(findBox(rendered.app.renderer.root, (box) => box.width === 42)).toBeUndefined()
+    } finally {
+      rendered.app.renderer.destroy()
+      await rendered.dispose()
+    }
+  })
+
+  test("omits rail mouse handlers when mouse support is disabled", async () => {
+    const rendered = await renderRail({ collapsed: true, mouseEnabled: false, onExpand: () => {} })
+    try {
+      const handlers = mouseHandlers(findRail(rendered.app.renderer.root))
+      expect(handlers.down).toBeUndefined()
+      expect(handlers.up).toBeUndefined()
+    } finally {
+      rendered.app.renderer.destroy()
+      await rendered.dispose()
+    }
+  })
+
+  test("renders the narrow sidebar overlay without a rail", async () => {
+    const rendered = await renderRegion({ wide: false, inline: undefined, visible: true, width: 42 })
+    try {
+      expect(findBox(rendered.app.renderer.root, (box) => box.id === "sidebar-rail")).toBeUndefined()
+      expect(findBox(rendered.app.renderer.root, (box) => box.width === 42)).toBeInstanceOf(BoxRenderable)
+    } finally {
+      rendered.app.renderer.destroy()
+      await rendered.dispose()
+    }
+  })
+})
+
+async function renderRegion(input: {
+  wide: boolean
+  inline: "expanded" | "collapsed" | undefined
+  visible: boolean
+  width?: number
+  mouseEnabled?: boolean
+}) {
+  const state = await tmpdir()
+  await Bun.write(`${state.path}/kv.json`, "{}")
+  let sync!: ReturnType<typeof useSync>
+  let ready!: () => void
+  const mounted = new Promise<void>((resolve) => {
+    ready = resolve
+  })
+  const events = createEventSource()
+  const calls = createFetch((url) => {
+    if (url.pathname === "/session") return json([session])
+    return undefined
+  }, events)
+  const app = await testRender(
+    () => (
+      <TestTuiContexts paths={{ state: state.path }}>
+        <ArgsProvider>
+          <KVProvider>
+            <TuiConfigProvider config={createTuiResolvedConfig()}>
+              <ThemeProvider mode="dark">
+                <PluginRuntimeProvider value={createPluginRuntime()}>
+                  <SDKProvider url="http://test" directory={directory} fetch={calls.fetch} events={events.source}>
+                    <PermissionProvider>
+                      <ProjectProvider>
+                        <ExitProvider exit={() => {}}>
+                          <SyncProvider>
+                            <RegionProbe input={input} onMount={(value) => {
+                              sync = value
+                              ready()
+                            }} />
+                          </SyncProvider>
+                        </ExitProvider>
+                      </ProjectProvider>
+                    </PermissionProvider>
+                  </SDKProvider>
+                </PluginRuntimeProvider>
+              </ThemeProvider>
+            </TuiConfigProvider>
+          </KVProvider>
+        </ArgsProvider>
+      </TestTuiContexts>
+    ),
+    { width: 80, height: 10 },
+  )
+  await mounted
+  await wait(() => sync.status === "complete")
+  await settle(app)
+  return { app, dispose: () => state[Symbol.asyncDispose]() }
+}
+
+function RegionProbe(props: {
+  input: {
+    wide: boolean
+    inline: "expanded" | "collapsed" | undefined
+    visible: boolean
+    width?: number
+    mouseEnabled?: boolean
+  }
+  onMount: (sync: ReturnType<typeof useSync>) => void
+}) {
+  const sync = useSync()
+  onMount(() => props.onMount(sync))
+  const wide = createMemo(() => props.input.wide)
+  const inline = createMemo(() => props.input.inline)
+  const visible = createMemo(() => props.input.visible)
+  const width = createMemo(() => props.input.width ?? 42)
+  const mouseEnabled = createMemo(() => props.input.mouseEnabled ?? true)
+  return (
+    <SidebarRegion
+      sessionID={sessionID}
+      wide={wide}
+      sidebarInline={inline}
+      sidebarVisible={visible}
+      sidebarWidth={width}
+      mouseEnabled={mouseEnabled}
+    />
+  )
+}
+
+async function renderRail(props: { collapsed: boolean; mouseEnabled: boolean; onExpand?: () => void }) {
+  const state = await tmpdir()
+  await Bun.write(`${state.path}/kv.json`, "{}")
+  const app = await testRender(
+    () => (
+      <TestTuiContexts paths={{ state: state.path }}>
+        <TuiConfigProvider config={createTuiResolvedConfig()}>
+          <KVProvider>
+            <ThemeProvider mode="dark">
+              <SidebarRail {...props} />
+            </ThemeProvider>
+          </KVProvider>
+        </TuiConfigProvider>
+      </TestTuiContexts>
+    ),
+    { width: 10, height: 4 },
+  )
+  await settle(app)
+  return { app, dispose: () => state[Symbol.asyncDispose]() }
+}
+
+async function settle(app: Awaited<ReturnType<typeof testRender>>) {
+  await app.renderOnce()
+  await Bun.sleep(25)
+  await app.renderOnce()
+}
+
+function findRail(root: Renderable) {
+  const rail = findBox(root, (box) => box.id === "sidebar-rail")
+  if (!rail) throw new Error("sidebar rail was not rendered")
+  return rail
+}
+
+function findBox(root: Renderable, match: (box: BoxRenderable) => boolean): BoxRenderable | undefined {
+  if (root instanceof BoxRenderable && match(root)) return root
+  return root.getChildren().map((child) => findBox(child, match)).find(Boolean)
+}
+
+function mouseHandlers(rail: BoxRenderable) {
+  return (rail as unknown as { _mouseListeners: Record<string, unknown> })._mouseListeners
+}

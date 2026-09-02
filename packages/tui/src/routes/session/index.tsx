@@ -25,6 +25,7 @@ import { useTuiPaths, useTuiTerminalEnvironment } from "../../context/runtime"
 import { Spinner } from "../../component/spinner"
 import { createSyntaxStyleMemo, generateSubtleSyntax, selectedForeground, useTheme } from "../../context/theme"
 import { BoxRenderable, ScrollBoxRenderable, addDefaultParsers, TextAttributes, RGBA } from "@opentui/core"
+import { Flag } from "@opencode-ai/core/flag/flag"
 import { Prompt, type PromptRef } from "../../component/prompt"
 import type {
   AssistantMessage,
@@ -53,6 +54,7 @@ import { DialogTimeline } from "./dialog-timeline"
 import { DialogForkFromTimeline } from "./dialog-fork-from-timeline"
 import { DialogSessionRename } from "../../component/dialog-session-rename"
 import { Sidebar } from "./sidebar"
+import { SidebarRail } from "./sidebar-rail"
 import { clampSidebarWidth } from "../../util/sidebar-width"
 import {
   SIDEBAR_WIDTH_STEP,
@@ -60,6 +62,7 @@ import {
   resolveSidebarWidth,
   sidebarLayout,
   sidebarWidthStep,
+  type SidebarInline,
 } from "../../util/sidebar-rail"
 import { SubagentFooter } from "./subagent-footer.tsx"
 import { filetype } from "../../util/filetype"
@@ -280,6 +283,7 @@ export function Session() {
   const [showGenericToolOutput, setShowGenericToolOutput] = kv.signal("generic_tool_output_visibility", false)
 
   const wide = createMemo(() => dimensions().width > 120)
+  const mouseEnabled = createMemo(() => !Flag.OPENCODE_DISABLE_MOUSE && tuiConfig.mouse)
   const layout = createMemo(() =>
     sidebarLayout({
       parentID: session()?.parentID,
@@ -1405,29 +1409,62 @@ export function Session() {
             </Show>
             <Toast />
           </box>
-          <Show when={sidebarVisible()}>
-            <Switch>
-              <Match when={wide()}>
-                <Sidebar sessionID={route.sessionID} width={sidebarWidth()} />
-              </Match>
-              <Match when={!wide()}>
-                <box
-                  position="absolute"
-                  top={0}
-                  left={0}
-                  right={0}
-                  bottom={0}
-                  alignItems="flex-end"
-                  backgroundColor={RGBA.fromInts(0, 0, 0, 70)}
-                >
-                  <Sidebar sessionID={route.sessionID} width={sidebarWidth()} />
-                </box>
-              </Match>
-            </Switch>
-          </Show>
+          <SidebarRegion
+            sessionID={route.sessionID}
+            wide={wide}
+            sidebarInline={sidebarInline}
+            sidebarVisible={sidebarVisible}
+            sidebarWidth={sidebarWidth}
+            mouseEnabled={mouseEnabled}
+            onExpand={() => setSidebar(() => "auto")}
+          />
         </box>
       </context.Provider>
     </LocationProvider>
+  )
+}
+
+export function SidebarRegion(props: {
+  sessionID: string
+  wide: () => boolean
+  sidebarInline: () => SidebarInline
+  sidebarVisible: () => boolean
+  sidebarWidth: () => number
+  mouseEnabled: () => boolean
+  onExpand?: () => void
+}) {
+  return (
+    <Switch>
+      <Match when={props.wide()}>
+        <Show when={props.sidebarInline()}>
+          <box flexDirection="row">
+            <SidebarRail
+              collapsed={props.sidebarInline() === "collapsed"}
+              mouseEnabled={props.mouseEnabled()}
+              onExpand={props.onExpand}
+            />
+            <Show when={props.sidebarInline() === "expanded"}>
+              <Sidebar sessionID={props.sessionID} width={props.sidebarWidth()} />
+            </Show>
+          </box>
+        </Show>
+      </Match>
+      <Match when={!props.wide()}>
+        <Show when={props.sidebarVisible()}>
+          <box
+            position="absolute"
+            top={0}
+            left={0}
+            right={0}
+            bottom={0}
+            alignItems="flex-end"
+            backgroundColor={RGBA.fromInts(0, 0, 0, 70)}
+          >
+            <Sidebar sessionID={props.sessionID} width={props.sidebarWidth()} />
+          </box>
+        </Show>
+      </Match>
+    </Switch>
   )
 }
 
