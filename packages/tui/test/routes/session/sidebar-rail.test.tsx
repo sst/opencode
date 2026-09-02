@@ -18,7 +18,7 @@ import { SyncProvider, useSync } from "../../../src/context/sync"
 import { ThemeProvider } from "../../../src/context/theme"
 import { TuiConfigProvider } from "../../../src/config"
 import { createPluginRuntime, PluginRuntimeProvider } from "../../../src/plugin/runtime"
-import { SidebarDragRegion, SidebarRegion } from "../../../src/routes/session"
+import { SidebarDragRegion, SidebarRegion, sidebarVisibilityCommands } from "../../../src/routes/session"
 import { SidebarRail } from "../../../src/routes/session/sidebar-rail"
 import { SidebarWidthMin } from "../../../src/util/sidebar-width"
 import {
@@ -635,6 +635,62 @@ describe("sidebar drag gesture", () => {
     } finally {
       rendered.app.renderer.destroy()
       await rendered.dispose()
+    }
+  })
+})
+
+describe("sidebar visibility commands", () => {
+  test("are inert in child sessions", async () => {
+    await using tmp = await tmpdir()
+    await Bun.write(`${tmp.path}/kv.json`, JSON.stringify({ sidebar: "collapsed" }))
+    const { app, kv } = await mount(undefined, tmp.path)
+    const file = `${tmp.path}/kv.json`
+    try {
+      await wait(() => kv.get("sidebar") === "collapsed")
+      const [sidebar, setSidebar] = kv.signal<"auto" | "collapsed" | "hide">("sidebar", "auto")
+      const commands = sidebarVisibilityCommands({
+        parentID: () => "ses_parent",
+        wide: () => true,
+        sidebar,
+        sidebarVisible: () => true,
+        setSidebar,
+        setSidebarOpen: () => {},
+        clearDialog: () => {},
+      })
+      expect(commands.every((command) => command.enabled === false)).toBe(true)
+
+      commands.find((command) => command.value === "session.sidebar.toggle")!.run()
+      commands.find((command) => command.value === "session.sidebar.hide")!.run()
+      expect(kv.writes).toBe(0)
+      expect(kv.get("sidebar")).toBe("collapsed")
+      expect(JSON.parse(readFileSync(file, "utf8"))).toMatchObject({ sidebar: "collapsed" })
+    } finally {
+      app.renderer.destroy()
+    }
+  })
+
+  test("toggle from a root session still persists", async () => {
+    await using tmp = await tmpdir()
+    await Bun.write(`${tmp.path}/kv.json`, "{}")
+    const { app, kv } = await mount(undefined, tmp.path)
+    try {
+      const [sidebar, setSidebar] = kv.signal<"auto" | "collapsed" | "hide">("sidebar", "auto")
+      const commands = sidebarVisibilityCommands({
+        parentID: () => undefined,
+        wide: () => true,
+        sidebar,
+        sidebarVisible: () => true,
+        setSidebar,
+        setSidebarOpen: () => {},
+        clearDialog: () => {},
+      })
+      expect(commands.every((command) => command.enabled === true)).toBe(true)
+
+      commands.find((command) => command.value === "session.sidebar.toggle")!.run()
+      expect(kv.writes).toBe(1)
+      expect(kv.get("sidebar")).toBe("collapsed")
+    } finally {
+      app.renderer.destroy()
     }
   })
 })

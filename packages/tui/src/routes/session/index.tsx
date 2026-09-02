@@ -76,6 +76,7 @@ import {
   sidebarWidthStep,
   type SidebarDrag,
   type SidebarInline,
+  type SidebarState,
 } from "../../util/sidebar-rail"
 import { SubagentFooter } from "./subagent-footer.tsx"
 import { filetype } from "../../util/filetype"
@@ -712,40 +713,15 @@ export function Session() {
         })
       },
     },
-    {
-      title: wide()
-        ? sidebar() === "auto"
-          ? "Collapse sidebar"
-          : "Expand sidebar"
-        : sidebarVisible()
-          ? "Hide sidebar"
-          : "Show sidebar",
-      value: "session.sidebar.toggle",
-      category: "Session",
-      run: () => {
-        batch(() => {
-          if (wide()) {
-            setSidebar(() => nextSidebarState(sidebar()))
-            setSidebarOpen(false)
-            return
-          }
-          setSidebarOpen(!sidebarVisible())
-        })
-        dialog.clear()
-      },
-    },
-    {
-      title: "Hide sidebar",
-      value: "session.sidebar.hide",
-      category: "Session",
-      run: () => {
-        batch(() => {
-          setSidebar(() => "hide")
-          setSidebarOpen(false)
-        })
-        dialog.clear()
-      },
-    },
+    ...sidebarVisibilityCommands({
+      parentID: () => session()?.parentID,
+      wide,
+      sidebar,
+      sidebarVisible,
+      setSidebar,
+      setSidebarOpen,
+      clearDialog: () => dialog.clear(),
+    }),
     {
       title: "Reset sidebar width",
       value: "session.sidebar.width.reset",
@@ -2914,4 +2890,57 @@ export function parseDiagnostics(value: unknown, filePath: string) {
       return [{ range: { start: { line, character } }, message }]
     })
     .slice(0, 3)
+}
+
+export function sidebarVisibilityCommands(input: {
+  parentID: () => string | undefined
+  wide: () => boolean
+  sidebar: () => SidebarState
+  sidebarVisible: () => boolean
+  setSidebar: (next: Setter<SidebarState>) => void
+  setSidebarOpen: (open: boolean) => void
+  clearDialog: () => void
+}) {
+  return [
+    {
+      title: input.wide()
+        ? input.sidebar() === "auto"
+          ? "Collapse sidebar"
+          : "Expand sidebar"
+        : input.sidebarVisible()
+          ? "Hide sidebar"
+          : "Show sidebar",
+      value: "session.sidebar.toggle",
+      category: "Session",
+      // Child sessions render no sidebar; a visibility change here would persist a global
+      // state the screen cannot show.
+      enabled: !input.parentID(),
+      run: () => {
+        if (input.parentID()) return
+        batch(() => {
+          if (input.wide()) {
+            input.setSidebar(() => nextSidebarState(input.sidebar()))
+            input.setSidebarOpen(false)
+            return
+          }
+          input.setSidebarOpen(!input.sidebarVisible())
+        })
+        input.clearDialog()
+      },
+    },
+    {
+      title: "Hide sidebar",
+      value: "session.sidebar.hide",
+      category: "Session",
+      enabled: !input.parentID(),
+      run: () => {
+        if (input.parentID()) return
+        batch(() => {
+          input.setSidebar(() => "hide")
+          input.setSidebarOpen(false)
+        })
+        input.clearDialog()
+      },
+    },
+  ]
 }
