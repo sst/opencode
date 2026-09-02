@@ -54,6 +54,13 @@ import { DialogForkFromTimeline } from "./dialog-fork-from-timeline"
 import { DialogSessionRename } from "../../component/dialog-session-rename"
 import { Sidebar } from "./sidebar"
 import { clampSidebarWidth } from "../../util/sidebar-width"
+import {
+  SIDEBAR_WIDTH_STEP,
+  nextSidebarState,
+  resolveSidebarWidth,
+  sidebarLayout,
+  sidebarWidthStep,
+} from "../../util/sidebar-rail"
 import { SubagentFooter } from "./subagent-footer.tsx"
 import { filetype } from "../../util/filetype"
 import parsers from "../../parsers-config"
@@ -258,7 +265,7 @@ export function Session() {
   })
 
   const dimensions = useTerminalDimensions()
-  const [sidebar, setSidebar] = kv.signal<"auto" | "hide">("sidebar", "auto")
+  const [sidebar, setSidebar] = kv.signal<"auto" | "collapsed" | "hide">("sidebar", tuiConfig.sidebar ?? "auto")
   const [sidebarOpen, setSidebarOpen] = createSignal(false)
   const [conceal, setConceal] = createSignal(true)
   const thinking = useThinkingMode()
@@ -273,15 +280,23 @@ export function Session() {
   const [showGenericToolOutput, setShowGenericToolOutput] = kv.signal("generic_tool_output_visibility", false)
 
   const wide = createMemo(() => dimensions().width > 120)
-  const sidebarVisible = createMemo(() => {
-    if (session()?.parentID) return false
-    if (sidebarOpen()) return true
-    if (sidebar() === "auto" && wide()) return true
-    return false
-  })
-  const sidebarWidth = createMemo(() => clampSidebarWidth(tuiConfig.sidebar_width, dimensions().width))
+  const sidebarInline = createMemo(() =>
+    sidebarLayout({
+      parentID: session()?.parentID,
+      wide: wide(),
+      sidebarOpen: sidebarOpen(),
+      state: sidebar(),
+    }).inline,
+  )
+  const sidebarVisible = createMemo(() => !session()?.parentID && (sidebarOpen() || sidebarInline() === "expanded"))
+  // The rail is one extra column beside the sidebar; sidebarWidth stays the sidebar box width.
+  const railWidth = createMemo(() => (sidebarInline() ? 1 : 0))
+  // kv.get rather than kv.signal: a signal would re-seed the default after a reset, making reset a silent no-op.
+  const sidebarWidth = createMemo(() =>
+    clampSidebarWidth(resolveSidebarWidth(kv.get("sidebar_width"), tuiConfig.sidebar_width), dimensions().width),
+  )
   const showTimestamps = createMemo(() => timestamps() === "show")
-  const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? sidebarWidth() : 0) - 4)
+  const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? sidebarWidth() : 0) - railWidth() - 4)
   const providers = createMemo(() => Model.index(sync.data.provider))
 
   const scrollAcceleration = createMemo(() => getScrollAcceleration(tuiConfig))
@@ -676,15 +691,63 @@ export function Session() {
       },
     },
     {
-      title: sidebarVisible() ? "Hide sidebar" : "Show sidebar",
+      title: wide()
+        ? sidebar() === "auto"
+          ? "Collapse sidebar"
+          : "Expand sidebar"
+        : sidebarVisible()
+          ? "Hide sidebar"
+          : "Show sidebar",
       value: "session.sidebar.toggle",
       category: "Session",
       run: () => {
         batch(() => {
-          const isVisible = sidebarVisible()
-          setSidebar(() => (isVisible ? "hide" : "auto"))
-          setSidebarOpen(!isVisible)
+          if (wide()) {
+            setSidebar(() => nextSidebarState(sidebar()))
+            setSidebarOpen(false)
+            return
+          }
+          setSidebarOpen(!sidebarVisible())
         })
+        dialog.clear()
+      },
+    },
+    {
+      title: "Hide sidebar",
+      value: "session.sidebar.hide",
+      category: "Session",
+      run: () => {
+        batch(() => {
+          setSidebar(() => "hide")
+          setSidebarOpen(false)
+        })
+        dialog.clear()
+      },
+    },
+    {
+      title: "Reset sidebar width",
+      value: "session.sidebar.width.reset",
+      category: "Session",
+      run: () => {
+        kv.delete("sidebar_width")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Increase sidebar width",
+      value: "session.sidebar.width.grow",
+      category: "Session",
+      run: () => {
+        kv.set("sidebar_width", sidebarWidthStep(sidebarWidth(), SIDEBAR_WIDTH_STEP, dimensions().width))
+        dialog.clear()
+      },
+    },
+    {
+      title: "Decrease sidebar width",
+      value: "session.sidebar.width.shrink",
+      category: "Session",
+      run: () => {
+        kv.set("sidebar_width", sidebarWidthStep(sidebarWidth(), -SIDEBAR_WIDTH_STEP, dimensions().width))
         dialog.clear()
       },
     },

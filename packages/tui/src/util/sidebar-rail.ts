@@ -1,5 +1,42 @@
 import { clampSidebarWidth } from "./sidebar-width"
 
+export type SidebarState = "auto" | "collapsed" | "hide"
+
+// Coarse steps so a few presses span the useful range without drag precision.
+export const SIDEBAR_WIDTH_STEP = 4
+
+export function nextSidebarState(state: SidebarState): SidebarState {
+  return state === "auto" ? "collapsed" : "auto"
+}
+
+export function resolveSidebarWidth(override: unknown, configured: number): number {
+  if (typeof override === "number" && Number.isInteger(override) && override > 0) return override
+  return configured
+}
+
+export type SidebarInline = "expanded" | "collapsed" | undefined
+
+export function sidebarLayout(input: {
+  parentID?: string | undefined
+  wide: boolean
+  sidebarOpen: boolean
+  state: SidebarState
+}): { inline: SidebarInline; visible: boolean; rail: number } {
+  if (input.parentID) return { inline: undefined, visible: false, rail: 0 }
+  const inline: SidebarInline = !input.wide
+    ? undefined
+    : input.state === "auto"
+      ? "expanded"
+      : input.state === "collapsed"
+        ? "collapsed"
+        : undefined
+  return {
+    inline,
+    visible: input.sidebarOpen || inline === "expanded",
+    rail: inline ? 1 : 0,
+  }
+}
+
 /**
  * Applies rail movement to a sidebar width, where positive movement is to the
  * right — it narrows a right-docked sidebar and widens a left-docked one.
