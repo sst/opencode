@@ -50,6 +50,12 @@ test("validates config constraints", () => {
   expect(decodeInfo({ attention: { sounds: { unknown: "sound.wav" } } })).toEqual({ attention: { sounds: {} } })
 })
 
+test("decodes the optional sidebar state vocabulary", () => {
+  expect(decodeInfo({ sidebar: "collapsed" }).sidebar).toBe("collapsed")
+  expect(decodeInfo({ sidebar: "hide" }).sidebar).toBe("hide")
+  expect(decodeInfo({}).sidebar).toBeUndefined()
+})
+
 test("resolves host-neutral defaults", () => {
   const config = resolve({}, { terminalSuspend: true })
 

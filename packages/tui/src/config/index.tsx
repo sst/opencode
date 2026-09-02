@@ -74,6 +74,9 @@ export const Info = Schema.Struct({
   diff_style: Schema.optional(DiffStyle),
   cursor: Schema.optional(Cursor),
   mouse: Schema.optional(Schema.Boolean).annotate({ description: "Enable or disable mouse capture (default: true)" }),
+  sidebar: Schema.optional(Schema.Literals(["auto", "collapsed", "hide"])).annotate({
+    description: "Sidebar visibility mode",
+  }),
   sidebar_width: Schema.optional(SidebarWidth).annotate({ description: "Sidebar width in columns (default: 42)" }),
 })
 export type Info = Schema.Schema.Type<typeof Info>
