@@ -6,14 +6,13 @@ export function SidebarRail(props: {
   collapsed: boolean
   mouseEnabled: boolean
   onMouseDown?: (evt: MouseEvent) => void
-  onMouseDrag?: (evt: MouseEvent) => void
-  onMouseDragEnd?: (evt: MouseEvent) => void
   onExpand?: () => void
 }) {
   const { theme } = useTheme()
   const handlers = () => {
     if (!props.mouseEnabled) return {}
     return {
+      // Drag and drag-end bind on the ancestor row: a 1-column rail is never the captured renderable.
       onMouseDown: props.onMouseDown,
       onMouseUp: props.collapsed ? props.onExpand : undefined,
     }

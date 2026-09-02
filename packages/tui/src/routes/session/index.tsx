@@ -13,6 +13,7 @@ import {
   Switch,
   untrack,
   useContext,
+  type Setter,
 } from "solid-js"
 import path from "node:path"
 import { mkdir, writeFile } from "node:fs/promises"
@@ -24,7 +25,14 @@ import { SplitBorder } from "../../ui/border"
 import { useTuiPaths, useTuiTerminalEnvironment } from "../../context/runtime"
 import { Spinner } from "../../component/spinner"
 import { createSyntaxStyleMemo, generateSubtleSyntax, selectedForeground, useTheme } from "../../context/theme"
-import { BoxRenderable, ScrollBoxRenderable, addDefaultParsers, TextAttributes, RGBA } from "@opentui/core"
+import {
+  BoxRenderable,
+  ScrollBoxRenderable,
+  addDefaultParsers,
+  TextAttributes,
+  RGBA,
+  type MouseEvent,
+} from "@opentui/core"
 import { Flag } from "@opencode-ai/core/flag/flag"
 import { Prompt, type PromptRef } from "../../component/prompt"
 import type {
@@ -55,13 +63,17 @@ import { DialogForkFromTimeline } from "./dialog-fork-from-timeline"
 import { DialogSessionRename } from "../../component/dialog-session-rename"
 import { Sidebar } from "./sidebar"
 import { SidebarRail } from "./sidebar-rail"
-import { clampSidebarWidth } from "../../util/sidebar-width"
+import { SidebarWidthMin, clampSidebarWidth } from "../../util/sidebar-width"
 import {
   SIDEBAR_WIDTH_STEP,
   nextSidebarState,
   resolveSidebarWidth,
+  sidebarDragEnd,
+  sidebarDragMove,
+  sidebarDragStart,
   sidebarLayout,
   sidebarWidthStep,
+  type SidebarDrag,
   type SidebarInline,
 } from "../../util/sidebar-rail"
 import { SubagentFooter } from "./subagent-footer.tsx"
@@ -296,9 +308,13 @@ export function Session() {
   const sidebarVisible = createMemo(() => layout().visible)
   // The rail is one extra column beside the sidebar; sidebarWidth stays the sidebar box width.
   const railWidth = createMemo(() => layout().rail)
+  const [drag, setDrag] = createSignal<SidebarDrag>()
   // kv.get rather than kv.signal: a signal would re-seed the default after a reset, making reset a silent no-op.
-  const sidebarWidth = createMemo(() =>
-    clampSidebarWidth(resolveSidebarWidth(kv.get("sidebar_width"), tuiConfig.sidebar_width), dimensions().width),
+  // A live gesture wins over the stored width; kv is only written on release.
+  const sidebarWidth = createMemo(
+    () =>
+      drag()?.width ??
+      clampSidebarWidth(resolveSidebarWidth(kv.get("sidebar_width"), tuiConfig.sidebar_width), dimensions().width),
   )
   const showTimestamps = createMemo(() => timestamps() === "show")
   const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? sidebarWidth() : 0) - railWidth() - 4)
@@ -1248,7 +1264,17 @@ export function Session() {
           tui: tuiConfig,
         }}
       >
-        <box flexDirection="row" flexGrow={1} minHeight={0}>
+        <SidebarDragRegion
+          sessionID={route.sessionID}
+          wide={wide}
+          sidebarInline={sidebarInline}
+          sidebarVisible={sidebarVisible}
+          sidebarWidth={sidebarWidth}
+          mouseEnabled={mouseEnabled}
+          drag={drag}
+          setDrag={setDrag}
+          onExpand={() => setSidebar(() => "auto")}
+        >
           <box flexGrow={1} minHeight={0} paddingBottom={1} paddingLeft={2} paddingRight={2} gap={1}>
             <Show when={session()}>
               <scrollbox
@@ -1409,16 +1435,7 @@ export function Session() {
             </Show>
             <Toast />
           </box>
-          <SidebarRegion
-            sessionID={route.sessionID}
-            wide={wide}
-            sidebarInline={sidebarInline}
-            sidebarVisible={sidebarVisible}
-            sidebarWidth={sidebarWidth}
-            mouseEnabled={mouseEnabled}
-            onExpand={() => setSidebar(() => "auto")}
-          />
-        </box>
+        </SidebarDragRegion>
       </context.Provider>
     </LocationProvider>
   )
@@ -1432,6 +1449,7 @@ export function SidebarRegion(props: {
   sidebarWidth: () => number
   mouseEnabled: () => boolean
   onExpand?: () => void
+  onRailMouseDown?: (evt: MouseEvent) => void
 }) {
   return (
     <Switch>
@@ -1441,6 +1459,7 @@ export function SidebarRegion(props: {
             <SidebarRail
               collapsed={props.sidebarInline() === "collapsed"}
               mouseEnabled={props.mouseEnabled()}
+              onMouseDown={props.onRailMouseDown}
               onExpand={props.onExpand}
             />
             <Show when={props.sidebarInline() === "expanded"}>
@@ -1465,6 +1484,74 @@ export function SidebarRegion(props: {
         </Show>
       </Match>
     </Switch>
+  )
+}
+
+export function SidebarDragRegion(props: {
+  sessionID: string
+  wide: () => boolean
+  sidebarInline: () => SidebarInline
+  sidebarVisible: () => boolean
+  sidebarWidth: () => number
+  mouseEnabled: () => boolean
+  drag: () => SidebarDrag | undefined
+  setDrag: Setter<SidebarDrag | undefined>
+  onExpand?: () => void
+  children?: JSX.Element
+}) {
+  const kv = useKV()
+  const dimensions = useTerminalDimensions()
+  // A 1-column rail is never the captured renderable — the first drag event lands on an
+  // adjacent column — so the drag lifecycle binds here on the common ancestor of the
+  // content column and the sidebar.
+  const expand = () => {
+    // A captured release reaches drag-end first; only an un-captured click still carries drag state.
+    if (!props.drag()) return
+    props.setDrag(undefined)
+    props.onExpand?.()
+  }
+
+  const startDrag = (evt: MouseEvent) => {
+    const collapsed = props.sidebarInline() === "collapsed"
+    props.setDrag(sidebarDragStart(evt.x, collapsed ? SidebarWidthMin : props.sidebarWidth()))
+  }
+
+  const handlers = () => {
+    if (!props.mouseEnabled()) return {}
+    return {
+      onMouseDrag: (evt: MouseEvent) => {
+        const current = props.drag()
+        if (!current) return
+        const next = sidebarDragMove(current, evt.x, dimensions().width)
+        // One state write per gesture: expand on the first moved event, never per frame.
+        if (props.sidebarInline() === "collapsed" && !current.moved && next.moved) props.onExpand?.()
+        props.setDrag(next)
+      },
+      onMouseDragEnd: () => {
+        const current = props.drag()
+        if (!current) return
+        const end = sidebarDragEnd(current)
+        if ("persist" in end) kv.set("sidebar_width", end.persist)
+        else props.onExpand?.()
+        props.setDrag(undefined)
+      },
+    }
+  }
+
+  return (
+    <box id="sidebar-drag-row" flexDirection="row" flexGrow={1} minHeight={0} {...handlers()}>
+      {props.children}
+      <SidebarRegion
+        sessionID={props.sessionID}
+        wide={props.wide}
+        sidebarInline={props.sidebarInline}
+        sidebarVisible={props.sidebarVisible}
+        sidebarWidth={props.sidebarWidth}
+        mouseEnabled={props.mouseEnabled}
+        onExpand={expand}
+        onRailMouseDown={startDrag}
+      />
+    </box>
   )
 }
 

@@ -1,7 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import { clampSidebarWidth } from "../../src/util/sidebar-width"
+import { SidebarWidthMin, clampSidebarWidth } from "../../src/util/sidebar-width"
 
 describe("util.sidebar-width", () => {
+  test("exposes the floor as the sanctioned minimum constant", () => {
+    expect(SidebarWidthMin).toBe(20)
+    expect(clampSidebarWidth(SidebarWidthMin - 1, 200)).toBe(SidebarWidthMin)
+  })
+
   test("passes through a configured width within bounds", () => {
     expect(clampSidebarWidth(48, 120)).toBe(48)
   })

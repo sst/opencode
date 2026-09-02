@@ -51,6 +51,24 @@ export function sidebarWidthFromDrag(
   return clampSidebarWidth(width, terminalWidth)
 }
 
+export type SidebarDrag = { startX: number; startWidth: number; width: number; moved: boolean }
+
+export function sidebarDragStart(x: number, startWidth: number): SidebarDrag {
+  return { startX: x, startWidth, width: startWidth, moved: false }
+}
+
+export function sidebarDragMove(drag: SidebarDrag, x: number, terminalWidth: number): SidebarDrag {
+  return {
+    ...drag,
+    width: sidebarWidthFromDrag(drag.startWidth, x - drag.startX, terminalWidth, "right"),
+    moved: drag.moved || x !== drag.startX,
+  }
+}
+
+export function sidebarDragEnd(drag: SidebarDrag): { persist: number } | { expand: true } {
+  return drag.moved ? { persist: drag.width } : { expand: true }
+}
+
 export function sidebarWidthStep(currentWidth: number, delta: number, terminalWidth: number) {
   return clampSidebarWidth(currentWidth + delta, terminalWidth)
 }
