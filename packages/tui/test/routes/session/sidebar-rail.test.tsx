@@ -51,16 +51,19 @@ describe("sidebar rail rendering", () => {
       inline: "expanded",
       visible: true,
       drag: true,
-      oversizedContent: true,
+      oversizedContent: false,
       terminalWidth: 160,
     })
+    const expandedTitleRow = sidebarTitleRow(expanded.app.renderer.root)
     try {
       const rail = findRail(expanded.app.renderer.root)
       const sidebar = findSidebarBox(expanded.app.renderer.root)
       expect(rail.x).toBe(116)
       expect(rail.width).toBe(2)
       expect(rail.getChildren()[0]?.x).toBe(117)
-      expect(expanded.app.captureCharFrame().split("\n")[0].indexOf("◂")).toBe(117)
+      const expandedFrame = expanded.app.captureCharFrame()
+      expect(rail.getChildren()[0]?.y).toBe(expandedTitleRow)
+      expect(expandedFrame.split("\n")[expandedTitleRow].indexOf("◂")).toBe(117)
       expect(sidebar?.x).toBe(118)
       expect(sidebar?.width).toBe(42)
     } finally {
@@ -81,6 +84,7 @@ describe("sidebar rail rendering", () => {
       const rail = findRail(collapsed.app.renderer.root)
       expect(rail.x).toBe(158)
       expect(rail.width).toBe(2)
+      expect(rail.getChildren()[0]?.y).toBe(expandedTitleRow)
     } finally {
       collapsed.app.renderer.destroy()
       await collapsed.dispose()
@@ -101,8 +105,9 @@ describe("sidebar rail rendering", () => {
       const glyph = rail.getChildren()[0]
       if (!glyph) throw new Error("collapsed rail glyph was not rendered")
       const row = rendered.app.captureCharFrame().split("\n")[0]
+      const glyphRow = rendered.app.captureCharFrame().split("\n")[glyph.y]
       const borderColumn = row.lastIndexOf("│")
-      const glyphColumn = row.indexOf("▸")
+      const glyphColumn = glyphRow.indexOf("▸")
 
       expect(glyph.x).toBe(159)
       expect(borderColumn).toBe(158)
@@ -118,6 +123,7 @@ describe("sidebar rail rendering", () => {
       inline: "expanded",
       visible: true,
       drag: true,
+      oversizedContent: false,
       kv: { sidebar: "auto" },
       terminalWidth: 160,
     })
@@ -125,7 +131,9 @@ describe("sidebar rail rendering", () => {
       const rail = findRail(expanded.app.renderer.root)
       expect(rail.width).toBe(2)
       expect(rail.getChildren()[0]?.x).toBe(117)
-      expect(expanded.app.captureCharFrame().split("\n")[0].indexOf("◂")).toBe(117)
+      const expandedFrame = expanded.app.captureCharFrame()
+      expect(rail.getChildren()[0]?.y).toBe(sidebarTitleRow(expanded.app.renderer.root))
+      expect(expandedFrame.split("\n")[rail.getChildren()[0]?.y ?? 0].indexOf("◂")).toBe(117)
     } finally {
       expanded.app.renderer.destroy()
       await expanded.dispose()
@@ -712,6 +720,13 @@ function findRail(root: Renderable) {
   const rail = findBox(root, (box) => box.id === "sidebar-rail")
   if (!rail) throw new Error("sidebar rail was not rendered")
   return rail
+}
+
+function sidebarTitleRow(root: Renderable) {
+  const sidebar = findSidebarBox(root)
+  const firstRow = sidebar?.getChildren()[0]
+  if (!firstRow) throw new Error("sidebar title row was not rendered")
+  return firstRow.y
 }
 
 function findBox(root: Renderable, match: (box: BoxRenderable) => boolean): BoxRenderable | undefined {

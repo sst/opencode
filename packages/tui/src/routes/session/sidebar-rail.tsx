@@ -25,6 +25,7 @@ export function SidebarRail(props: {
       id="sidebar-rail"
       width={props.width}
       flexShrink={0}
+      paddingTop={1}
       border={["left"]}
       borderColor={theme.border}
       {...handlers()}
