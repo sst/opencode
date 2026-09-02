@@ -29,7 +29,7 @@ describe("util.sidebar-rail state", () => {
   })
 
   test("falls back to the configured width for invalid overrides", () => {
-    for (const override of [undefined, "50", 0, -3, NaN, 2.5]) {
+    for (const override of [undefined, "50", 0, -3, NaN, Infinity, 2.5]) {
       expect(resolveSidebarWidth(override, 42)).toBe(42)
     }
   })

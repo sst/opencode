@@ -280,17 +280,18 @@ export function Session() {
   const [showGenericToolOutput, setShowGenericToolOutput] = kv.signal("generic_tool_output_visibility", false)
 
   const wide = createMemo(() => dimensions().width > 120)
-  const sidebarInline = createMemo(() =>
+  const layout = createMemo(() =>
     sidebarLayout({
       parentID: session()?.parentID,
       wide: wide(),
       sidebarOpen: sidebarOpen(),
       state: sidebar(),
-    }).inline,
+    }),
   )
-  const sidebarVisible = createMemo(() => !session()?.parentID && (sidebarOpen() || sidebarInline() === "expanded"))
+  const sidebarInline = createMemo(() => layout().inline)
+  const sidebarVisible = createMemo(() => layout().visible)
   // The rail is one extra column beside the sidebar; sidebarWidth stays the sidebar box width.
-  const railWidth = createMemo(() => (sidebarInline() ? 1 : 0))
+  const railWidth = createMemo(() => layout().rail)
   // kv.get rather than kv.signal: a signal would re-seed the default after a reset, making reset a silent no-op.
   const sidebarWidth = createMemo(() =>
     clampSidebarWidth(resolveSidebarWidth(kv.get("sidebar_width"), tuiConfig.sidebar_width), dimensions().width),
