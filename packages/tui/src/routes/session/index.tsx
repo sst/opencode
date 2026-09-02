@@ -1457,7 +1457,8 @@ export function SidebarRegion(props: {
     <Switch>
       <Match when={props.wide()}>
         <Show when={props.sidebarInline()}>
-          <box flexDirection="row">
+          {/* Yoga shrinks auto-width rows when oversized content competes for columns. */}
+          <box flexDirection="row" flexShrink={0}>
             <SidebarRail
               collapsed={props.sidebarInline() === "collapsed"}
               width={props.railWidth()}

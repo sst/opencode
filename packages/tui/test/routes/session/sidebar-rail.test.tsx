@@ -192,6 +192,46 @@ describe("sidebar rail rendering", () => {
     }
   })
 
+  test("keeps the inline rail and sidebar within the terminal beside oversized content", async () => {
+    const expanded = await renderRegion({
+      wide: true,
+      inline: "expanded",
+      visible: true,
+      drag: true,
+      oversizedContent: true,
+      terminalWidth: 160,
+    })
+    try {
+      const rail = findRail(expanded.app.renderer.root)
+      const sidebar = findSidebarBox(expanded.app.renderer.root)
+      expect(rail.x).toBe(117)
+      expect(rail.width).toBe(1)
+      expect(sidebar?.x).toBe(118)
+      expect(sidebar?.width).toBe(42)
+    } finally {
+      expanded.app.renderer.destroy()
+      await expanded.dispose()
+    }
+
+    const collapsed = await renderRegion({
+      wide: true,
+      inline: "collapsed",
+      visible: false,
+      drag: true,
+      oversizedContent: true,
+      kv: { sidebar: "collapsed" },
+      terminalWidth: 160,
+    })
+    try {
+      const rail = findRail(collapsed.app.renderer.root)
+      expect(rail.x).toBe(158)
+      expect(rail.width).toBe(2)
+    } finally {
+      collapsed.app.renderer.destroy()
+      await collapsed.dispose()
+    }
+  })
+
   test("renders the collapse glyph in the second rail column", async () => {
     const rendered = await renderRegion({
       wide: true,
@@ -520,6 +560,7 @@ async function renderRegion(input: {
   mouseEnabled?: boolean
   kv?: Record<string, unknown>
   drag?: boolean
+  oversizedContent?: boolean
   terminalWidth?: number
 }) {
   const state = await tmpdir()
@@ -631,6 +672,7 @@ function DragRegionProbe(props: {
     visible: boolean
     width?: number
     mouseEnabled?: boolean
+    oversizedContent?: boolean
   }
   onMount: (sync: ReturnType<typeof useSync>, kv: ReturnType<typeof useKV>) => void
 }) {
@@ -654,7 +696,9 @@ function DragRegionProbe(props: {
       setDrag={setDrag}
       onExpand={() => setSidebar(() => "auto")}
     >
-      <box flexGrow={1} minHeight={0} />
+      <box flexGrow={1} minHeight={0}>
+        {(props.input.oversizedContent ?? true) && <box width={300} height={1} />}
+      </box>
     </SidebarDragRegion>
   )
 }
