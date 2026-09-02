@@ -3,7 +3,6 @@ import {
   calculateTPS,
   DEFAULT_MIN_TPS_ELAPSED_MS,
   getMessageTPS,
-  isValidForTPS,
   stampFirstToken,
   type TimestampMetrics,
 } from "../src/session/tokens"
@@ -27,6 +26,10 @@ describe("getMessageTPS", () => {
     expect(getMessageTPS({ ...validMessage, finish: undefined })).toBeUndefined()
   })
 
+  test("returns no value when finish is null", () => {
+    expect(getMessageTPS({ ...validMessage, finish: null })).toBeUndefined()
+  })
+
   test("returns no value for tool-call finishes", () => {
     expect(getMessageTPS({ ...validMessage, finish: "tool-calls" })).toBeUndefined()
   })
@@ -41,6 +44,10 @@ describe("getMessageTPS", () => {
 
   test("returns no value when token total is zero", () => {
     expect(getMessageTPS({ ...validMessage, tokens: { output: 0, reasoning: 0 } })).toBeUndefined()
+  })
+
+  test("returns no value when token total is negative", () => {
+    expect(getMessageTPS({ ...validMessage, tokens: { output: -1, reasoning: 0 } })).toBeUndefined()
   })
 
   test("returns no value when first token timestamp is missing", () => {
@@ -73,43 +80,6 @@ describe("getMessageTPS", () => {
         },
       })?.rate,
     ).toBe(600)
-  })
-})
-
-describe("isValidForTPS", () => {
-  test("rejects negative token totals", () => {
-    expect(isValidForTPS({ ...validMessage, tokens: { output: -1, reasoning: 0 } })).toBe(false)
-  })
-
-  test("rejects zero token totals", () => {
-    expect(isValidForTPS({ ...validMessage, tokens: { output: 0, reasoning: 0 } })).toBe(false)
-  })
-
-  test("rejects missing finish values", () => {
-    expect(isValidForTPS({ ...validMessage, finish: null })).toBe(false)
-  })
-
-  test("rejects invalid finish values", () => {
-    for (const finish of ["tool-calls", "unknown", "error"]) {
-      expect(isValidForTPS({ ...validMessage, finish })).toBe(false)
-    }
-  })
-
-  test("rejects a missing first token timestamp", () => {
-    expect(isValidForTPS({ ...validMessage, time: { created: 1000, completed: 2100 } })).toBe(false)
-  })
-
-  test("rejects a missing completion timestamp", () => {
-    expect(isValidForTPS({ ...validMessage, time: { created: 1000, firstToken: 1100 } })).toBe(false)
-  })
-
-  test("rejects elapsed time below the configured threshold", () => {
-    expect(
-      isValidForTPS({
-        ...validMessage,
-        time: { ...validMessage.time, completed: validMessage.time.firstToken! + 249 },
-      }),
-    ).toBe(false)
   })
 })
 

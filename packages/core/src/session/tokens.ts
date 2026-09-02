@@ -48,15 +48,6 @@ function tpsInputs(msg: TPSMessage): { totalTokens: number; elapsedMs: number } 
   return { totalTokens, elapsedMs: completed - firstToken }
 }
 
-export function isValidForTPS(msg: TPSMessage & {
-  minElapsedMs?: number
-}): boolean {
-  const inputs = tpsInputs(msg)
-  if (!inputs) return false
-  const minElapsedMs = msg.minElapsedMs ?? DEFAULT_MIN_TPS_ELAPSED_MS
-  return inputs.elapsedMs >= minElapsedMs
-}
-
 export function calculateTPS(
   totalTokens: number,
   elapsedMs: number,
