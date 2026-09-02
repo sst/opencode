@@ -14,6 +14,10 @@ describe("util.sidebar-rail", () => {
     expect(sidebarWidthFromDrag(42, 8, 200, "left")).toBe(50)
   })
 
+  test("decreases a left-docked sidebar when the rail moves left", () => {
+    expect(sidebarWidthFromDrag(42, -8, 200, "left")).toBe(34)
+  })
+
   test("clamps dragged widths at the minimum", () => {
     expect(sidebarWidthFromDrag(25, 20, 200, "right")).toBe(20)
   })

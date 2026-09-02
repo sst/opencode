@@ -1,9 +1,8 @@
 import { clampSidebarWidth } from "./sidebar-width"
 
 /**
- * Applies rail movement to a sidebar width, where positive movement is toward
- * the docked side and therefore narrows a right-docked sidebar or widens a
- * left-docked sidebar.
+ * Applies rail movement to a sidebar width, where positive movement is to the
+ * right — it narrows a right-docked sidebar and widens a left-docked one.
  */
 export function sidebarWidthFromDrag(
   startWidth: number,
