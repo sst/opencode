@@ -21,7 +21,7 @@ import { createPluginRuntime, PluginRuntimeProvider } from "../../../src/plugin/
 import { SidebarDragRegion, SidebarRegion, sidebarVisibilityCommands } from "../../../src/routes/session"
 import { SidebarRail } from "../../../src/routes/session/sidebar-rail"
 import { clampSidebarWidth } from "../../../src/util/sidebar-width"
-import { resolveSidebarWidth, sidebarLayout, type SidebarDrag } from "../../../src/util/sidebar-rail"
+import { nextSidebarState, resolveSidebarWidth, sidebarLayout, type SidebarDrag } from "../../../src/util/sidebar-rail"
 
 const sessionID = "ses_sidebar_rail"
 const session = {
@@ -57,8 +57,10 @@ describe("sidebar rail rendering", () => {
     try {
       const rail = findRail(expanded.app.renderer.root)
       const sidebar = findSidebarBox(expanded.app.renderer.root)
-      expect(rail.x).toBe(117)
-      expect(rail.width).toBe(1)
+      expect(rail.x).toBe(116)
+      expect(rail.width).toBe(2)
+      expect(rail.getChildren()[0]?.x).toBe(117)
+      expect(expanded.app.captureCharFrame().split("\n")[0].indexOf("◂")).toBe(117)
       expect(sidebar?.x).toBe(118)
       expect(sidebar?.width).toBe(42)
     } finally {
@@ -120,7 +122,10 @@ describe("sidebar rail rendering", () => {
       terminalWidth: 160,
     })
     try {
-      expect(expanded.app.captureCharFrame().split("\n")[0]).not.toContain("▸")
+      const rail = findRail(expanded.app.renderer.root)
+      expect(rail.width).toBe(2)
+      expect(rail.getChildren()[0]?.x).toBe(117)
+      expect(expanded.app.captureCharFrame().split("\n")[0].indexOf("◂")).toBe(117)
     } finally {
       expanded.app.renderer.destroy()
       await expanded.dispose()
@@ -370,7 +375,7 @@ describe("sidebar drag gesture", () => {
     }
   })
 
-  test("an expanded rail click does not arm a later content drag", async () => {
+  test("an expanded rail click collapses without arming a later content drag", async () => {
     const rendered = await renderRegion({
       wide: true,
       inline: "expanded",
@@ -387,14 +392,16 @@ describe("sidebar drag gesture", () => {
       await settle(app)
       fireMouse(rail, "up", 98)
       await settle(app)
-      expect(kv.writes).toBe(0)
+      expect(kv.writes).toBe(1)
+      expect(await Bun.file(file).json()).toMatchObject({ sidebar: "collapsed" })
 
       fireMouse(row, "drag", 88)
       await settle(app)
       fireMouse(row, "drag-end", 88)
       await settle(app)
-      expect(findSidebarBox(app.renderer.root)?.width).toBe(42)
-      expect(kv.writes).toBe(0)
+      expect(findSidebarBox(app.renderer.root)).toBeUndefined()
+      expect(await Bun.file(file).json()).toMatchObject({ sidebar: "collapsed" })
+      expect(kv.writes).toBe(1)
       expect(await Bun.file(file).text()).not.toContain("sidebar_width")
     } finally {
       app.renderer.destroy()
@@ -402,7 +409,7 @@ describe("sidebar drag gesture", () => {
     }
   })
 
-  test("an expanded rail click writes nothing", async () => {
+  test("an expanded rail click collapses without writing a width", async () => {
     const rendered = await renderRegion({
       wide: true,
       inline: "expanded",
@@ -418,9 +425,10 @@ describe("sidebar drag gesture", () => {
       await settle(app)
       fireMouse(rail, "up", 98)
       await settle(app)
-      expect(findSidebarBox(app.renderer.root)?.width).toBe(42)
-      expect(kv.writes).toBe(0)
-      expect(await Bun.file(file).text()).not.toContain("sidebar")
+      expect(findSidebarBox(app.renderer.root)).toBeUndefined()
+      expect(await Bun.file(file).json()).toMatchObject({ sidebar: "collapsed" })
+      expect(await Bun.file(file).text()).not.toContain("sidebar_width")
+      expect(kv.writes).toBe(1)
     } finally {
       app.renderer.destroy()
       await rendered.dispose()
@@ -685,7 +693,7 @@ function DragRegionProbe(props: {
       mouseEnabled={() => props.input.mouseEnabled ?? true}
       drag={drag}
       setDrag={setDrag}
-      onExpand={() => setSidebar(() => "auto")}
+      onToggle={() => setSidebar(() => nextSidebarState(sidebar()))}
     >
       <box flexGrow={1} minHeight={0}>
         {(props.input.oversizedContent ?? true) && <box width={300} height={1} />}

@@ -33,9 +33,9 @@ export function sidebarLayout(input: {
   return {
     inline,
     visible: input.sidebarOpen || inline === "expanded",
-    // 2, not 1: a width-1 border box places its child one column past itself, off-screen at
-    // the right edge — the glyph needs a second column to render in.
-    rail: inline === "collapsed" ? 2 : inline ? 1 : 0,
+    // The second column hosts the glyph in both modes; a width-1 border box places its child
+    // one column past itself, off-screen at the right edge.
+    rail: inline ? 2 : 0,
   }
 }
 
@@ -67,8 +67,8 @@ export function sidebarDragMove(drag: SidebarDrag, x: number, terminalWidth: num
   }
 }
 
-export function sidebarDragEnd(drag: SidebarDrag): { persist: number } | { expand: true } {
-  return drag.moved ? { persist: drag.width } : { expand: true }
+export function sidebarDragEnd(drag: SidebarDrag): { persist: number } | { toggle: true } {
+  return drag.moved ? { persist: drag.width } : { toggle: true }
 }
 
 export function sidebarWidthStep(currentWidth: number, delta: number, terminalWidth: number) {

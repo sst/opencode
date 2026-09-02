@@ -1,5 +1,4 @@
 import { type MouseEvent } from "@opentui/core"
-import { Show } from "solid-js"
 import { useTheme } from "../../context/theme"
 
 export function SidebarRail(props: {
@@ -30,9 +29,7 @@ export function SidebarRail(props: {
       borderColor={theme.border}
       {...handlers()}
     >
-      <Show when={props.collapsed}>
-        <text fg={theme.textMuted}>▸</text>
-      </Show>
+      <text fg={theme.textMuted}>{props.collapsed ? "▸" : "◂"}</text>
     </box>
   )
 }

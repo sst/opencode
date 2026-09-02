@@ -1251,7 +1251,7 @@ export function Session() {
           mouseEnabled={mouseEnabled}
           drag={drag}
           setDrag={setDrag}
-          onExpand={() => setSidebar(() => "auto")}
+          onToggle={() => setSidebar(() => nextSidebarState(sidebar()))}
         >
           <box flexGrow={1} minHeight={0} paddingBottom={1} paddingLeft={2} paddingRight={2} gap={1}>
             <Show when={session()}>
@@ -1478,7 +1478,7 @@ export function SidebarDragRegion(props: {
   mouseEnabled: () => boolean
   drag: () => SidebarDrag | undefined
   setDrag: Setter<SidebarDrag | undefined>
-  onExpand?: () => void
+  onToggle?: () => void
   children?: JSX.Element
 }) {
   const kv = useKV()
@@ -1489,11 +1489,10 @@ export function SidebarDragRegion(props: {
   const railUp = () => {
     // Release sends drag-end to the captured renderable, then may re-dispatch the up to the
     // current hit — which can be the rail. Drag-end clears the gesture first, so this guard
-    // drops the rail's duplicate expand.
+    // drops the rail's duplicate toggle.
     if (!props.drag()) return
     props.setDrag(undefined)
-    // Only a collapsed click expands; an expanded click only arms the gesture.
-    if (props.sidebarInline() === "collapsed") props.onExpand?.()
+    props.onToggle?.()
   }
 
   const startDrag = (evt: MouseEvent) => {
@@ -1515,8 +1514,8 @@ export function SidebarDragRegion(props: {
         const current = props.drag()
         if (!current) return
         const next = sidebarDragMove(current, evt.x, dimensions().width)
-        // One state write per gesture: expand on the first moved event, never per frame.
-        if (props.sidebarInline() === "collapsed" && !current.moved && next.moved) props.onExpand?.()
+        // One state write per gesture: leave collapsed mode on the first moved event, never per frame.
+        if (props.sidebarInline() === "collapsed" && !current.moved && next.moved) props.onToggle?.()
         props.setDrag(next)
       },
       onMouseDragEnd: () => {
@@ -1524,7 +1523,7 @@ export function SidebarDragRegion(props: {
         if (!current) return
         const end = sidebarDragEnd(current)
         if ("persist" in end) kv.set("sidebar_width", end.persist)
-        else props.onExpand?.()
+        else props.onToggle?.()
         props.setDrag(undefined)
       },
     }

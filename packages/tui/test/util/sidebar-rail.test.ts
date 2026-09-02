@@ -126,8 +126,8 @@ describe("sidebar drag reducer", () => {
     expect(sidebarDragEnd(moved)).toStrictEqual({ persist: 50 })
   })
 
-  test("expands when the gesture ends without movement", () => {
-    expect(sidebarDragEnd(sidebarDragStart(100, 42))).toStrictEqual({ expand: true })
+  test("toggles when the gesture ends without movement", () => {
+    expect(sidebarDragEnd(sidebarDragStart(100, 42))).toStrictEqual({ toggle: true })
   })
 })
 
@@ -152,7 +152,7 @@ describe("sidebar layout", () => {
     expect(sidebarLayout({ wide: true, sidebarOpen: false, state: "auto" })).toStrictEqual({
       inline: "expanded",
       visible: true,
-      rail: 1,
+      rail: 2,
     })
   })
 
