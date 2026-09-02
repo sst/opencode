@@ -7,16 +7,17 @@ export function SidebarRail(props: {
   width: number
   mouseEnabled: boolean
   onMouseDown?: (evt: MouseEvent) => void
-  onExpand?: () => void
+  onMouseUp?: () => void
 }) {
   const { theme } = useTheme()
   const handlers = () => {
     if (!props.mouseEnabled) return {}
     return {
       // Drag and drag-end bind on the ancestor row: a rail drag captures an adjacent column,
-      // and captured events bubble to the ancestor.
+      // and captured events bubble to the ancestor. The up binds in both modes — a click
+      // forms no capture, so without it an expanded click would leave the gesture armed.
       onMouseDown: props.onMouseDown,
-      onMouseUp: props.collapsed ? props.onExpand : undefined,
+      onMouseUp: props.onMouseUp,
     }
   }
 

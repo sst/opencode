@@ -32,6 +32,7 @@ import {
   TextAttributes,
   RGBA,
   type MouseEvent,
+  type Renderable,
 } from "@opentui/core"
 import { Flag } from "@opencode-ai/core/flag/flag"
 import { Prompt, type PromptRef } from "../../component/prompt"
@@ -1450,8 +1451,8 @@ export function SidebarRegion(props: {
   sidebarWidth: () => number
   railWidth: () => number
   mouseEnabled: () => boolean
-  onExpand?: () => void
   onRailMouseDown?: (evt: MouseEvent) => void
+  onRailMouseUp?: () => void
 }) {
   return (
     <Switch>
@@ -1464,7 +1465,7 @@ export function SidebarRegion(props: {
               width={props.railWidth()}
               mouseEnabled={props.mouseEnabled()}
               onMouseDown={props.onRailMouseDown}
-              onExpand={props.onExpand}
+              onMouseUp={props.onRailMouseUp}
             />
             <Show when={props.sidebarInline() === "expanded"}>
               <Sidebar sessionID={props.sessionID} width={props.sidebarWidth()} />
@@ -1509,13 +1510,14 @@ export function SidebarDragRegion(props: {
   // The drag lifecycle binds here on the common ancestor of the content column and the
   // sidebar: a rail drag captures the renderable under the cursor — off the rail that is
   // a neighboring column — and captured events bubble here.
-  const expand = () => {
+  const railUp = () => {
     // Release sends drag-end to the captured renderable, then may re-dispatch the up to the
     // current hit — which can be the rail. Drag-end clears the gesture first, so this guard
     // drops the rail's duplicate expand.
     if (!props.drag()) return
     props.setDrag(undefined)
-    props.onExpand?.()
+    // Only a collapsed click expands; an expanded click only arms the gesture.
+    if (props.sidebarInline() === "collapsed") props.onExpand?.()
   }
 
   const startDrag = (evt: MouseEvent) => {
@@ -1526,6 +1528,13 @@ export function SidebarDragRegion(props: {
   const handlers = () => {
     if (!props.mouseEnabled()) return {}
     return {
+      onMouseDown: (evt: MouseEvent) => {
+        // A press that does not begin on the rail ends an armed gesture — a lost up after a
+        // rail down must not resize on a later content drag.
+        let source: Renderable | null = evt.target
+        while (source && source.id !== "sidebar-rail") source = source.parent
+        if (!source) props.setDrag(undefined)
+      },
       onMouseDrag: (evt: MouseEvent) => {
         const current = props.drag()
         if (!current) return
@@ -1556,8 +1565,8 @@ export function SidebarDragRegion(props: {
         sidebarWidth={props.sidebarWidth}
         railWidth={props.railWidth}
         mouseEnabled={props.mouseEnabled}
-        onExpand={expand}
         onRailMouseDown={startDrag}
+        onRailMouseUp={railUp}
       />
     </box>
   )

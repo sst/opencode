@@ -529,6 +529,93 @@ describe("sidebar drag gesture", () => {
     }
   })
 
+  test("an expanded rail click does not arm a later content drag", async () => {
+    const rendered = await renderRegion({
+      wide: true,
+      inline: "expanded",
+      visible: true,
+      width: 42,
+      drag: true,
+      terminalWidth: 200,
+    })
+    const { app, file, kv } = rendered
+    try {
+      const rail = findRail(app.renderer.root)
+      const row = findDragRow(app.renderer.root)
+      fireMouse(rail, "down", 98)
+      await settle(app)
+      fireMouse(rail, "up", 98)
+      await settle(app)
+      expect(kv.writes).toBe(0)
+
+      fireMouse(row, "drag", 88)
+      await settle(app)
+      fireMouse(row, "drag-end", 88)
+      await settle(app)
+      expect(findSidebarBox(app.renderer.root)?.width).toBe(42)
+      expect(kv.writes).toBe(0)
+      expect(readFileSync(file, "utf8")).not.toContain("sidebar_width")
+    } finally {
+      app.renderer.destroy()
+      await rendered.dispose()
+    }
+  })
+
+  test("an expanded rail click writes nothing", async () => {
+    const rendered = await renderRegion({
+      wide: true,
+      inline: "expanded",
+      visible: true,
+      width: 42,
+      drag: true,
+      terminalWidth: 200,
+    })
+    const { app, file, kv } = rendered
+    try {
+      const rail = findRail(app.renderer.root)
+      fireMouse(rail, "down", 98)
+      await settle(app)
+      fireMouse(rail, "up", 98)
+      await settle(app)
+      expect(findSidebarBox(app.renderer.root)?.width).toBe(42)
+      expect(kv.writes).toBe(0)
+      expect(readFileSync(file, "utf8")).not.toContain("sidebar")
+    } finally {
+      app.renderer.destroy()
+      await rendered.dispose()
+    }
+  })
+
+  test("a press off the rail cancels an armed gesture", async () => {
+    const rendered = await renderRegion({
+      wide: true,
+      inline: "expanded",
+      visible: true,
+      width: 42,
+      drag: true,
+      terminalWidth: 200,
+    })
+    const { app, kv } = rendered
+    try {
+      const rail = findRail(app.renderer.root)
+      const row = findDragRow(app.renderer.root)
+      fireMouse(rail, "down", 98)
+      await settle(app)
+      // Focus lost after the rail down: no up arrives, the next press begins elsewhere.
+      fireMouse(row, "down", 50, row)
+      await settle(app)
+      fireMouse(row, "drag", 88)
+      await settle(app)
+      fireMouse(row, "drag-end", 88)
+      await settle(app)
+      expect(findSidebarBox(app.renderer.root)?.width).toBe(42)
+      expect(kv.writes).toBe(0)
+    } finally {
+      app.renderer.destroy()
+      await rendered.dispose()
+    }
+  })
+
   test("attaches no drag handlers when mouse support is disabled", async () => {
     const rendered = await renderRegion({
       wide: true,
@@ -770,9 +857,9 @@ function findSidebarBox(root: Renderable) {
   return child instanceof BoxRenderable ? child : undefined
 }
 
-function fireMouse(target: BoxRenderable, type: "down" | "up" | "drag" | "drag-end", x: number) {
+function fireMouse(target: BoxRenderable, type: "down" | "up" | "drag" | "drag-end", x: number, source?: Renderable) {
   const handlers = mouseHandlers(target) as Record<string, ((evt: MouseEvent) => void) | undefined>
   handlers[type]?.(
-    new MouseEvent(null, { type, button: 0, x, y: 0, modifiers: { shift: false, alt: false, ctrl: false } }),
+    new MouseEvent(source ?? null, { type, button: 0, x, y: 0, modifiers: { shift: false, alt: false, ctrl: false } }),
   )
 }
