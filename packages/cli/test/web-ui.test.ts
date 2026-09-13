@@ -2,8 +2,9 @@ import { NodeFileSystem, NodeHttpServer } from "@effect/platform-node"
 import { afterAll, describe, expect, test } from "bun:test"
 import { Effect } from "effect"
 import { HttpServer, HttpServerError, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
-import { createServer } from "node:http"
+import { createHash } from "node:crypto"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { createServer } from "node:http"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { WebUi } from "../src/services/web-ui"
@@ -15,7 +16,11 @@ describe("web UI", () => {
   test("falls back from API routes to assets and the SPA index", async () => {
     const index = path.join(root, "index.html")
     const asset = path.join(root, "app.js")
-    await writeFile(index, "<html><body>embedded</body></html>")
+    const inline = ["theme()", "iosInputZoom()"]
+    await writeFile(
+      index,
+      `<html><head><script id="oc-theme-preload-script">${inline[0]}</script><script id="oc-ios-input-zoom-script">${inline[1]}</script></head><body>embedded</body></html>`,
+    )
     await writeFile(asset, "console.log('embedded')")
     const assets = {
       "index.html": await Bun.file(index).text(),
@@ -83,6 +88,11 @@ describe("web UI", () => {
           expect(yield* Effect.promise(() => fallback.text())).toContain("embedded")
           expect(fallback.headers.get("content-security-policy")).toContain("default-src 'self'")
           expect(fallback.headers.get("content-security-policy")).toContain("connect-src * data: blob:")
+          inline.forEach((script) =>
+            expect(fallback.headers.get("content-security-policy")).toContain(
+              `'sha256-${createHash("sha256").update(script).digest("base64")}'`,
+            ),
+          )
 
           const dotted = yield* Effect.promise(() => fetch(`${origin}/workspace/example.js`))
           expect(dotted.status).toBe(200)

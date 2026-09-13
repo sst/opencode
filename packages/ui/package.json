@@ -71,6 +71,7 @@
     "./*": "./src/components/*.tsx",
     "./i18n/*": "./src/i18n/*.ts",
     "./hooks": "./src/hooks/index.ts",
+    "./ios-input-zoom": "./src/ios-input-zoom.ts",
     "./context": "./src/context/index.ts",
     "./context/*": "./src/context/*.tsx",
     "./storybook/scaffold": "./src/storybook/scaffold.tsx",

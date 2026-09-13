@@ -388,22 +388,3 @@ input:where([type="button"], [type="reset"], [type="submit"]),
 [hidden]:where(:not([hidden="until-found"])) {
   display: none !important;
 }
-
-/*
-  Prevent iOS Safari from auto-zooming on input focus.
-  iOS WebKit zooms on any input with font-size < 16px as an accessibility feature.
-*/
-
-@media (hover: none) and (pointer: coarse) {
-  input,
-  select,
-  textarea,
-  [contenteditable="true"] {
-    font-size: 16px !important;
-  }
-
-  input::placeholder,
-  textarea::placeholder {
-    font-size: 13px;
-  }
-}

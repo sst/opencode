@@ -1,6 +1,7 @@
 // @refresh reload
 import { createHandler, StartServer } from "@solidjs/start/server"
 import { getRequestEvent } from "solid-js/web"
+import { IOS_INPUT_ZOOM_SCRIPT } from "@opencode/ui/ios-input-zoom"
 
 export default createHandler(() => (
   <StartServer
@@ -23,6 +24,7 @@ export default createHandler(() => (
           <head>
             <meta charset="utf-8" />
             <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <script id="oc-ios-input-zoom-script" innerHTML={IOS_INPUT_ZOOM_SCRIPT} />
             <title>OpenCode</title>
             <meta name="theme-color" content="#F8F7F7" />
             {assets}
