@@ -1,6 +1,7 @@
 export * as Generate from "./generate.js"
 
 import { LLM, LLMClient, AIError } from "@opencode/ai"
+import { SessionID } from "@opencode/schema/session-id"
 import { Context, Effect, Layer, Schema } from "effect"
 import { makeLocationNode } from "@opencode/util/effect/app-node"
 import { llmClient } from "./effect/app-node-platform.js"
@@ -60,15 +61,24 @@ export const layer = Layer.effect(
             ? `Model unavailable: ${input.model.providerID}/${input.model.id}`
             : "No model specified and no supported model is available",
         })
-      const response = yield* llm.generate(LLM.request({ model: resolved.model, prompt: input.prompt })).pipe(
-        Effect.mapError(
-          (error: AIError) =>
-            new UnavailableError({
-              message: error.message,
-              service: resolved.ref.providerID,
-            }),
-        ),
-      )
+      const response = yield* llm
+        .generate(
+          LLM.request({
+            model: resolved.model,
+            prompt: input.prompt,
+            // Gateways require session attribution even for a stateless call; no Session is stored.
+            http: { headers: { "x-opencode-session": SessionID.create() } },
+          }),
+        )
+        .pipe(
+          Effect.mapError(
+            (error: AIError) =>
+              new UnavailableError({
+                message: error.message,
+                service: resolved.ref.providerID,
+              }),
+          ),
+        )
       return response.text
     })
 
