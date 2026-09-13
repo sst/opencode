@@ -210,6 +210,10 @@ const layer = Layer.effect(
         const recorded = yield* store.get(sessionID)
         if (recorded) return recorded
         const project = yield* projects.resolve(input.location.directory)
+        // Non-git projects resolve to "/" as their directory. On Windows "/" follows the
+        // current process drive, so path.relative() returns an absolute path when the session
+        // directory sits on another drive. Anchor to that directory's own root instead.
+        const base = project.vcs ? project.directory : path.parse(input.location.directory).root
         yield* db
           .insert(ProjectTable)
           .values({ id: project.id, worktree: project.directory, vcs: project.vcs?.type, sandboxes: [] })
@@ -223,7 +227,7 @@ const layer = Layer.effect(
           version: InstallationVersion,
           projectID: project.id,
           directory: input.location.directory,
-          path: path.relative(project.directory, input.location.directory).replaceAll("\\", "/"),
+          path: path.relative(base, input.location.directory).replaceAll("\\", "/"),
           workspaceID: input.location.workspaceID ? WorkspaceV2.ID.make(input.location.workspaceID) : undefined,
           title: `New session - ${new Date(now).toISOString()}`,
           agent: input.agent,
