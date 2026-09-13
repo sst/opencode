@@ -853,6 +853,16 @@ it.effect("preserves existing AI errors and their retry semantics unchanged", ()
   }),
 )
 
+it.effect("classifies plain AI SDK capacity errors for retry", () =>
+  Effect.gen(function* () {
+    const message = "The model is currently at capacity due to high demand. Please try again in a few minutes."
+    const error = yield* streamFailure(new Error(message))
+
+    expect(error.reason).toMatchObject({ _tag: "ProviderInternal", message })
+    expect(SessionRunnerRetry.isRetryable(error)).toBeTrue()
+  }),
+)
+
 const apiCallError = (input: Partial<ConstructorParameters<typeof APICallError>[0]>) =>
   new APICallError({
     message: "",

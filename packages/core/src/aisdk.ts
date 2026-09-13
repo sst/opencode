@@ -24,12 +24,12 @@ import {
   ProviderMetadata,
   TransportError,
   ToolResultValue,
-  UnknownProviderError,
   type ContentPart,
   type LLMRequest,
   type ToolDefinition,
   type UsageInput,
 } from "@opencode/ai"
+import { classifyProviderFailure } from "@opencode/ai/provider-error"
 import { Auth, Endpoint, RequestExecutor, type AnyRoute } from "@opencode/ai/route"
 import { ProviderShared } from "@opencode/ai/protocols/shared"
 import { Cause, Context, Effect, Layer, Option, Schema, Scope, Stream } from "effect"
@@ -833,9 +833,9 @@ function llmError(error: unknown, operation: "request" | "read") {
       }),
     })
   return new AIError({
-    reason: new UnknownProviderError({
+    reason: classifyProviderFailure({
       message: unknownErrorMessage(error),
-      body: errorBody(error),
+      rawBody: errorBody(error),
       cause: error,
     }),
   })
