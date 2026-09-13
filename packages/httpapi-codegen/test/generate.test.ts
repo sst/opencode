@@ -1061,6 +1061,7 @@ describe("HttpApiCodegen.generate", () => {
         api(
           HttpApiEndpoint.get("subscribe", "/event", {
             query: { after: Schema.optional(Schema.Number) },
+            headers: { traceID: Schema.String },
             success: HttpApiSchema.StreamSse({
               data: Schema.Struct({ type: Schema.String, count: Schema.NumberFromString }),
             }),
@@ -1070,12 +1071,12 @@ describe("HttpApiCodegen.generate", () => {
     )
     await using emitted = await emittedModule(output)
     let requests = 0
-    let url: string | undefined
+    let request: Request | undefined
     const client = emitted.module.OpenCode.make({
       baseUrl: "https://example.com",
-      fetch: async (input: RequestInfo | URL) => {
+      fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
         requests++
-        url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url
+        request = new Request(input, init)
         const encoder = new TextEncoder()
         return new Response(
           new ReadableStream({
@@ -1089,14 +1090,40 @@ describe("HttpApiCodegen.generate", () => {
         )
       },
     })
-    const events = client.session.subscribe({ after: 2 })
+    const events = client.session.subscribe({ after: 2, traceID: "trace-sse" })
 
     expect(requests).toBe(0)
     const received = []
     for await (const event of events) received.push(event)
     expect(received).toEqual([{ type: "ready", count: "1" }])
     expect(requests).toBe(1)
-    expect(url).toBe("https://example.com/event?after=2")
+    expect(request?.url).toBe("https://example.com/event?after=2")
+    expect(request?.headers.get("accept")).toBe("text/event-stream")
+    expect(request?.headers.get("traceID")).toBe("trace-sse")
+  })
+
+  test("preserves explicit SSE Accept headers after applying the default", async () => {
+    const output = emitPromise(
+      compileContract(
+        api(HttpApiEndpoint.get("subscribe", "/event", { success: HttpApiSchema.StreamSse({ data: Schema.String }) })),
+      ),
+    )
+    await using emitted = await emittedModule(output)
+    const requests: Request[] = []
+    const client = emitted.module.OpenCode.make({
+      baseUrl: "https://example.com",
+      headers: { Accept: "global", authorization: "Bearer test" },
+      fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+        requests.push(input instanceof Request ? input : new Request(input, init))
+        return new Response("", { headers: { "content-type": "text/event-stream" } })
+      },
+    })
+
+    await Array.fromAsync(client.session.subscribe())
+    await Array.fromAsync(client.session.subscribe({ headers: { aCcEpT: "per-call" } }))
+
+    expect(requests.map((request) => request.headers.get("accept"))).toEqual(["global", "per-call"])
+    expect(requests[0]?.headers.get("authorization")).toBe("Bearer test")
   })
 
   test("preserves public group and endpoint identifiers exactly", () => {
