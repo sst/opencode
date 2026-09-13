@@ -935,6 +935,9 @@ export const dict: Record<string, string> = {
     "OpenCode ले प्रणाली, उज्यालो वा गाढा विषयवस्तुलाई फलो गर्छ कि गर्दैन भन्ने छनौट गर्नुहोस्",
   "settings.general.row.theme.title": "विषयवस्तु",
   "settings.general.row.theme.description": "कसरी OpenCode विषयवस्तुलाई अनुकूलित गर्नुहोस्।",
+  "settings.general.row.wordDiffHighlighting.title": "शब्द-स्तरीय भिन्नता हाइलाइटिङ",
+  "settings.general.row.wordDiffHighlighting.description":
+    "थपिएका र हटाइएका लाइनहरूमा परिवर्तित शब्दहरू हाइलाइट गर्नुहोस्",
   "settings.general.row.font.title": "कोड फन्ट",
   "settings.general.row.font.description": "कोड ब्लकहरूमा प्रयोग गरिएको फन्ट अनुकूलित गर्नुहोस्",
   "settings.general.row.terminalFont.title": "टर्मिनल फन्ट",

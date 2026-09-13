@@ -906,7 +906,7 @@ function TextViewer<T>(props: TextFileProps<T>) {
 
   createEffect(() => {
     const opts = options()
-    const workerPool = getWorkerPool("unified")
+    const workerPool = getWorkerPool("none")
     const virtualizer = virtuals.get()
 
     renderViewer({
@@ -1111,7 +1111,7 @@ function DiffViewer<T>(props: DiffFileProps<T>) {
 
   createEffect(() => {
     const opts = options()
-    const workerPool = large() ? getWorkerPool("unified") : getWorkerPool(props.diffStyle)
+    const workerPool = getWorkerPool(opts.lineDiffType)
     const virtualizer = virtuals.get()
     const beforeContents = typeof local.before?.contents === "string" ? local.before.contents : ""
     const afterContents = typeof local.after?.contents === "string" ? local.after.contents : ""

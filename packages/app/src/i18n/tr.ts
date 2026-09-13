@@ -929,6 +929,9 @@ export const dict = {
     "OpenCode'un sistem, açık veya koyu temayı takip etip etmeyeceğini seçin",
   "settings.general.row.theme.title": "Tema",
   "settings.general.row.theme.description": "OpenCode'un temasını özelleştirin.",
+  "settings.general.row.wordDiffHighlighting.title": "Sözcük düzeyinde fark vurgulama",
+  "settings.general.row.wordDiffHighlighting.description":
+    "Eklenen ve kaldırılan satırlardaki değişen sözcükleri vurgulayın",
   "settings.general.row.font.title": "Kod yazı tipi",
   "settings.general.row.font.description": "Kod bloklarında kullanılan yazı tipini özelleştirin",
   "settings.general.row.terminalFont.title": "Terminal yazı tipi",

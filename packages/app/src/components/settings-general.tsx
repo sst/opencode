@@ -503,6 +503,18 @@ export const SettingsGeneral: Component = () => {
         </SettingsRow>
 
         <SettingsRow
+          title={language.t("settings.general.row.wordDiffHighlighting.title")}
+          description={language.t("settings.general.row.wordDiffHighlighting.description")}
+        >
+          <div data-action="settings-word-diff-highlighting">
+            <Switch
+              checked={settings.appearance.wordDiffHighlighting()}
+              onChange={(checked) => settings.appearance.setWordDiffHighlighting(checked)}
+            />
+          </div>
+        </SettingsRow>
+
+        <SettingsRow
           title={language.t("settings.general.row.uiFont.title")}
           description={language.t("settings.general.row.uiFont.description")}
         >

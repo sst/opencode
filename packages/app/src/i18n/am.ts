@@ -916,6 +916,8 @@ export const dict = {
   "settings.general.row.colorScheme.description": "OpenCode ስርዓቱን፣ ብርሃንን ወይም ጨለማውን ገጽታ የሚከተል እንደሆነ ምረጥ",
   "settings.general.row.theme.title": "ገጽታ",
   "settings.general.row.theme.description": "OpenCode ገጽታ እንዴት እንደሆነ አብጅ።",
+  "settings.general.row.wordDiffHighlighting.title": "በቃል ደረጃ የልዩነት ማድመቅ",
+  "settings.general.row.wordDiffHighlighting.description": "በታከሉ እና በተወገዱ መስመሮች ውስጥ የተቀየሩ ቃላትን አድምቅ",
   "settings.general.row.font.title": "የኮድ ቅርጸ ቁምፊ",
   "settings.general.row.font.description": "በኮድ ብሎኮች ውስጥ ጥቅም ላይ የዋለውን ቅርጸ-ቁምፊ አብጅ",
   "settings.general.row.terminalFont.title": "ተርሚናል ፊደል",

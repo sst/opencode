@@ -941,6 +941,9 @@ export const dict = {
     "Izvēlieties, vai OpenCode sekos sistēmas, gaišajai vai tumšajai tēmai",
   "settings.general.row.theme.title": "Tēma",
   "settings.general.row.theme.description": "Pielāgojiet OpenCode tēmu.",
+  "settings.general.row.wordDiffHighlighting.title": "Vārdu līmeņa atšķirību izcelšana",
+  "settings.general.row.wordDiffHighlighting.description":
+    "Izceliet mainītos vārdus pievienotajās un noņemtajās rindās",
   "settings.general.row.font.title": "Koda fonts",
   "settings.general.row.font.description": "Pielāgojiet fontu, kas tiek izmantots koda blokos",
   "settings.general.row.terminalFont.title": "Termināļa fonts",

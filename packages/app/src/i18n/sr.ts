@@ -938,6 +938,8 @@ export const dict = {
   "settings.general.row.colorScheme.description": "Одаберите да ли OpenCode прати системску, светлу или тамну тему",
   "settings.general.row.theme.title": "Тема",
   "settings.general.row.theme.description": "Прилагодите како је OpenCode тематски.",
+  "settings.general.row.wordDiffHighlighting.title": "Истицање разлика на нивоу речи",
+  "settings.general.row.wordDiffHighlighting.description": "Истакните измењене речи у додатим и уклоњеним редовима",
   "settings.general.row.font.title": "Фонт кода",
   "settings.general.row.font.description": "Прилагодите фонт који се користи у блоковима кода",
   "settings.general.row.terminalFont.title": "Фонт терминала",

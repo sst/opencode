@@ -941,6 +941,9 @@ export const dict = {
   "settings.general.row.colorScheme.description": "Изберете дали OpenCode следва системната, светла или тъмна тема",
   "settings.general.row.theme.title": "Тема",
   "settings.general.row.theme.description": "Персонализирайте как е тематично OpenCode.",
+  "settings.general.row.wordDiffHighlighting.title": "Открояване на разликите на ниво дума",
+  "settings.general.row.wordDiffHighlighting.description":
+    "Откроява променените думи в добавените и премахнатите редове",
   "settings.general.row.font.title": "Шрифт на кода",
   "settings.general.row.font.description": "Персонализирайте шрифта, използван в кодовите блокове",
   "settings.general.row.terminalFont.title": "Терминален шрифт",

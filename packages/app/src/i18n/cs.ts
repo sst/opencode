@@ -941,6 +941,8 @@ export const dict = {
     "Zvolte, zda bude OpenCode následovat systémové, světlé nebo tmavé téma",
   "settings.general.row.theme.title": "téma",
   "settings.general.row.theme.description": "Přizpůsobte, jak je téma OpenCode.",
+  "settings.general.row.wordDiffHighlighting.title": "Zvýraznění rozdílů na úrovni slov",
+  "settings.general.row.wordDiffHighlighting.description": "Zvýrazní změněná slova v přidaných a odstraněných řádcích",
   "settings.general.row.font.title": "Písmo kódu",
   "settings.general.row.font.description": "Přizpůsobte písmo používané v blocích kódu",
   "settings.general.row.terminalFont.title": "Terminálové písmo",

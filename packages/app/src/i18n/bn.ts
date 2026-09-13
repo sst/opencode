@@ -933,6 +933,8 @@ export const dict: Record<string, string> = {
   "settings.general.row.colorScheme.description": "OpenCode সিস্টেম, হালকা বা অন্ধকার থিম অনুসরণ করে কিনা তা বেছে নিন",
   "settings.general.row.theme.title": "থিম",
   "settings.general.row.theme.description": "কিভাবে OpenCode থিম করা হয় তা কাস্টমাইজ করুন।",
+  "settings.general.row.wordDiffHighlighting.title": "শব্দ-স্তরের পার্থক্য হাইলাইটকরণ",
+  "settings.general.row.wordDiffHighlighting.description": "যোগ করা ও সরানো লাইনের পরিবর্তিত শব্দগুলো হাইলাইট করুন",
   "settings.general.row.font.title": "কোড ফন্ট",
   "settings.general.row.font.description": "কোড ব্লকে ব্যবহৃত ফন্ট কাস্টমাইজ করুন",
   "settings.general.row.terminalFont.title": "টার্মিনাল ফন্ট",

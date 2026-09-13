@@ -939,6 +939,9 @@ export const dict = {
   "settings.general.row.colorScheme.description": "Alege dacă OpenCode urmează sistemul, tema deschisă sau închisă",
   "settings.general.row.theme.title": "Temă",
   "settings.general.row.theme.description": "Personalizează tema OpenCode.",
+  "settings.general.row.wordDiffHighlighting.title": "Evidențierea diferențelor la nivel de cuvânt",
+  "settings.general.row.wordDiffHighlighting.description":
+    "Evidențiază cuvintele modificate din liniile adăugate și eliminate",
   "settings.general.row.font.title": "Font cod",
   "settings.general.row.font.description": "Personalizează fontul folosit în blocurile de cod",
   "settings.general.row.terminalFont.title": "Font terminal",

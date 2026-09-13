@@ -943,6 +943,9 @@ export const dict = {
     "OpenCode tizimga, yorugʻlik yoki qorongʻi mavzuga amal qilishini tanlang",
   "settings.general.row.theme.title": "Mavzu",
   "settings.general.row.theme.description": "OpenCode mavzusini sozlash.",
+  "settings.general.row.wordDiffHighlighting.title": "So‘z darajasidagi farqlarni ajratib ko‘rsatish",
+  "settings.general.row.wordDiffHighlighting.description":
+    "Qo‘shilgan va olib tashlangan satrlardagi o‘zgargan so‘zlarni ajratib ko‘rsatish",
   "settings.general.row.font.title": "Kod shrifti",
   "settings.general.row.font.description": "Kod bloklarida ishlatiladigan shriftni moslashtiring",
   "settings.general.row.terminalFont.title": "Terminal shrifti",

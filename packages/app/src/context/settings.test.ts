@@ -10,7 +10,12 @@ import {
   resolveNewLayoutDesigns,
   shouldDisplayTabsToast,
   shouldEnableNewLayout,
+  wordDiffHighlightingDefault,
 } from "./settings"
+
+test("word-level diff highlighting is opt-in", () => {
+  expect(wordDiffHighlightingDefault).toBe(false)
+})
 
 describe("agent visibility", () => {
   test("shows the picker for existing profiles and hides it for first-time installs", () => {

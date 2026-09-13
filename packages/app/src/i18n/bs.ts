@@ -923,6 +923,9 @@ export const dict = {
   "settings.general.row.colorScheme.description": "Odaberi da li OpenCode prati sistemsku, svijetlu ili tamnu temu",
   "settings.general.row.theme.title": "Tema",
   "settings.general.row.theme.description": "Prilagodi temu OpenCode-a.",
+  "settings.general.row.wordDiffHighlighting.title": "Isticanje razlika na nivou riječi",
+  "settings.general.row.wordDiffHighlighting.description":
+    "Istakni promijenjene riječi u dodanim i uklonjenim redovima",
   "settings.general.row.font.title": "Font za kod",
   "settings.general.row.font.description": "Prilagodi font koji se koristi u blokovima koda",
   "settings.general.row.terminalFont.title": "Font terminala",

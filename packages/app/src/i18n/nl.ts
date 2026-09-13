@@ -945,6 +945,9 @@ export const dict = {
     "Kies of OpenCode het systeemthema, het lichte thema of het donkere thema gebruikt",
   "settings.general.row.theme.title": "Thema",
   "settings.general.row.theme.description": "Pas het thema van OpenCode aan.",
+  "settings.general.row.wordDiffHighlighting.title": "Verschillen op woordniveau markeren",
+  "settings.general.row.wordDiffHighlighting.description":
+    "Gewijzigde woorden in toegevoegde en verwijderde regels markeren",
   "settings.general.row.font.title": "Codelettertype",
   "settings.general.row.font.description": "Pas het lettertype aan dat in codeblokken wordt gebruikt",
   "settings.general.row.terminalFont.title": "Terminal-lettertype",

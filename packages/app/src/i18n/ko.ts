@@ -598,6 +598,8 @@ export const dict = {
   "settings.general.row.colorScheme.description": "OpenCode가 시스템, 라이트 또는 다크 테마를 따를지 선택하세요",
   "settings.general.row.theme.title": "테마",
   "settings.general.row.theme.description": "OpenCode 테마 사용자 지정",
+  "settings.general.row.wordDiffHighlighting.title": "단어 단위 diff 강조 표시",
+  "settings.general.row.wordDiffHighlighting.description": "추가되거나 삭제된 줄에서 변경된 단어를 강조 표시합니다",
   "settings.general.row.font.title": "코드 글꼴",
   "settings.general.row.font.description": "코드 블록에 사용되는 글꼴을 사용자 지정",
   "settings.general.row.terminalFont.title": "터미널 글꼴",

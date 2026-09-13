@@ -934,6 +934,8 @@ export const dict = {
   "settings.general.row.colorScheme.description": "აირჩიეთ, მიჰყვება თუ არა OpenCode სისტემას, ღია თუ ბნელ თემას",
   "settings.general.row.theme.title": "თემა",
   "settings.general.row.theme.description": "მორგება, თუ როგორ არის OpenCode თემატური.",
+  "settings.general.row.wordDiffHighlighting.title": "სიტყვის დონეზე განსხვავებების გამოკვეთა",
+  "settings.general.row.wordDiffHighlighting.description": "გამოკვეთეთ დამატებულ და წაშლილ ხაზებში შეცვლილი სიტყვები",
   "settings.general.row.font.title": "კოდის შრიფტი",
   "settings.general.row.font.description": "მორგეთ კოდის ბლოკებში გამოყენებული შრიფტი",
   "settings.general.row.terminalFont.title": "ტერმინალის შრიფტი",

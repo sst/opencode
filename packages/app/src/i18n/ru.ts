@@ -925,6 +925,9 @@ export const dict = {
   "settings.general.row.colorScheme.description": "Выберите, следует ли OpenCode системной, светлой или тёмной теме",
   "settings.general.row.theme.title": "Тема",
   "settings.general.row.theme.description": "Настройте оформление OpenCode.",
+  "settings.general.row.wordDiffHighlighting.title": "Подсветка различий на уровне слов",
+  "settings.general.row.wordDiffHighlighting.description":
+    "Подсвечивать изменённые слова в добавленных и удалённых строках",
   "settings.general.row.font.title": "Шрифт кода",
   "settings.general.row.font.description": "Настройте шрифт, используемый в блоках кода",
   "settings.general.row.terminalFont.title": "Шрифт терминала",

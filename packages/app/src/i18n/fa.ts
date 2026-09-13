@@ -932,6 +932,9 @@ export const dict = {
   "settings.general.row.colorScheme.description": "انتخاب کنید که آیا OpenCode از تم سیستمی، روشن یا تیره پیروی می کند",
   "settings.general.row.theme.title": "موضوع",
   "settings.general.row.theme.description": "نحوه مضمون سازی OpenCode را سفارشی کنید.",
+  "settings.general.row.wordDiffHighlighting.title": "برجسته‌سازی تفاوت‌ها در سطح واژه",
+  "settings.general.row.wordDiffHighlighting.description":
+    "واژه‌های تغییریافته را در خط‌های افزوده و حذف‌شده برجسته کنید",
   "settings.general.row.font.title": "فونت کد",
   "settings.general.row.font.description": "فونت مورد استفاده در بلوک های کد را سفارشی کنید",
   "settings.general.row.terminalFont.title": "فونت ترمینال",

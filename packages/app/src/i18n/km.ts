@@ -932,6 +932,9 @@ export const dict = {
   "settings.general.row.colorScheme.description": "ជ្រើសរើសថាតើ OpenCode ធ្វើតាមប្រព័ន្ធ ពន្លឺ ឬរូបរាងងងឹត",
   "settings.general.row.theme.title": "ស្បែក",
   "settings.general.row.theme.description": "ប្ដូរតាមបំណងពីរបៀបដែល OpenCode មានប្រធានបទ។",
+  "settings.general.row.wordDiffHighlighting.title": "ការរំលេចភាពខុសគ្នានៅកម្រិតពាក្យ",
+  "settings.general.row.wordDiffHighlighting.description":
+    "រំលេចពាក្យដែលបានផ្លាស់ប្ដូរនៅក្នុងបន្ទាត់ដែលបានបន្ថែម និងដកចេញ",
   "settings.general.row.font.title": "ពុម្ពអក្សរកូដ",
   "settings.general.row.font.description": "ប្ដូរពុម្ពអក្សរដែលប្រើក្នុងប្លុកកូដតាមបំណង",
   "settings.general.row.terminalFont.title": "ពុម្ពអក្សរស្ថានីយ",

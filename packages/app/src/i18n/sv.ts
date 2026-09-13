@@ -940,6 +940,8 @@ export const dict = {
   "settings.general.row.colorScheme.description": "Välj om OpenCode följer system-, ljus- eller mörktemat",
   "settings.general.row.theme.title": "Tema",
   "settings.general.row.theme.description": "Anpassa OpenCodes tema.",
+  "settings.general.row.wordDiffHighlighting.title": "Markering av skillnader på ordnivå",
+  "settings.general.row.wordDiffHighlighting.description": "Markera ändrade ord i tillagda och borttagna rader",
   "settings.general.row.font.title": "Kodtypsnitt",
   "settings.general.row.font.description": "Anpassa teckensnittet som används i kodblock",
   "settings.general.row.terminalFont.title": "Terminaltypsnitt",

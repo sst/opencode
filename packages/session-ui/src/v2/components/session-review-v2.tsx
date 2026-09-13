@@ -153,7 +153,7 @@ export function SessionReviewV2(props: SessionReviewV2Props) {
   const locale = useLocale()
 
   createEffect(() => {
-    getWorkerPool(props.diffStyle)
+    getWorkerPool(props.diffStyle === "split" ? "word-alt" : "none")
   })
 
   const fileIndex = () => {

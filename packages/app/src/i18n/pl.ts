@@ -860,6 +860,8 @@ export const dict = {
     "Wybierz, czy OpenCode ma używać motywu systemowego, jasnego czy ciemnego",
   "settings.general.row.theme.title": "Motyw",
   "settings.general.row.theme.description": "Dostosuj motyw OpenCode.",
+  "settings.general.row.wordDiffHighlighting.title": "Wyróżnianie różnic na poziomie słów",
+  "settings.general.row.wordDiffHighlighting.description": "Wyróżnia zmienione słowa w dodanych i usuniętych wierszach",
   "settings.general.row.font.title": "Czcionka kodu",
   "settings.general.row.font.description": "Dostosuj czcionkę używaną w blokach kodu",
   "settings.general.row.terminalFont.title": "Czcionka terminala",

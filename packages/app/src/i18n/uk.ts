@@ -1030,6 +1030,8 @@ export const dict = {
   "settings.general.row.colorScheme.description": "Виберіть, чи OpenCode використовує системну, світлу або темну тему",
   "settings.general.row.theme.title": "Тема",
   "settings.general.row.theme.description": "Налаштуйте тему OpenCode.",
+  "settings.general.row.wordDiffHighlighting.title": "Підсвічення відмінностей на рівні слів",
+  "settings.general.row.wordDiffHighlighting.description": "Підсвічувати змінені слова в доданих і вилучених рядках",
   "settings.general.row.font.title": "Шрифт коду",
   "settings.general.row.font.description": "Налаштуйте шрифт, який використовується в блоках коду",
   "settings.general.row.terminalFont.title": "Шрифт термінала",

@@ -931,6 +931,8 @@ export const dict: Record<string, string> = {
   "settings.general.row.colorScheme.description": "OpenCode පද්ධතිය, ආලෝකය හෝ අඳුරු තේමාව අනුගමනය කරන්නේද යන්න තෝරන්න",
   "settings.general.row.theme.title": "තේමාව",
   "settings.general.row.theme.description": "OpenCode තේමා කර ඇති ආකාරය අභිරුචිකරණය කරන්න.",
+  "settings.general.row.wordDiffHighlighting.title": "වචන මට්ටමේ වෙනස්කම් උද්දීපනය කිරීම",
+  "settings.general.row.wordDiffHighlighting.description": "එකතු කළ සහ ඉවත් කළ පේළිවල වෙනස් වූ වචන උද්දීපනය කරන්න",
   "settings.general.row.font.title": "කේත අකුරු",
   "settings.general.row.font.description": "කේත බ්ලොක් වල භාවිතා කරන අකුරු අභිරුචිකරණය කරන්න",
   "settings.general.row.terminalFont.title": "ටර්මිනල් අකුරු",

@@ -781,6 +781,8 @@ export const dict = {
     "Velg om OpenCode skal følge systeminnstillingen eller bruke lyst eller mørkt tema",
   "settings.general.row.theme.title": "Tema",
   "settings.general.row.theme.description": "Tilpass temaet i OpenCode.",
+  "settings.general.row.wordDiffHighlighting.title": "Utheving av forskjeller på ordnivå",
+  "settings.general.row.wordDiffHighlighting.description": "Uthev endrede ord i linjer som er lagt til eller fjernet",
   "settings.general.row.font.title": "Kodefont",
   "settings.general.row.font.description": "Tilpass skrifttypen som brukes i kodeblokker",
   "settings.general.row.terminalFont.title": "Terminalskrift",

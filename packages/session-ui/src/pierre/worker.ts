@@ -1,16 +1,15 @@
+import type { LineDiffTypes } from "@pierre/diffs"
 import { WorkerPoolManager } from "@pierre/diffs/worker"
 import ShikiWorkerUrl from "@pierre/diffs/worker/worker.js?worker&url"
 import { registerOpenCodeTheme } from "@opencode-ai/ui/context/marked-theme-register"
 
 registerOpenCodeTheme()
 
-export type WorkerPoolStyle = "unified" | "split"
-
 export function workerFactory(): Worker {
   return new Worker(ShikiWorkerUrl, { type: "module" })
 }
 
-function createPool(lineDiffType: "none" | "word-alt") {
+function createPool(lineDiffType: LineDiffTypes) {
   const pool = new WorkerPoolManager(
     {
       workerFactory,
@@ -32,24 +31,23 @@ function createPool(lineDiffType: "none" | "word-alt") {
   return pool
 }
 
-let unified: WorkerPoolManager | undefined
-let split: WorkerPoolManager | undefined
+const pools = new Map<LineDiffTypes, WorkerPoolManager>()
 
-export function getWorkerPool(style: WorkerPoolStyle | undefined): WorkerPoolManager | undefined {
+export function getWorkerPool(lineDiffType: LineDiffTypes | undefined): WorkerPoolManager | undefined {
   if (typeof window === "undefined") return
 
-  if (style === "split") {
-    if (!split) split = createPool("word-alt")
-    return split
-  }
+  const type = lineDiffType ?? "none"
+  const existing = pools.get(type)
+  if (existing) return existing
 
-  if (!unified) unified = createPool("none")
-  return unified
+  const pool = createPool(type)
+  pools.set(type, pool)
+  return pool
 }
 
 export function getWorkerPools() {
   return {
-    unified: getWorkerPool("unified"),
-    split: getWorkerPool("split"),
+    unified: getWorkerPool("none"),
+    split: getWorkerPool("word-alt"),
   }
 }

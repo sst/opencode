@@ -169,6 +169,18 @@ const AppearanceSection: Component<{ controller: AppearanceSettingsController }>
           />
         </SettingsRowV2>
 
+        <SettingsRowV2
+          title={language.t("settings.general.row.wordDiffHighlighting.title")}
+          description={language.t("settings.general.row.wordDiffHighlighting.description")}
+        >
+          <div data-action="settings-word-diff-highlighting">
+            <Switch
+              checked={props.controller.wordDiffHighlighting()}
+              onChange={props.controller.setWordDiffHighlighting}
+            />
+          </div>
+        </SettingsRowV2>
+
         <FontSetting kind="ui" fonts={props.controller.fonts} />
         <FontSetting kind="code" fonts={props.controller.fonts} />
         <FontSetting kind="terminal" fonts={props.controller.fonts} />

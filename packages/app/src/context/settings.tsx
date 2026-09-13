@@ -45,6 +45,7 @@ export interface Settings {
     mono: string
     sans: string
     terminal: string
+    wordDiffHighlighting: boolean
   }
   keybinds: Record<string, string>
   permissions: {
@@ -57,6 +58,7 @@ export interface Settings {
 export const monoDefault = "System Mono"
 export const sansDefault = "System Sans"
 export const terminalDefault = "JetBrainsMono Nerd Font Mono"
+export const wordDiffHighlightingDefault = false
 const legacyNewLayoutDesignsDefault = import.meta.env.VITE_OPENCODE_CHANNEL !== "prod"
 export const newLayoutDesignsDefault = true
 // Existing users can switch layouts until local midnight on this date. Set new Date(YYYY, M-1, D) to show.
@@ -201,6 +203,7 @@ const defaultSettings: Settings = {
     mono: "",
     sans: "",
     terminal: "",
+    wordDiffHighlighting: wordDiffHighlightingDefault,
   },
   keybinds: {},
   permissions: {
@@ -474,6 +477,13 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         terminalFont: withFallback(() => store.appearance?.terminal, defaultSettings.appearance.terminal),
         setTerminalFont(value: string) {
           setStore("appearance", "terminal", value.trim() ? value : "")
+        },
+        wordDiffHighlighting: withFallback(
+          () => store.appearance?.wordDiffHighlighting,
+          defaultSettings.appearance.wordDiffHighlighting,
+        ),
+        setWordDiffHighlighting(value: boolean) {
+          setStore("appearance", "wordDiffHighlighting", value)
         },
       },
       keybinds: {

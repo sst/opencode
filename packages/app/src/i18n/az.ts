@@ -945,6 +945,9 @@ export const dict = {
     "OpenCode-un sistem, açıq və ya tünd mövzudan istifadə etməsini seçin",
   "settings.general.row.theme.title": "Mövzu",
   "settings.general.row.theme.description": "OpenCode-un mövzusunu fərdiləşdirin.",
+  "settings.general.row.wordDiffHighlighting.title": "Söz səviyyəsində fərqlərin vurğulanması",
+  "settings.general.row.wordDiffHighlighting.description":
+    "Əlavə edilmiş və silinmiş sətirlərdə dəyişdirilmiş sözləri vurğulayın",
   "settings.general.row.font.title": "Kod şrifti",
   "settings.general.row.font.description": "Kod bloklarında istifadə olunan mono şrifti fərdiləşdirin",
   "settings.general.row.terminalFont.title": "Terminal şrifti",

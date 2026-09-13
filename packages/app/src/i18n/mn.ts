@@ -943,6 +943,9 @@ export const dict = {
     "OpenCode нь систем, цайвар эсвэл бараан загварт тохирох эсэхийг сонгоно уу",
   "settings.general.row.theme.title": "Сэдэв",
   "settings.general.row.theme.description": "OpenCode-г хэрхэн загварчлахыг тохируулна уу.",
+  "settings.general.row.wordDiffHighlighting.title": "Үгийн түвшний ялгааг тодруулах",
+  "settings.general.row.wordDiffHighlighting.description":
+    "Нэмэгдсэн болон устгагдсан мөрүүд дэх өөрчлөгдсөн үгсийг тодруулах",
   "settings.general.row.font.title": "Кодын фонт",
   "settings.general.row.font.description": "Кодын блокуудад ашигладаг фонтыг тохируулна уу",
   "settings.general.row.terminalFont.title": "Терминал фонт",

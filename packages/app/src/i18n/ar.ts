@@ -855,6 +855,8 @@ export const dict = {
   "settings.general.row.colorScheme.description": "اختر ما إذا كان OpenCode يتبع سمة النظام أو الفاتح أو الداكن",
   "settings.general.row.theme.title": "السمة",
   "settings.general.row.theme.description": "تخصيص سمة OpenCode.",
+  "settings.general.row.wordDiffHighlighting.title": "إبراز الفروق على مستوى الكلمات",
+  "settings.general.row.wordDiffHighlighting.description": "أبرِز الكلمات المتغيّرة داخل الأسطر المضافة والمحذوفة",
   "settings.general.row.font.title": "خط الكود",
   "settings.general.row.font.description": "خصّص الخط المستخدم في كتل التعليمات البرمجية",
   "settings.general.row.terminalFont.title": "خط الطرفية",

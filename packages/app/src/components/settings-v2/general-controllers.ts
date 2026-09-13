@@ -89,6 +89,8 @@ export function createAppearanceSettingsController() {
       current: createMemo(() => themes().find((option) => option.id === theme.themeId())),
       select: (option: { id: string } | null) => option && theme.setTheme(option.id),
     },
+    wordDiffHighlighting: settings.appearance.wordDiffHighlighting,
+    setWordDiffHighlighting: settings.appearance.setWordDiffHighlighting,
     fonts: {
       ui: createMemo(() => ({
         value: sansInput(settings.appearance.uiFont()),
