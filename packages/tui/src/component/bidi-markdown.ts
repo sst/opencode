@@ -4,23 +4,22 @@ import {
   type ChunkRenderContext,
   type OnChunksCallback,
   type OptimizedBuffer,
-  type RenderNodeContext,
   type TextChunk,
 } from "@opentui/core"
-import { hasRtl, layoutBidiText, widthOffsetToBoundary, wrappedLogicalText, type BidiLayout } from "../util/bidi"
+import { hasRtl, layoutBidiText, paintBidiCell, widthOffsetToBoundary, wrappedLogicalText, type BidiLayout } from "../util/bidi"
 
-// Markdown renderNode hook that installs bidi-aware painting on the text
-// blocks (paragraph/heading) of a <markdown> element. Fenced code blocks,
-// tables, diffs and every other block keep the stock LTR renderer, which is
-// the required behavior for code.
+// Markdown bidi painting, installed once on CodeRenderable itself so every
+// markdown-prose block inherits it: top-level paragraphs and headings, list
+// items, blockquotes and table fallbacks. OpenTUI builds those code blocks
+// internally (list rows and streaming updates never consult renderNode), so
+// per-instance patching always misses surfaces; the prototype sees them all.
 //
-// OpenTUI 0.4.5 offers renderNode as the only per-block override that
-// preserves in-place streaming updates, so the hook patches the default
-// renderable instance: it shadows renderSelf (the paint entrypoint) and
-// wraps the onChunks callback to capture the tree-sitter styled chunks.
-// Nothing else about the renderable changes: measurement, selection, copy
-// and streaming reconciliation continue through the native text buffer,
-// which is kept in sync with the wrapped logical text.
+// Only blocks whose content carries strong RTL characters AND whose filetype
+// is unset or "markdown" take the bidi path. Fenced code blocks carry a real
+// filetype and English-only blocks have no RTL, so both keep the stock
+// painter bit-for-bit. The logical string is never mutated: isolates live in
+// a layout-only stream, and the native buffer only ever holds wrapped logical
+// text, so selection and copy keep working.
 
 type StyledSource = {
   text: string
@@ -40,9 +39,11 @@ type BidiCodeState = {
   // new styles) still rebuild the layout instead of painting a stale one.
   styledVersion: number
   paintedVersion: number
+  chunksWrapper: OnChunksCallback | undefined
 }
 
-const patched = new WeakSet<CodeRenderable>()
+const blockStates = new WeakMap<CodeRenderable, BidiCodeState>()
+let prototypePatched = false
 
 // Protected members of TextBufferRenderable needed for buffer sync, plus
 // the highlight machinery. startHighlight/_highlightsDirty are private in
@@ -57,34 +58,46 @@ type CodeInternals = {
   _highlightsDirty?: boolean
 }
 
-export function bidiMarkdownRenderNode(token: { type: string }, context: RenderNodeContext) {
-  if (token.type !== "paragraph" && token.type !== "heading") return undefined
-  const renderable = context.defaultRender()
-  if (!(renderable instanceof CodeRenderable)) return renderable ?? undefined
-  applyBidiCodePaint(renderable)
-  return renderable
+function blockState(renderable: CodeRenderable) {
+  let state = blockStates.get(renderable)
+  if (!state) {
+    state = {
+      styled: undefined,
+      layout: undefined,
+      source: "",
+      wrapped: undefined,
+      width: 0,
+      styledVersion: 0,
+      paintedVersion: -1,
+      chunksWrapper: undefined,
+    }
+    blockStates.set(renderable, state)
+  }
+  return state
 }
 
-export function applyBidiCodePaint(renderable: CodeRenderable) {
-  if (patched.has(renderable)) return
-  patched.add(renderable)
+function proseFiletype(renderable: CodeRenderable) {
+  return (renderable as unknown as { filetype?: unknown }).filetype
+}
 
-  const state: BidiCodeState = {
-    styled: undefined,
-    layout: undefined,
-    source: "",
-    wrapped: undefined,
-    width: 0,
-    styledVersion: 0,
-    paintedVersion: -1,
-  }
-  const internals = renderable as unknown as CodeInternals
-  const self = renderable as unknown as { renderSelf(buffer: OptimizedBuffer): void }
-  const originalRenderSelf = self.renderSelf.bind(renderable)
+function shouldBidiPaint(renderable: CodeRenderable) {
+  if (renderable.width <= 0) return false
+  const filetype = proseFiletype(renderable)
+  if (filetype !== undefined && filetype !== "markdown") return false
+  const content = renderable.content
+  return typeof content === "string" && hasRtl(content)
+}
 
-  const originalOnChunks: OnChunksCallback | undefined = renderable.onChunks
-  renderable.onChunks = async (chunks: TextChunk[], context: ChunkRenderContext) => {
-    const result = originalOnChunks ? await originalOnChunks(chunks, context) : undefined
+// Wraps onChunks once per instance so tree-sitter styled chunks are captured
+// for the paint below. Assigning marks highlights dirty, which restarts
+// highlighting through the wrapper; afterwards the installed wrapper is
+// detected and left alone, so this converges instead of looping.
+function ensureChunksWrapped(renderable: CodeRenderable, state: BidiCodeState) {
+  const current = renderable.onChunks
+  if (current === state.chunksWrapper) return
+  const previous = current
+  const wrapper: OnChunksCallback = async (chunks: TextChunk[], context: ChunkRenderContext) => {
+    const result = previous ? await previous(chunks, context) : undefined
     const captured = result ?? chunks
     let text = ""
     const offsets: number[] = []
@@ -98,24 +111,51 @@ export function applyBidiCodePaint(renderable: CodeRenderable) {
     state.wrapped = undefined
     return result
   }
+  state.chunksWrapper = wrapper
+  renderable.onChunks = wrapper
+}
 
-  self.renderSelf = (buffer: OptimizedBuffer) => {
-    const content = renderable.content
-    const plain = internals.plainText
-    // The buffer may hold our pre-wrapped text; recover the logical source.
-    const current = state.wrapped !== undefined && plain === state.wrapped ? state.source : plain
-    if (!hasRtl(content) || renderable.width <= 0) {
-      if (state.wrapped !== undefined) {
-        if (plain !== content) {
-          internals.textBuffer.setText(content)
-          internals.updateTextInfo()
-        }
-        state.wrapped = undefined
-        state.layout = undefined
-      }
-      originalRenderSelf(buffer)
+export function installBidiCodePaint() {
+  if (prototypePatched) return
+  prototypePatched = true
+  const proto = CodeRenderable.prototype as unknown as {
+    renderSelf(buffer: OptimizedBuffer): void
+  }
+  const stockRenderSelf = proto.renderSelf
+  proto.renderSelf = function (this: CodeRenderable, buffer: OptimizedBuffer) {
+    if (!shouldBidiPaint(this)) {
+      stockRenderSelf.call(this, buffer)
       return
     }
+    const state = blockState(this)
+    ensureChunksWrapped(this, state)
+    paintBidiBlock(this, state, buffer, () => stockRenderSelf.call(this, buffer))
+  }
+}
+
+function paintBidiBlock(
+  renderable: CodeRenderable,
+  state: BidiCodeState,
+  buffer: OptimizedBuffer,
+  paintStock: () => void,
+) {
+  const internals = renderable as unknown as CodeInternals
+  const content = renderable.content
+  const plain = internals.plainText
+  // The buffer may hold our pre-wrapped text; recover the logical source.
+  const current = state.wrapped !== undefined && plain === state.wrapped ? state.source : plain
+  if (!hasRtl(content) || renderable.width <= 0) {
+    if (state.wrapped !== undefined) {
+      if (plain !== content) {
+        internals.textBuffer.setText(content)
+        internals.updateTextInfo()
+      }
+      state.wrapped = undefined
+      state.layout = undefined
+    }
+    paintStock()
+    return
+  }
 
     if (
       state.source !== current ||
@@ -144,7 +184,6 @@ export function applyBidiCodePaint(renderable: CodeRenderable) {
     }
     paintStyledLines(buffer, state, renderable)
   }
-}
 
 function paintStyledLines(buffer: OptimizedBuffer, state: BidiCodeState, renderable: CodeRenderable) {
   const layout = state.layout
@@ -172,7 +211,8 @@ function paintStyledLines(buffer: OptimizedBuffer, state: BidiCodeState, rendera
       if (x < 0 || x >= buffer.width) continue
       const chunk = styled ? chunkAt(styled, layout.glyphs[cell.glyph].charIndex) : undefined
       const selected = selStart >= 0 && cell.glyph >= selStart && cell.glyph < selEnd
-      buffer.setCell(
+      paintBidiCell(
+        buffer,
         x,
         y,
         cell.char,

@@ -115,7 +115,9 @@ JavaScript خالص، بدون اعتماديات وقت التشغيل، ومُ
 ```bash
 bun test --cwd packages/tui ./test/util/bidi.test.ts
 bun test --cwd packages/tui ./test/component/bidi-render.test.tsx
+bun test --cwd packages/tui ./test/component/bidi-mixed.test.tsx
 bun test --cwd packages/tui ./test/bidi-e2e.test.tsx
+bun test --cwd packages/tui ./test/bidi-dialogs-e2e.test.tsx
 bun run --cwd packages/tui typecheck
 ```
 
@@ -125,5 +127,12 @@ bun run --cwd packages/tui typecheck
   الترتيب والاتجاه والمحاذاة، وهوه اللي الراسم الخلوي يقدر يتحكم فيه.
 - إخفاء الماركداون (backticks المخفية) ممكن يفقد ألوان بعض المقاطع لفترة
   بسيطة وقت البث؛ لكن الترتيب دايمًا صح.
+- جداول الماركداون بتفضل بالراسم الأصلي: العربي جوه الخلايا بيظهر بالترتيب
+  المنطقي على الشمال. الجداول سطح بيانات، وإعادة تدفقها حسب الاتجاه هتكسر
+  محاذاة الأعمدة والنسخ/اللصق.
+- سطور الـ diff بتحافظ على بنية الكود؛ والنص العربي في السطور المضافة/المحذوفة
+  بيتبع اتجاه الفقرة وعلامات +/- وأرقام السطور ثابتة.
+- علامات القوائم (`-`، `1.`) بتفضل على الحرف الشمال؛ ومحتوى العنصر بيتبع
+  اتجاه الفقرة.
 - `Home`/`End` والقفز بين الكلمات لسه بمنطق الإزاحة المنطقية (سلوك أصلي).
 - الضغط بالماوس في البرومبت لسه بالسلوك الأصلي؛ حركة الكيبورد واعية بالكامل.

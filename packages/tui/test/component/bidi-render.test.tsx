@@ -9,7 +9,7 @@ import {
 import { createTestRenderer, type TestRendererSetup } from "@opentui/core/testing"
 import { BidiTextRenderable } from "../../src/component/bidi-text"
 import { BidiTextareaRenderable } from "../../src/component/bidi-textarea"
-import { bidiMarkdownRenderNode } from "../../src/component/bidi-markdown"
+import "../../src/component/bidi-elements"
 
 const WIDTH = 40
 const HEIGHT = 12
@@ -21,7 +21,9 @@ const offlineClient: TreeSitterClient = {
 } as unknown as TreeSitterClient
 
 function row(frame: string, index: number) {
-  return frame.slice(index * WIDTH, (index + 1) * WIDTH)
+  // Frames join rows with newlines and cells can hold multi-unit graphemes,
+  // so slice by row instead of by fixed character offsets.
+  return frame.split("\n")[index] ?? ""
 }
 
 function reverseArabic(text: string) {
@@ -111,7 +113,6 @@ describe("bidi markdown rendering", () => {
       const el = new MarkdownRenderable(setup.renderer, {
         content: "مرحبا بالعالم",
         syntaxStyle: SyntaxStyle.create(),
-        renderNode: bidiMarkdownRenderNode,
         treeSitterClient: offlineClient,
       })
       setup.renderer.root.add(el)
@@ -128,7 +129,6 @@ describe("bidi markdown rendering", () => {
       const el = new MarkdownRenderable(setup.renderer, {
         content: "```ts\nconst value = 42\n```",
         syntaxStyle: SyntaxStyle.create(),
-        renderNode: bidiMarkdownRenderNode,
         treeSitterClient: offlineClient,
       })
       setup.renderer.root.add(el)
@@ -144,7 +144,6 @@ describe("bidi markdown rendering", () => {
       const el = new MarkdownRenderable(setup.renderer, {
         content: "استخدم `npm install` لتثبيت الحزمة",
         syntaxStyle: SyntaxStyle.create(),
-        renderNode: bidiMarkdownRenderNode,
         treeSitterClient: offlineClient,
       })
       setup.renderer.root.add(el)
@@ -161,7 +160,6 @@ describe("bidi markdown rendering", () => {
       const el = new MarkdownRenderable(setup.renderer, {
         content: "مرحبا بالعالم",
         syntaxStyle: SyntaxStyle.create(),
-        renderNode: bidiMarkdownRenderNode,
         treeSitterClient: offlineClient,
       })
       setup.renderer.root.add(el)
@@ -195,6 +193,19 @@ describe("bidi textarea rendering", () => {
       )
       // The underlying value is untouched logical Unicode.
       expect(el.plainText).toBe("ازيك يا صاحبي")
+    })
+  })
+
+  test("tashkeel travels with its base letter in the prompt", async () => {
+    await withRenderer(async (setup) => {
+      const el = new BidiTextareaRenderable(setup.renderer, { width: WIDTH })
+      setup.renderer.root.add(el)
+      el.focus()
+      el.insertText("نفّذ")
+      await setup.renderOnce()
+      const line = row(setup.captureCharFrame(), 0)
+      expect(line).toContain("ذفّن")
+      expect(el.plainText).toBe("نفّذ")
     })
   })
 

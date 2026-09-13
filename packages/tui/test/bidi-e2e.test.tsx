@@ -223,6 +223,24 @@ test("e2e: Arabic prompt input and assistant output in a real session view", asy
     // The path stays a contiguous LTR island inside the RTL paragraph.
     const island = await app.waitForFrame((f) => f.includes("src/components/Button.tsx"), "path island")
     expect(island.includes("src/components/Button.tsx")).toBe(true)
+
+    app.emit({
+      id: "evt_delta_3",
+      type: "message.part.delta",
+      properties: {
+        sessionID: "ses_test",
+        messageID: "msg_ar_1",
+        partID: "txt_1",
+        field: "text",
+        delta: "\n\n**السبب:** النسخة `0.1.9` بتستخدم `npm install opencode-rtl`",
+      },
+    })
+    // Styled mixed markdown (bold markers, version and command code spans)
+    // keeps every LTR token intact through real highlighting and conceal.
+    // Conceal hides the markers, so the painted tokens are the bare forms.
+    const styled = await app.waitForFrame((f) => f.includes("npm install opencode-rtl"), "styled mixed markdown")
+    expect(styled.includes("npm install opencode-rtl")).toBe(true)
+    expect(styled.includes("0.1.9")).toBe(true)
   } finally {
     await app.exit()
   }

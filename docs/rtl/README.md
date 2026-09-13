@@ -119,7 +119,9 @@ mirroring); all rendering policy lives in this repository.
 ```bash
 bun test --cwd packages/tui ./test/util/bidi.test.ts
 bun test --cwd packages/tui ./test/component/bidi-render.test.tsx
+bun test --cwd packages/tui ./test/component/bidi-mixed.test.tsx
 bun test --cwd packages/tui ./test/bidi-e2e.test.tsx
+bun test --cwd packages/tui ./test/bidi-dialogs-e2e.test.tsx
 bun run --cwd packages/tui typecheck
 ```
 
@@ -127,6 +129,10 @@ bun run --cwd packages/tui typecheck
   cursor round-trips.
 - `test/component/bidi-render.test.tsx` — real OpenTUI test renderer: RTL
   painting, right alignment, code LTR, English-identical-to-stock, caret, copy.
+- `test/component/bidi-mixed.test.tsx` — mixed-direction paragraphs: code
+  spans, commands, dotted identifiers, spaced Windows paths, URLs, versions,
+  key:line references, bold markers, lists, links, tables of punctuation,
+  tashkeel preservation, wrapping around LTR tokens.
 - `test/bidi-e2e.test.tsx` — boots the real app, types Arabic with real key
   presses, streams a real assistant message.
 
@@ -136,6 +142,13 @@ bun run --cwd packages/tui typecheck
   order, direction and alignment, which is what a cell-grid renderer can own.
 - Markdown `conceal` (hidden backticks) may drop per-span colors in a brief
   streaming window; order always stays correct.
+- Markdown tables keep the stock grid renderer: Arabic inside table cells
+  renders in logical order, left-aligned. Tables are a data surface; reflowing
+  them per direction would break column alignment and copy/paste.
+- Diff hunks keep code structure; Arabic prose inside added/removed lines
+  follows paragraph direction while signs and line numbers stay put.
+- List markers (`-`, `1.`) stay on the left edge; item content follows
+  paragraph direction.
 - `Home`/`End`/word-jump keep logical-offset semantics (native behavior).
 - Mouse click positioning in the prompt keeps native behavior; keyboard motion
   is fully bidi-aware.
