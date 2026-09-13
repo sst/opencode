@@ -67,6 +67,10 @@ export const SummarizePayload = Schema.Struct({
   modelID: ModelV2.ID,
   auto: Schema.optional(Schema.Boolean),
 })
+export const InterruptPayload = Schema.Struct({
+  intent: Schema.Literals(["steer", "cancel", "abort"]),
+  reason: Schema.String,
+})
 export const PromptPayload = Schema.Struct(Struct.omit(SessionPrompt.PromptInput.fields, ["sessionID"]))
 export const CommandPayload = Schema.Struct(Struct.omit(SessionPrompt.CommandInput.fields, ["sessionID"]))
 export const ShellPayload = Schema.Struct(Struct.omit(SessionPrompt.ShellInput.fields, ["sessionID"]))
@@ -89,6 +93,7 @@ export const SessionPaths = {
   update: `${root}/:sessionID`,
   fork: `${root}/:sessionID/fork`,
   abort: `${root}/:sessionID/abort`,
+  interrupt: `${root}/:sessionID/interrupt`,
   share: `${root}/:sessionID/share`,
   init: `${root}/:sessionID/init`,
   summarize: `${root}/:sessionID/summarize`,
@@ -260,6 +265,19 @@ export const SessionApi = HttpApi.make("session")
             identifier: "session.abort",
             summary: "Abort session",
             description: "Abort an active session and stop any ongoing AI processing or command execution.",
+          }),
+        ),
+        HttpApiEndpoint.post("interrupt", SessionPaths.interrupt, {
+          params: { sessionID: SessionID },
+          query: WorkspaceRoutingQuery,
+          payload: InterruptPayload,
+          success: described(Schema.Boolean, "Interrupt requested"),
+          error: HttpApiError.BadRequest,
+        }).annotateMerge(
+          OpenApi.annotations({
+            identifier: "session.interrupt",
+            summary: "Interrupt session",
+            description: "Steer or gracefully cancel an active session (human/operator path; not permission-gated).",
           }),
         ),
         HttpApiEndpoint.post("init", SessionPaths.init, {

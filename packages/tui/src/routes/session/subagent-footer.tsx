@@ -59,7 +59,9 @@ export function SubagentFooter() {
   const parentShortcut = useCommandShortcut("session.parent")
   const previousShortcut = useCommandShortcut("session.child.previous")
   const nextShortcut = useCommandShortcut("session.child.next")
-  const [hover, setHover] = createSignal<"parent" | "prev" | "next" | null>(null)
+  const interruptShortcut = useCommandShortcut("session.subagent.interrupt")
+  const interruptEnabled = createMemo(() => !!sync.data.config.experimental?.subagent_interrupt)
+  const [hover, setHover] = createSignal<"parent" | "prev" | "next" | "interrupt" | null>(null)
   useTerminalDimensions()
 
   return (
@@ -124,6 +126,18 @@ export function SubagentFooter() {
                 Next <span style={{ fg: theme.textMuted }}>{nextShortcut()}</span>
               </text>
             </box>
+            <Show when={interruptEnabled()}>
+              <box
+                onMouseOver={() => setHover("interrupt")}
+                onMouseOut={() => setHover(null)}
+                onMouseUp={() => keymap.dispatchCommand("session.subagent.interrupt")}
+                backgroundColor={hover() === "interrupt" ? theme.backgroundElement : theme.backgroundPanel}
+              >
+                <text fg={theme.text}>
+                  Interrupt <span style={{ fg: theme.textMuted }}>{interruptShortcut()}</span>
+                </text>
+              </box>
+            </Show>
           </box>
         </box>
       </box>

@@ -1,0 +1,1 @@
+Steer a running subagent you spawned: deliver a short course-correction it will read and adapt to before its next step, then keep working. Use when a child is slightly off-track but should continue. Requires task_id (from the task result). Fails if the task_id is not your child or has finished.

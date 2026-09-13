@@ -1,0 +1,1 @@
+Hard-abort a running subagent you spawned immediately (no graceful wrap-up). Use only when steer/cancel won't stop a runaway child. Requires task_id; an optional reason is recorded. Returns aborted | already_finished | not_found. Never hangs.

@@ -139,3 +139,37 @@ test("mode-less bindings stay active when opencode mode changes", async () => {
     app.renderer.destroy()
   }
 })
+
+test("subagent-interrupt gather is not shadowed by the shared 'session' bucket", () => {
+  // Root cause: createBindingLookup.gather(name, commands) is cached BY NAME — a
+  // second call reusing an existing name returns the cached bindings and
+  // ignores its `commands` argument. The session route previously gathered
+  // "session" (which already exists for nav keys) and then "session" again
+  // for "session.interrupt"; the second call's commands were dropped. The fix
+  // is to gather under a unique name. This test pins both behaviors.
+
+  const config = createResolvedKeymapConfig()
+
+  // 1. Two different gather names with different command lists produce
+  //    DIFFERENT buckets — the cache key is the name, not the commands.
+  const navOnly = config.keybinds.gather("test.nav", ["session.page.up", "session.first"])
+  const subagentOnly = config.keybinds.gather("test.subagent", ["session.subagent.interrupt"])
+  const navCommands = new Set(navOnly.map((b) => b.cmd))
+  const subagentCommands = new Set(subagentOnly.map((b) => b.cmd))
+  expect(navCommands.size).toBeGreaterThan(0)
+  expect(subagentCommands.size).toBeGreaterThan(0)
+  expect(navCommands).not.toEqual(subagentCommands)
+
+  // 2. Reusing a name on a second call returns the FIRST call's bindings and
+  //    drops the second call's commands. This is the gotcha the route hit.
+  const first = config.keybinds.gather("test.reused", ["session.page.up"])
+  const second = config.keybinds.gather("test.reused", ["session.subagent.interrupt"])
+  expect(second).toBe(first)
+  expect(new Set(second.map((b) => b.cmd))).toEqual(new Set(["session.page.up"]))
+
+  // 3. Under the unique name, session.subagent.interrupt resolves to escape.
+  const subagentInterrupt = config.keybinds.get("session.subagent.interrupt")
+  expect(subagentInterrupt.length).toBeGreaterThan(0)
+  const keys = subagentInterrupt.map((b) => b.key)
+  expect(keys).toContain("escape")
+})
