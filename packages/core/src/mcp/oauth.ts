@@ -5,6 +5,7 @@ import {
   discoverOAuthServerInfo,
   parseErrorResponse,
   type OAuthClientProvider,
+  type OAuthDiscoveryState,
   type OAuthServerInfo,
 } from "@modelcontextprotocol/sdk/client/auth.js"
 import type { OAuthClientInformationMixed, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js"
@@ -95,6 +96,8 @@ export interface Options {
   readonly clientMetadataUrl?: string
   /** Pre-fetched authorization server discovery so the SDK does not repeat it. */
   readonly discovery?: OAuthServerInfo
+  /** Receives the SDK's discovery result before it refreshes or authorizes. */
+  readonly onDiscovery?: (discovery: OAuthDiscoveryState) => void | Promise<void>
   /** Invoked by the SDK to drop credentials it has determined are invalid (e.g. a rejected refresh token). */
   readonly invalidate?: (scope: "all" | "client" | "tokens" | "verifier" | "discovery") => void | Promise<void>
   /** Receives the authorization URL so the caller can open a browser and capture the eventual code. */
@@ -113,6 +116,7 @@ export const provider = (options: Options): OAuthClientProvider => {
     redirectUrl: options.redirectUrl,
     ...(options.clientMetadataUrl ? { clientMetadataUrl: options.clientMetadataUrl } : {}),
     ...(options.discovery ? { discoveryState: () => options.discovery } : {}),
+    ...(options.onDiscovery ? { saveDiscoveryState: options.onDiscovery } : {}),
     clientMetadata: {
       redirect_uris: [options.redirectUrl],
       client_name: "opencode",
@@ -169,12 +173,19 @@ export const memoryStore = (): Store => {
 export const clientFromCredential = (credential: Credential.OAuth) =>
   credential.metadata?.client as OAuthClientInformationMixed | undefined
 
-/** Folds SDK tokens (plus DCR client info and the server URL) into a storable credential. */
+/** Reads the authorization server issuer recorded when the credential was obtained. */
+export const issuerFromCredential = (credential: Credential.OAuth) => {
+  const issuer = credential.metadata?.issuer
+  return typeof issuer === "string" ? issuer : undefined
+}
+
+/** Folds SDK tokens (plus client info, issuer, and the server URL) into a storable credential. */
 export const toCredential = (input: {
   readonly methodID: Integration.MethodID
   readonly serverUrl: string
   readonly tokens: OAuthTokens
   readonly client: OAuthClientInformationMixed | undefined
+  readonly issuer?: string
 }) =>
   Credential.OAuth.make({
     type: "oauth",
@@ -188,16 +199,23 @@ export const toCredential = (input: {
       tokenType: input.tokens.token_type,
       ...(input.tokens.scope ? { scope: input.tokens.scope } : {}),
       ...(input.client ? { client: input.client } : {}),
+      ...(input.issuer ? { issuer: input.issuer } : {}),
     },
   })
 
-/** Reconstructs SDK tokens from a stored credential so the connect-time provider can present them. */
-export const toTokens = (credential: Credential.OAuth): OAuthTokens => {
+/**
+ * Reconstructs SDK tokens from a stored credential so the connect-time provider can present them. The refresh
+ * token is withheld when `issuer` differs from the one recorded at login, so the SDK re-authorizes instead of
+ * sending it to an authorization server that did not issue it.
+ */
+export const toTokens = (credential: Credential.OAuth, issuer?: string): OAuthTokens => {
   const metadata = credential.metadata ?? {}
+  const bound = issuerFromCredential(credential)
+  const refresh = credential.refresh && (!bound || !issuer || bound === issuer)
   return {
     access_token: credential.access,
     token_type: typeof metadata.tokenType === "string" ? metadata.tokenType : "Bearer",
-    ...(credential.refresh ? { refresh_token: credential.refresh } : {}),
+    ...(refresh ? { refresh_token: credential.refresh } : {}),
     ...(credential.expires ? { expires_in: Math.max(0, Math.floor((credential.expires - Date.now()) / 1000)) } : {}),
     ...(typeof metadata.scope === "string" ? { scope: metadata.scope } : {}),
   }
@@ -312,7 +330,13 @@ export const authorize = (input: {
         hasRefreshToken: Boolean(tokens.refresh_token),
         expiresIn: tokens.expires_in,
       })
-      return toCredential({ methodID: input.methodID, serverUrl: input.config.url, tokens, client })
+      return toCredential({
+        methodID: input.methodID,
+        serverUrl: input.config.url,
+        tokens,
+        client,
+        issuer: discovery.authorizationServerMetadata?.issuer,
+      })
     })
 
     yield* Effect.tryPromise({

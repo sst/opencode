@@ -118,6 +118,53 @@ describe("MCP OAuth", () => {
     expect(tokenRequests[0]?.get("refresh_token")).toBe("refresh")
   })
 
+  test("withholds the refresh token when the authorization server issuer changed", async () => {
+    const tokenRequests: unknown[] = []
+    const server = Bun.serve({
+      port: 0,
+      async fetch(request) {
+        const url = new URL(request.url)
+        if (url.pathname === "/.well-known/oauth-authorization-server")
+          return Response.json({
+            issuer: "https://other.example.com",
+            authorization_endpoint: `${url.origin}/authorize`,
+            token_endpoint: `${url.origin}/token`,
+            response_types_supported: ["code"],
+          })
+        if (request.method === "POST" && url.pathname === "/token") {
+          tokenRequests.push(await request.text())
+          return Response.json({ access_token: "next", token_type: "Bearer" })
+        }
+        return new Response(null, { status: 404 })
+      },
+    })
+    const credential = Credential.OAuth.make({
+      type: "oauth",
+      methodID: Integration.MethodID.make("oauth"),
+      access: "expired",
+      refresh: "refresh",
+      expires: Date.now() - 1000,
+      metadata: { serverUrl: server.url.href, tokenType: "Bearer", issuer: server.url.origin },
+    })
+    let issuer: string | undefined
+    const store = McpOAuth.memoryStore()
+    const oauthProvider = McpOAuth.provider({
+      redirectUrl: "http://127.0.0.1/callback",
+      client: { id: "client" },
+      onDiscovery: (discovery) => {
+        issuer = discovery.authorizationServerMetadata?.issuer
+      },
+      onRedirect: () => undefined,
+      store: { ...store, tokens: async () => McpOAuth.toTokens(credential, issuer) },
+    })
+
+    const result = await auth(oauthProvider, { serverUrl: server.url.href }).finally(() => server.stop(true))
+
+    expect(result).toBe("REDIRECT")
+    expect(tokenRequests).toHaveLength(0)
+    expect(McpOAuth.toTokens(credential, server.url.origin).refresh_token).toBe("refresh")
+  })
+
   test("shares concurrent refreshes for the same token", async () => {
     let requests = 0
     const pending = Promise.withResolvers<void>()
@@ -228,6 +275,7 @@ describe("MCP OAuth", () => {
       expect(registrations).toHaveLength(0)
       expect(tokenRequests[0]?.get("client_id")).toBe(McpOAuth.CLIENT_METADATA_URL)
       expect(McpOAuth.clientFromCredential(credential)).toEqual({ client_id: McpOAuth.CLIENT_METADATA_URL })
+      expect(McpOAuth.issuerFromCredential(credential)).toBe(server.url.origin)
     })
 
     test("registers dynamically when the server does not accept public clients", async () => {

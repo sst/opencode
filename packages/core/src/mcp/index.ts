@@ -292,12 +292,19 @@ export const layer = (options?: Options) =>
         // Tracks the refresh token this provider last presented, so invalidate can tell whether the SDK
         // rejected the currently-stored credential or a snapshot another connection has already rotated past.
         let presented = found.value.refresh
+        const bound = McpOAuth.issuerFromCredential(found.value)
+        let issuer: string | undefined
         const readOAuthCredential = async () => {
           const stored = await run(credentials.get(credentialID))
           return stored?.value.type === "oauth" ? stored.value : undefined
         }
         return McpOAuth.provider({
           ...base,
+          onDiscovery: async (discovery) => {
+            issuer = discovery.authorizationServerMetadata?.issuer
+            if (bound && issuer && bound !== issuer)
+              await run(Effect.logWarning("mcp oauth issuer changed", { ...fields, expected: bound, actual: issuer }))
+          },
           // Drop a credential the SDK rejected so the next connect cleanly reports needs_auth — but only if it is
           // still the stored one. Rotating servers hand out a fresh refresh token per use, so a concurrent
           // connection may have already replaced ours; deleting then would discard the newer valid credential and
@@ -332,7 +339,7 @@ export const layer = (options?: Options) =>
               const oauth = await readOAuthCredential()
               if (!oauth) return undefined
               presented = oauth.refresh
-              return McpOAuth.toTokens(oauth)
+              return McpOAuth.toTokens(oauth, issuer)
             },
             saveTokens: async (tokens) => {
               const previous = await readOAuthCredential()
@@ -341,6 +348,7 @@ export const layer = (options?: Options) =>
                 serverUrl: remote.url,
                 tokens,
                 client: previous ? McpOAuth.clientFromCredential(previous) : undefined,
+                issuer: (previous && McpOAuth.issuerFromCredential(previous)) || issuer,
               })
               presented = value.refresh
               await run(
