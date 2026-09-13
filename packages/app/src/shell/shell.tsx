@@ -53,6 +53,20 @@ export default function Layout(props: ParentProps) {
             : "max(0px, calc(8px - var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))))",
         }}
       >
+        <Show
+          when={
+            platform.platform === "desktop" &&
+            platform.os === "macos" &&
+            verticalTabs() &&
+            !platform.windowFullscreen?.()
+          }
+        >
+          <div
+            data-slot="shell-drag-region"
+            data-tauri-drag-region
+            class="absolute inset-x-0 top-0 z-10 h-[var(--shell-top-inset,8px)]"
+          />
+        </Show>
         <Titlebar
           update={update}
           verticalTabs={verticalTabs() ? { mount: state.tabsMount } : undefined}
