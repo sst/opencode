@@ -1,6 +1,6 @@
 import { Worktree } from "@opencode/schema/worktree"
-import { Schema } from "effect"
-import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema, OpenApi } from "effect/unstable/httpapi"
+import { Context, Schema } from "effect"
+import { HttpApiEndpoint, HttpApiGroup, HttpApiMiddleware, HttpApiSchema, OpenApi } from "effect/unstable/httpapi"
 import { LocationQuery, locationQueryOpenApi } from "./location.js"
 
 const root = "/api/worktree"
@@ -82,3 +82,21 @@ export const WorktreeGroup = HttpApiGroup.make("server.worktree")
       ),
   )
   .annotateMerge(OpenApi.annotations({ title: "worktree", description: "Location-scoped worktree management routes." }))
+
+export const makeWorktreeGroup = <LocationId extends HttpApiMiddleware.AnyId, LocationService>(
+  locationMiddleware: Context.Key<LocationId, LocationService>,
+) =>
+  WorktreeGroup.middleware(locationMiddleware)
+    // Group middleware applies only to endpoints already added. Inventory must never acquire a Location.
+    .add(
+      HttpApiEndpoint.get("worktree.inventory", `${root}/inventory`, {
+        success: Worktree.Inventory,
+      }).annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.worktree.inventory",
+          summary: "List stored worktree inventory",
+          description:
+            "List all known projects with their stored worktrees. This metadata-only read does not check filesystem existence, discover worktrees, or activate locations and plugins. Use the location-scoped worktree routes for live discovery and operations.",
+        }),
+      ),
+    )

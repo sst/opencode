@@ -51,6 +51,15 @@ export class OperationError extends Schema.TaggedError<OperationError>()("Worktr
 export const List = Schema.Array(Directory).annotate({ identifier: "Worktree.List" })
 export type List = typeof List.Type
 
+export const InventoryEntry = Schema.Struct({
+  project: Project.Info,
+  worktrees: List,
+}).annotate({ identifier: "Worktree.InventoryEntry" })
+export interface InventoryEntry extends Schema.Schema.Type<typeof InventoryEntry> {}
+
+export const Inventory = Schema.Array(InventoryEntry).annotate({ identifier: "Worktree.Inventory" })
+export type Inventory = typeof Inventory.Type
+
 const Updated = ephemeral({
   type: "worktree.updated",
   schema: { projectID: Project.ID },

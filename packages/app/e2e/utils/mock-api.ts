@@ -92,6 +92,7 @@ const Group = HttpApiGroup.make("mock")
       success: Json,
     }),
   )
+  .add(HttpApiEndpoint.get("worktreeInventory", "/api/worktree/inventory", { success: Json }))
   .add(
     HttpApiEndpoint.post("worktreeCreate", "/api/worktree", {
       payload: JsonPayload,

@@ -307,6 +307,22 @@ function mockHandlers(config: MockServerConfig, state: { cursors: Map<string, st
               strategy: "git",
             })),
           ]),
+        worktreeInventory: () => {
+          const project = config.project as typeof config.project & {
+            canonical?: string
+            worktree?: string
+            sandboxes?: string[]
+          }
+          return Effect.succeed([
+            {
+              project: { ...project, canonical: project.canonical ?? project.worktree ?? config.directory },
+              worktrees: [
+                { directory: config.directory },
+                ...(project.sandboxes ?? []).map((directory) => ({ directory, strategy: "git" })),
+              ],
+            },
+          ])
+        },
         worktreeCreate: (ctx) => {
           const input = record(ctx.payload) ? ctx.payload : {}
           return Effect.succeed({

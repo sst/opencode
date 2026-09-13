@@ -31,6 +31,7 @@ import { Workspace } from "../workspace.js"
 import { Vcs } from "../vcs.js"
 import { WebSearch } from "../websearch.js"
 import { Worktree } from "../worktree.js"
+import { WorktreeInventory } from "../worktree/inventory.js"
 import { Generate } from "../generate.js"
 import { Permission } from "../permission.js"
 import { PluginHooks } from "./hooks.js"
@@ -71,6 +72,7 @@ export const make = Effect.fn("PluginHost.make")(function* (
   const persistentPty = yield* PersistentPty.Service
   const locations = yield* LocationServiceMap.Service
   const worktrees = yield* Worktree.Service
+  const worktreeInventory = yield* WorktreeInventory.Service
   const locationInfo = () =>
     new Location.Info({
       directory: location.directory,
@@ -484,6 +486,7 @@ export const make = Effect.fn("PluginHost.make")(function* (
         }),
     },
     worktree: {
+      inventory: worktreeInventory.list,
       list: (input) => atWorktree(locationRef(input), (service) => service.list()),
       create: (input) => atWorktree(locationRef(input), (service) => service.create(input)),
       refresh: (input) => atWorktree(locationRef(input), (service) => service.refresh()).pipe(Effect.asVoid),
@@ -553,6 +556,7 @@ export const requirements = LayerNode.group([
   Vcs.node,
   WebSearch.node,
   Worktree.node,
+  WorktreeInventory.node,
   Generate.node,
   Permission.node,
   PluginHooks.node,

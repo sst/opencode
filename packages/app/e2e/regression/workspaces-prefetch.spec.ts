@@ -11,6 +11,13 @@ const project = {
   time: { created: 1, updated: 1 },
 }
 const other = { ...project, id: "proj_other", name: "Other project", canonical: "/repo/other", sandboxes: [] }
+const storedInventory = [project, other].map((project) => ({
+  project,
+  worktrees: [
+    { directory: project.canonical },
+    ...project.sandboxes.map((directory) => ({ directory, strategy: "git" })),
+  ],
+}))
 
 test.use({ viewport: { width: 1280, height: 900 } })
 
@@ -43,20 +50,18 @@ test.beforeEach(async ({ page }) => {
 })
 
 for (const interaction of ["hover", "focus"] as const) {
-  test(`project Worktrees ${interaction} prefetches only its inventory and reuses the request`, async ({ page }) => {
+  test(`project Worktrees ${interaction} reuses the global inventory and filters the selected project`, async ({
+    page,
+  }) => {
     const inventory = Promise.withResolvers<void>()
     const calls: string[] = []
     const sessions: string[] = []
     await page.route(
-      (url) => url.pathname === "/api/project",
-      (route) => route.fulfill({ json: [project, other] }),
-    )
-    await page.route(
-      (url) => url.pathname === "/api/worktree",
+      (url) => url.pathname === "/api/worktree/inventory",
       async (route) => {
-        calls.push(new URL(route.request().url()).searchParams.get("location[directory]") ?? "")
+        calls.push(new URL(route.request().url()).search)
         await inventory.promise
-        await route.fallback()
+        await route.fulfill({ json: storedInventory })
       },
     )
     page.on("request", (request) => {
@@ -70,17 +75,17 @@ for (const interaction of ["hover", "focus"] as const) {
     await settings.getByRole("button", { name: project.name, exact: true }).click()
     const worktrees = settings.getByRole("tab", { name: "Worktrees", exact: true })
     await expect(worktrees).toBeEnabled()
-    const requested = page.waitForRequest((request) => new URL(request.url()).pathname === "/api/project")
+    const requested = page.waitForRequest((request) => new URL(request.url()).pathname === "/api/worktree/inventory")
     await worktrees[interaction]()
     await requested
     await expect(worktrees).toHaveAttribute("aria-selected", "false")
-    await expect.poll(() => calls).toEqual([directory])
+    expect(calls).toEqual([""])
     expect(sessions).toEqual([])
 
     if (interaction === "hover") {
       const finished = page.waitForEvent(
         "requestfinished",
-        (request) => new URL(request.url()).pathname === "/api/worktree",
+        (request) => new URL(request.url()).pathname === "/api/worktree/inventory",
       )
       inventory.resolve()
       await finished
@@ -90,7 +95,7 @@ for (const interaction of ["hover", "focus"] as const) {
     inventory.resolve()
     await expect(settings.getByText("2 worktrees", { exact: true })).toBeVisible()
     await expect(settings.getByText("Cached worktree session", { exact: true })).toBeVisible()
-    expect(calls).toEqual([directory])
+    expect(calls).toEqual([""])
     await expect.poll(() => sessions.toSorted()).toEqual(sandboxes.toSorted())
   })
 }
@@ -113,7 +118,14 @@ for (const nested of [false, true]) {
       await page.reload()
       await page.getByTestId("settings-screen").getByRole("tab", { name: "Settings server", exact: true }).click()
     }
-    const calls = { projects: 0, worktrees: [] as string[] }
+    const calls = { inventory: 0, projects: 0, worktrees: [] as string[] }
+    await page.route(
+      (url) => url.pathname === "/api/worktree/inventory",
+      (route) => {
+        calls.inventory += 1
+        return route.fulfill({ json: storedInventory })
+      },
+    )
     await page.route(
       (url) => url.pathname === "/api/project",
       async (route) => {
@@ -135,18 +147,17 @@ for (const nested of [false, true]) {
     await expect(worktrees).toBeEnabled()
     const fetched = page.waitForEvent(
       "requestfinished",
-      (request) => new URL(request.url()).pathname === "/api/project",
+      (request) => new URL(request.url()).pathname === "/api/worktree/inventory",
     )
     await worktrees.hover()
     await fetched
     await worktrees.focus()
     await expect(worktrees).toHaveAttribute("aria-selected", "false")
-    expect(calls).toEqual({ projects: 1, worktrees: [] })
+    expect(calls).toEqual({ inventory: 1, projects: 0, worktrees: [] })
 
     await worktrees.click()
     await expect(settings.getByText("2 worktrees", { exact: true })).toBeVisible()
-    expect(calls.projects).toBe(1)
-    expect(calls.worktrees.toSorted()).toEqual([directory, other.canonical].toSorted())
+    expect(calls).toEqual({ inventory: 1, projects: 0, worktrees: [] })
   })
 }
 
@@ -190,15 +201,18 @@ test("project deletion updates the cached server-wide inventory", async ({ page 
         removed.add(route.request().postDataJSON().directory)
         return route.fulfill({ status: 204 })
       }
-      return route.fulfill({
-        json: [
-          { directory },
-          ...sandboxes
-            .filter((directory) => !removed.has(directory))
-            .map((directory) => ({ directory, strategy: "git" })),
-        ],
-      })
+      return route.fallback()
     },
+  )
+  await page.route(
+    (url) => url.pathname === "/api/worktree/inventory",
+    (route) =>
+      route.fulfill({
+        json: storedInventory.map((entry) => ({
+          ...entry,
+          worktrees: entry.worktrees.filter((worktree) => !removed.has(worktree.directory)),
+        })),
+      }),
   )
   const settings = page.getByTestId("settings-screen")
   await settings.getByRole("tab", { name: "Worktrees", exact: true }).click()
@@ -216,4 +230,50 @@ test("project deletion updates the cached server-wide inventory", async ({ page 
   await settings.getByRole("tab", { name: "Worktrees", exact: true }).click()
   await expect(settings.getByText("1 worktree", { exact: true })).toBeVisible()
   await expect(settings.getByLabel(sandboxes[1], { exact: true })).toHaveCount(0)
+})
+
+test("View all reads 336 historical projects in one metadata request without Location discovery", async ({
+  page,
+}, testInfo) => {
+  const inventory = Array.from({ length: 336 }, (_, index) => ({
+    project: {
+      ...project,
+      id: `historical-${index}`,
+      name: `Historical ${index}`,
+      canonical: `/missing/historical-${index}`,
+      sandboxes: [],
+    },
+    worktrees: [{ directory: `/missing/historical-${index}/feature`, strategy: "git" }],
+  }))
+  const reads: string[] = []
+  page.on("request", (request) => {
+    const url = new URL(request.url())
+    if (["/api/project", "/api/worktree", "/api/worktree/inventory"].includes(url.pathname)) reads.push(url.pathname)
+  })
+  await page.route(
+    (url) => url.pathname === "/api/project",
+    (route) => route.fulfill({ json: inventory.map((entry) => entry.project) }),
+  )
+  await page.route(
+    (url) => url.pathname === "/api/worktree",
+    (route) =>
+      route.fulfill({
+        json:
+          inventory.find(
+            (entry) =>
+              entry.project.canonical === new URL(route.request().url()).searchParams.get("location[directory]"),
+          )?.worktrees ?? [],
+      }),
+  )
+  await page.route(
+    (url) => url.pathname === "/api/worktree/inventory",
+    (route) => route.fulfill({ json: inventory }),
+  )
+  const settings = page.getByTestId("settings-screen")
+  await settings.getByRole("tab", { name: "Worktrees", exact: true }).click()
+  await expect(settings.getByText("336 worktrees", { exact: true })).toBeVisible()
+  await expect(settings.getByLabel("/missing/historical-335/feature", { exact: true })).toHaveCount(1)
+  await page.screenshot({ path: testInfo.outputPath("inventory.png") })
+  await testInfo.attach("inventory-requests", { body: JSON.stringify(reads), contentType: "application/json" })
+  expect(reads).toEqual(["/api/worktree/inventory"])
 })

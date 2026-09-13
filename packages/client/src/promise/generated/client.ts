@@ -244,6 +244,7 @@ import type {
   WorktreeRemoveOutput,
   WorktreeRefreshInput,
   WorktreeRefreshOutput,
+  WorktreeInventoryOutput,
   WorkspaceCreateInput,
   WorkspaceCreateOutput,
   WorkspaceDestroyInput,
@@ -2048,6 +2049,17 @@ export function make(options: ClientOptions) {
             successStatus: 204,
             declaredStatuses: [400, 401],
             empty: true,
+          },
+          requestOptions,
+        ),
+      inventory: (requestOptions?: RequestOptions) =>
+        request<WorktreeInventoryOutput>(
+          {
+            method: "GET",
+            path: `/api/worktree/inventory`,
+            successStatus: 200,
+            declaredStatuses: [400, 401],
+            empty: false,
           },
           requestOptions,
         ),

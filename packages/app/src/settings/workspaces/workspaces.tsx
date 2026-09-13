@@ -76,7 +76,8 @@ export const SettingsWorkspaces: Component<{
   })
 
   const projectQuery = useQuery(() => ({
-    ...workspaceInventoryQuery(server.ctx, queryClient, props.projectID),
+    ...workspaceInventoryQuery(server.ctx),
+    select: (projects) => projects.filter((project) => props.projectID === undefined || project.id === props.projectID),
     enabled: serverSDK.connection.status() === "connected",
     refetchOnMount: true,
   }))

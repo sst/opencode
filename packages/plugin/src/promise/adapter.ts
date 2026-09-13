@@ -546,6 +546,7 @@ export function fromPromise(plugin: Plugin) {
               ),
           },
           worktree: {
+            inventory: adaptApiMethod(WorktreeEndpoints["worktree.inventory"], host.worktree.inventory),
             list: adaptApiMethod(WorktreeEndpoints["worktree.list"], host.worktree.list),
             create: adaptApiMethod(WorktreeEndpoints["worktree.create"], host.worktree.create),
             remove: adaptApiMethod(WorktreeEndpoints["worktree.remove"], host.worktree.remove),

@@ -3,26 +3,27 @@ import { mockOpenCodeServer } from "../utils/mock-server"
 
 const directory = "C:/Projects/settings-demo"
 const sandboxes = Array.from({ length: 12 }, (_, index) => `${directory}/workspace-${index + 1}`)
+const project = {
+  id: "proj_settings_demo",
+  canonical: directory,
+  name: "Settings demo",
+  icon: {
+    color: "orange",
+    override:
+      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Crect width='16' height='16' fill='red'/%3E%3C/svg%3E",
+  },
+  commands: { start: "echo setup" },
+  vcs: "git",
+  time: { created: 1700000000000, updated: 1700000000000 },
+  sandboxes,
+}
 
 test.use({ viewport: { width: 1440, height: 1000 }, colorScheme: "dark" })
 
 test.beforeEach(async ({ page }) => {
   await mockOpenCodeServer(page, {
     directory,
-    project: {
-      id: "proj_settings_demo",
-      canonical: directory,
-      name: "Settings demo",
-      icon: {
-        color: "orange",
-        override:
-          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16'%3E%3Crect width='16' height='16' fill='red'/%3E%3C/svg%3E",
-      },
-      commands: { start: "echo setup" },
-      vcs: "git",
-      time: { created: 1700000000000, updated: 1700000000000 },
-      sandboxes,
-    },
+    project,
     provider: { all: [], connected: [], default: {} },
     preferences: { shell: "zsh", websearch: { provider: "exa" } },
     shells: [{ path: "/bin/zsh", name: "zsh", acceptable: true }],
@@ -222,7 +223,7 @@ test("workspaces opens without waiting for inventory or sessions", async ({ page
   const inventory = Promise.withResolvers<void>()
   const sessions = Promise.withResolvers<void>()
   await page.route(
-    (url) => url.pathname === "/api/worktree",
+    (url) => url.pathname === "/api/worktree/inventory",
     async (route) => {
       await inventory.promise
       await route.fallback()
@@ -234,10 +235,7 @@ test("workspaces opens without waiting for inventory or sessions", async ({ page
   })
   const settings = page.getByTestId("settings-screen")
   const requested = page.waitForRequest(
-    (request) =>
-      new URL(request.url()).pathname === "/api/worktree" &&
-      new URL(request.url()).searchParams.get("location[directory]") === directory &&
-      request.method() === "GET",
+    (request) => new URL(request.url()).pathname === "/api/worktree/inventory" && request.method() === "GET",
   )
   await settings.getByRole("tab", { name: "Worktrees", exact: true }).click()
   await requested
@@ -253,7 +251,7 @@ test("workspaces opens without waiting for inventory or sessions", async ({ page
 
   const refresh = Promise.withResolvers<void>()
   await page.route(
-    (url) => url.pathname === "/api/worktree",
+    (url) => url.pathname === "/api/worktree/inventory",
     async (route) => {
       await refresh.promise
       await route.fallback()
@@ -267,6 +265,23 @@ test("workspaces opens without waiting for inventory or sessions", async ({ page
 
 test("worktree deletion sends the project location separately from the target", async ({ page }) => {
   const removed = new Set<string>()
+  await page.route(
+    (url) => url.pathname === "/api/worktree/inventory",
+    (route) =>
+      route.fulfill({
+        json: [
+          {
+            project,
+            worktrees: [
+              { directory },
+              ...sandboxes
+                .filter((directory) => !removed.has(directory))
+                .map((directory) => ({ directory, strategy: "git" })),
+            ],
+          },
+        ],
+      }),
+  )
   await page.route(
     (url) => url.pathname === "/api/worktree",
     async (route) => {

@@ -25,6 +25,7 @@ export const requestHeadersTimeoutMs = 60_000
 export const setupRequestHeadersTimeoutMs = 10 * 60_000
 
 export function isSlowRequest(pathname: string) {
+  if (pathname === "/api/worktree/inventory") return false
   return slowRequestPaths.some((path) => pathname === path || pathname.startsWith(`${path}/`))
 }
 

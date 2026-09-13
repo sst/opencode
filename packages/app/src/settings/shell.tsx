@@ -413,10 +413,7 @@ function ProjectSettings(props: { server: ServerConnection.Any; project: LocalPr
   const language = useLanguage()
   const surface = useSettingsSurface()
   const activeDirectory = useSettingsDirectory(() => props.server)
-  const prefetchWorkspaces = useWorkspacesPrefetch(
-    () => props.server,
-    () => props.project.id,
-  )
+  const prefetchWorkspaces = useWorkspacesPrefetch(() => props.server)
   const groups: SettingsNavGroup[] = [
     {
       items: nestedProjectTabs.map((item) => ({

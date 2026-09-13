@@ -248,6 +248,7 @@ import type {
   WorktreeRemoveOutput,
   WorktreeRefreshInput,
   WorktreeRefreshOutput,
+  WorktreeInventoryOutput,
   WorkspaceCreateInput,
   WorkspaceCreateOutput,
   WorkspaceDestroyInput,
@@ -1499,11 +1500,15 @@ const EndpointWorktreeRefresh = (raw: RawClient["server.worktree"]) => (input?: 
     raw["worktree.refresh"]({ query: { location: input?.["location"] } }).pipe(Effect.mapError(mapClientError)),
   )
 
+const EndpointWorktreeInventory = (raw: RawClient["server.worktree"]) => () =>
+  preserveEffect<WorktreeInventoryOutput>()(raw["worktree.inventory"]({}).pipe(Effect.mapError(mapClientError)))
+
 const adaptGroupWorktree = (raw: RawClient["server.worktree"]) => ({
   list: EndpointWorktreeList(raw),
   create: EndpointWorktreeCreate(raw),
   remove: EndpointWorktreeRemove(raw),
   refresh: EndpointWorktreeRefresh(raw),
+  inventory: EndpointWorktreeInventory(raw),
 })
 
 const EndpointWorkspaceCreate = (raw: RawClient["server.workspace"]) => (input: WorkspaceCreateInput) =>

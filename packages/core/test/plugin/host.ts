@@ -147,6 +147,7 @@ export function host(overrides: Overrides = {}): Plugin.Context {
       reload: () => Effect.die("unused vcs.reload"),
     },
     worktree: overrides.worktree ?? {
+      inventory: () => Effect.die("unused worktree.inventory"),
       list: () => Effect.die("unused worktree.list"),
       create: () => Effect.die("unused worktree.create"),
       remove: () => Effect.die("unused worktree.remove"),

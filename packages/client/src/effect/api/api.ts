@@ -2027,11 +2027,15 @@ export type WorktreeRefreshOperation<E = never> = (
   input?: WorktreeRefreshInput,
 ) => Effect.Effect<WorktreeRefreshOutput, E>
 
+export type WorktreeInventoryOutput = Worktree.Inventory
+export type WorktreeInventoryOperation<E = never> = () => Effect.Effect<WorktreeInventoryOutput, E>
+
 export interface WorktreeApi<E = never> {
   readonly list: WorktreeListOperation<E>
   readonly create: WorktreeCreateOperation<E>
   readonly remove: WorktreeRemoveOperation<E>
   readonly refresh: WorktreeRefreshOperation<E>
+  readonly inventory: WorktreeInventoryOperation<E>
 }
 
 export type WorkspaceCreateInput = { readonly id?: Workspace.ID | undefined; readonly provider: string }

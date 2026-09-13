@@ -33,6 +33,7 @@ import { Tool } from "@opencode/core/tool"
 import { Vcs } from "@opencode/core/vcs"
 import { WebSearch } from "@opencode/core/websearch"
 import { Worktree } from "@opencode/core/worktree"
+import { WorktreeInventory } from "@opencode/core/worktree/inventory"
 import { Effect, Layer } from "effect"
 import { tempLocationLayer } from "../fixture/location"
 import { emptyMcpLayer } from "../fixture/mcp"
@@ -96,6 +97,7 @@ export const PluginTestLayer = AppNodeBuilder.build(
     Watcher.node,
     WebSearch.node,
     Worktree.node,
+    WorktreeInventory.node,
   ]),
   [
     Location.node.replace(tempLocationLayer),

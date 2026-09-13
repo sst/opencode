@@ -1870,6 +1870,8 @@ export type ReferenceInfo = {
   source: ReferenceSource
 }
 
+export type WorktreeInventoryEntry = { project: Project; worktrees: WorktreeList }
+
 export type AgentInfo = {
   id: string
   name: string
@@ -2161,6 +2163,8 @@ export type SessionMessageAssistantTool1 = {
 export type FormFields = [FormField, ...Array<FormField>]
 
 export type FormFields2 = [FormField1, ...Array<FormField1>]
+
+export type WorktreeInventory = Array<WorktreeInventoryEntry>
 
 export type SessionsResponse = { data: Array<SessionInfo>; cursor: { previous?: string | null; next?: string | null } }
 
@@ -6382,6 +6386,8 @@ export type WorktreeRefreshInput = {
 }
 
 export type WorktreeRefreshOutput = void
+
+export type WorktreeInventoryOutput = WorktreeInventory
 
 export type WorkspaceCreateInput = {
   readonly id?: { readonly id?: string | undefined; readonly provider: string }["id"]
