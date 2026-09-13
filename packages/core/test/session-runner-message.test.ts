@@ -68,18 +68,52 @@ describe("toLLMMessages", () => {
         assistant("empty-text", [SessionMessage.AssistantText.make({ type: "text", text: "" })]),
         assistant("empty-reasoning", [SessionMessage.AssistantReasoning.make({ type: "reasoning", text: "" })]),
         assistant("text", [SessionMessage.AssistantText.make({ type: "text", text: "Partial" })]),
-        assistant("reasoning", [
+        assistant("signed-reasoning", [
           SessionMessage.AssistantReasoning.make({
             type: "reasoning",
             text: "",
             state: { signature: "sig_1" },
           }),
         ]),
+        assistant("signed-reasoning-with-text", [
+          SessionMessage.AssistantReasoning.make({
+            type: "reasoning",
+            text: "",
+            state: { signature: "sig_2" },
+          }),
+          SessionMessage.AssistantText.make({ type: "text", text: "Visible" }),
+        ]),
+        assistant("signed-reasoning-with-tool", [
+          SessionMessage.AssistantReasoning.make({
+            type: "reasoning",
+            text: "",
+            state: { signature: "sig_3" },
+          }),
+          SessionMessage.AssistantTool.make({
+            type: "tool",
+            id: "read",
+            name: "read",
+            state: SessionMessage.ToolStateStreaming.make({ status: "streaming", input: '{"path":"README.md"}' }),
+            time: { created },
+          }),
+        ]),
       ],
       model,
     )
 
-    expect(messages.map((message) => message.id)).toEqual([id("text"), id("reasoning")])
+    expect(messages.map((message) => message.id)).toEqual([
+      id("text"),
+      id("signed-reasoning-with-text"),
+      id("signed-reasoning-with-tool"),
+    ])
+    expect(messages[1]?.content).toEqual([
+      { type: "reasoning", text: "", providerMetadata: { provider: { signature: "sig_2" } } },
+      { type: "text", text: "Visible", providerMetadata: undefined },
+    ])
+    expect(messages[2]?.content).toEqual([
+      { type: "reasoning", text: "", providerMetadata: { provider: { signature: "sig_3" } } },
+      { type: "tool-call", id: "read", name: "read", input: { path: "README.md" } },
+    ])
   })
 
   test("maps every top-level Session message type", () => {

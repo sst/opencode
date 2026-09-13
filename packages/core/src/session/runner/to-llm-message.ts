@@ -198,10 +198,17 @@ const assistant = (message: SessionMessage.Assistant, model: Model.Ref, provider
     )
     return result ? [call, result] : [call]
   })
+  const hasOutput = content.some((part) => {
+    if (part.type === "text" || part.type === "reasoning") return part.text !== ""
+    return true
+  })
   const meaningful = content.filter((part) => {
     if (part.type === "text") return part.text !== ""
     if (part.type !== "reasoning") return true
-    return part.text !== "" || (part.providerMetadata !== undefined && Object.keys(part.providerMetadata).length > 0)
+    return (
+      part.text !== "" ||
+      (hasOutput && part.providerMetadata !== undefined && Object.keys(part.providerMetadata).length > 0)
+    )
   })
   const results = message.content
     .filter((item): item is SessionMessage.AssistantTool => item.type === "tool" && item.executed !== true)
