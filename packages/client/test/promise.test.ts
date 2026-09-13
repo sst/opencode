@@ -588,6 +588,30 @@ test("event.subscribe exposes the Promise event stream wire projection", async (
   expect(events[1]?.type === "session.model.selected" && events[1].created).toBe(1_717_171_717_000)
 })
 
+test("generated SSE requests default Accept and preserve explicit headers", async () => {
+  const requests: Request[] = []
+  const response = () => new Response("", { headers: { "content-type": "text/event-stream" } })
+  const client = OpenCode.make({
+    baseUrl: "http://localhost:3000",
+    headers: { authorization: "Bearer events", "x-custom": "global" },
+    fetch: async (input, init) => {
+      const request = input instanceof Request ? input : new Request(input, init)
+      requests.push(request)
+      return new URL(request.url).pathname === "/api/health" ? Response.json({ healthy: true }) : response()
+    },
+  })
+
+  await Array.fromAsync(client.event.subscribe())
+  await Array.fromAsync(client.session.log({ sessionID: "ses_test" }))
+  await client.health.get()
+
+  expect(requests[0]?.headers.get("accept")).toBe("text/event-stream")
+  expect(requests[1]?.headers.get("accept")).toBe("text/event-stream")
+  expect(requests[0]?.headers.get("authorization")).toBe("Bearer events")
+  expect(requests[0]?.headers.get("x-custom")).toBe("global")
+  expect(requests[2]?.headers.has("accept")).toBe(false)
+})
+
 // Moved from packages/app/e2e/regression/session-timeline-transport.spec.ts
 test("event.subscribe keeps one request open while delivering multiple events", async () => {
   const requests: Request[] = []
