@@ -282,7 +282,8 @@ const removeEmptyToolInputKeys = (input: unknown): unknown => {
 const lowerToolCall = (part: ToolCallPart): BedrockToolUseBlock => ({
   toolUse: {
     toolUseId: part.id,
-    name: part.name,
+    // Models can emit names that Converse rejects when replayed in history.
+    name: part.name.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64) || "_",
     input: removeEmptyToolInputKeys(part.input),
   },
 })
