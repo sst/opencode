@@ -16,6 +16,7 @@ import { SessionMessageTable, SessionTable } from "@opencode/core/session/sql"
 import { SessionStats } from "@opencode/core/session/stats"
 import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
 import { DateTime, Effect, Schema } from "effect"
+import { eq } from "drizzle-orm"
 import { testEffect } from "./lib/effect"
 
 const it = testEffect(AppNodeBuilder.build(Database.node))
@@ -30,6 +31,73 @@ const encodeMessage = Schema.encodeSync(SessionMessage.Info)
 const encodeUsage = Schema.encodeSync(SessionEvent.UsageRecorded.data)
 
 describe("SessionStats", () => {
+  it.effect("counts inherited fork usage after the parent is deleted", () =>
+    Effect.gen(function* () {
+      const db = (yield* Database.Service).db
+      const parentID = Session.ID.make("ses_stats_deleted_parent")
+      const orphanID = Session.ID.make("ses_stats_orphan_fork")
+      yield* db
+        .insert(ProjectTable)
+        .values({ id: projectID, worktree: AbsolutePath.make("/stats"), name: "stats", sandboxes: [] })
+        .run()
+        .pipe(Effect.orDie)
+      yield* db
+        .insert(SessionTable)
+        .values([
+          { id: parentID, project_id: projectID, slug: "parent", directory: "/stats", version: "test" },
+          {
+            id: orphanID,
+            project_id: projectID,
+            fork_session_id: parentID,
+            slug: "fork",
+            directory: "/stats",
+            version: "test",
+            time_created: Date.UTC(2026, 0, 4),
+          },
+        ])
+        .run()
+        .pipe(Effect.orDie)
+      yield* db
+        .insert(SessionMessageTable)
+        .values([
+          messageRow(parentID, 1, assistant("msg_stats_deleted_parent", Date.UTC(2026, 0, 2, 10), [])),
+          messageRow(
+            orphanID,
+            1,
+            assistant("msg_stats_orphan_inherited", Date.UTC(2026, 0, 2, 10), [
+              SessionMessage.AssistantTool.make({
+                type: "tool",
+                id: "call_inherited",
+                name: "read",
+                state: SessionMessage.ToolStateCompleted.make({
+                  status: "completed",
+                  input: {},
+                  content: [{ type: "text", text: "ok" }],
+                }),
+                time: { created: DateTime.makeUnsafe(Date.UTC(2026, 0, 2, 10)) },
+              }),
+            ]),
+          ),
+          messageRow(orphanID, 2, assistant("msg_stats_orphan_new", Date.UTC(2026, 0, 5, 10), [])),
+        ])
+        .run()
+        .pipe(Effect.orDie)
+
+      yield* db.delete(SessionTable).where(eq(SessionTable.id, parentID)).run().pipe(Effect.orDie)
+
+      const stats = yield* SessionStats.get({ to: Date.UTC(2026, 1, 1), timezone: "UTC", tools: "detail" })
+
+      expect(DateTime.toEpochMillis(stats.range.from)).toBe(Date.UTC(2026, 0, 2, 10))
+      expect(stats.steps).toBe(2)
+      expect(stats.tokens).toEqual({ input: 20, output: 10, reasoning: 4, cache: { read: 8, write: 2 } })
+      expect(stats.cost).toBe(Money.USD.make(3))
+      expect(stats.tools).toMatchObject({
+        mode: "detail",
+        totals: { calls: 1, succeeded: 1, failed: 0, unfinished: 0 },
+      })
+    }),
+  )
+
   it.effect("aggregates activity and tool reliability without reading message payloads outside the range", () =>
     Effect.gen(function* () {
       const db = (yield* Database.Service).db

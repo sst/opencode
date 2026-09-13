@@ -96,7 +96,9 @@ export const get = Effect.fn("SessionStats.get")(function* (input: Input = {}) {
         JOIN ${SessionTable} AS session ON session.id = message.session_id
         WHERE message.type IN ('user', 'assistant')
           AND message.time_created < ${to}
-          AND (session.fork_session_id IS NULL OR message.time_created >= session.time_created)
+          AND (session.fork_session_id IS NULL
+            OR NOT EXISTS (SELECT 1 FROM ${SessionTable} AS parent WHERE parent.id = session.fork_session_id)
+            OR message.time_created >= session.time_created)
           ${project}
       `,
       )
@@ -143,7 +145,9 @@ export const get = Effect.fn("SessionStats.get")(function* (input: Input = {}) {
           WHERE message.type IN ('user', 'assistant')
             AND message.time_created >= ${range.from}
             AND message.time_created < ${range.to}
-            AND (session.fork_session_id IS NULL OR message.time_created >= session.time_created)
+            AND (session.fork_session_id IS NULL
+              OR NOT EXISTS (SELECT 1 FROM ${SessionTable} AS parent WHERE parent.id = session.fork_session_id)
+              OR message.time_created >= session.time_created)
             ${project}
         `,
         )
@@ -204,7 +208,9 @@ export const get = Effect.fn("SessionStats.get")(function* (input: Input = {}) {
               WHERE message.type = 'assistant'
                 AND message.time_created >= ${range.from}
                 AND message.time_created < ${range.to}
-                AND (session.fork_session_id IS NULL OR message.time_created >= session.time_created)
+                AND (session.fork_session_id IS NULL
+                  OR NOT EXISTS (SELECT 1 FROM ${SessionTable} AS parent WHERE parent.id = session.fork_session_id)
+                  OR message.time_created >= session.time_created)
                 AND json_extract(content.value, '$.type') = 'tool'
                 ${project}
             )
@@ -246,7 +252,9 @@ export const get = Effect.fn("SessionStats.get")(function* (input: Input = {}) {
           WHERE message.type = 'assistant'
             AND message.time_created >= ${range.from}
             AND message.time_created < ${range.to}
-            AND (session.fork_session_id IS NULL OR message.time_created >= session.time_created)
+            AND (session.fork_session_id IS NULL
+              OR NOT EXISTS (SELECT 1 FROM ${SessionTable} AS parent WHERE parent.id = session.fork_session_id)
+              OR message.time_created >= session.time_created)
             AND json_extract(content.value, '$.type') = 'tool'
             ${project}
         `,
