@@ -40,8 +40,13 @@ export default function Layout(props: ParentProps) {
   return (
     <TitlebarRightProvider>
       <div
+        data-component="app-shell"
+        data-background-image={preferences.appearance.backgroundImage.active() ? "" : undefined}
         class="relative bg-v2-background-bg-deep flex-1 min-h-0 min-w-0 flex flex-col select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text"
         style={{
+          "--app-background-image": preferences.appearance.backgroundImage.url()
+            ? `url("${preferences.appearance.backgroundImage.url()}")`
+            : undefined,
           // Native Windows chrome supplies the gap; retain paint clearance for the panels' outer outlines.
           "--shell-top-inset": bottomTitlebar()
             ? "max(0px, calc(8px - env(safe-area-inset-top, 0px)))"

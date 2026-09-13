@@ -19,6 +19,7 @@ export function Home() {
   const scroll = createHomeScrollController(sessions.data.groups)
   return (
     <div
+      data-background-surface="panel"
       class={`
         mx-2 mb-[var(--shell-bottom-inset,8px)] mt-[var(--shell-top-inset,8px)] flex min-h-0 flex-1 flex-col self-stretch overflow-hidden rounded-[10px]
         bg-v2-background-bg-base shadow-[var(--v2-elevation-raised)]

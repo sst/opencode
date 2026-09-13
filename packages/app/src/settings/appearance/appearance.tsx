@@ -1,4 +1,6 @@
-import { Component } from "solid-js"
+import { Component, Show } from "solid-js"
+import { createStore } from "solid-js/store"
+import { Button } from "@opencode/ui/button"
 import { Select } from "@opencode/ui/select"
 import { TextInput } from "@opencode/ui/text-input"
 import { useLanguage } from "@/runtime/i18n/language"
@@ -6,6 +8,9 @@ import { ExternalLink } from "@/runtime/platform/external-link"
 import { SettingsList } from "@/settings/list"
 import { SettingsRow } from "@/settings/row"
 import { createAppearanceSettingsController, type AppearanceSettingsController } from "@/settings/general/controllers"
+import { useSettings } from "@/settings/model"
+import { BackgroundImageSelectionError } from "@/settings/appearance/background-image"
+import { showToast } from "@/shell/notifications/toast"
 import "@/settings/settings.css"
 
 const schemeOptions: ("system" | "light" | "dark")[] = ["system", "light", "dark"]
@@ -64,6 +69,26 @@ const FontSetting: Component<{
 export const SettingsAppearance: Component = () => {
   const language = useLanguage()
   const appearance = createAppearanceSettingsController()
+  const settings = useSettings()
+  const [state, setState] = createStore({ backgroundBusy: false })
+
+  const backgroundAction = async (action: () => Promise<void>) => {
+    if (state.backgroundBusy) return
+    setState("backgroundBusy", true)
+    await action().catch((error: unknown) => {
+      showToast({
+        variant: "error",
+        title: language.t("common.requestFailed"),
+        description:
+          error instanceof BackgroundImageSelectionError
+            ? language.t(`settings.appearance.row.backgroundImage.error.${error.reason}`)
+            : error instanceof Error
+              ? error.message
+              : String(error),
+      })
+    })
+    setState("backgroundBusy", false)
+  }
 
   return (
     <>
@@ -120,6 +145,42 @@ export const SettingsAppearance: Component = () => {
                 onSelect={appearance.theme.select}
               />
             </SettingsRow>
+
+            <Show when={settings.appearance.backgroundImage.available}>
+              <SettingsRow
+                title={language.t("settings.appearance.row.backgroundImage.title")}
+                description={language.t("settings.appearance.row.backgroundImage.description")}
+              >
+                <div class="flex items-center gap-2">
+                  <Button
+                    data-action="settings-background-image"
+                    size="normal"
+                    variant="neutral"
+                    disabled={state.backgroundBusy}
+                    onClick={() =>
+                      void backgroundAction(() =>
+                        settings.appearance.backgroundImage.select(
+                          language.t("settings.appearance.row.backgroundImage.pickerTitle"),
+                        ),
+                      )
+                    }
+                  >
+                    {language.t("settings.appearance.row.backgroundImage.choose")}
+                  </Button>
+                  <Show when={settings.appearance.backgroundImage.active()}>
+                    <Button
+                      data-action="settings-background-image-remove"
+                      size="normal"
+                      variant="ghost"
+                      disabled={state.backgroundBusy}
+                      onClick={() => void backgroundAction(() => settings.appearance.backgroundImage.clear())}
+                    >
+                      {language.t("settings.appearance.row.backgroundImage.remove")}
+                    </Button>
+                  </Show>
+                </div>
+              </SettingsRow>
+            </Show>
 
             <FontSetting kind="ui" fonts={appearance.fonts} />
             <FontSetting kind="code" fonts={appearance.fonts} />

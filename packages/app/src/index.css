@@ -3,6 +3,38 @@
 @import "@opencode/ui/styles/tokens";
 @import "tw-animate-css";
 
+[data-component="app-shell"][data-background-image] {
+  background-image: linear-gradient(rgb(255 255 255 / 28%), rgb(255 255 255 / 28%)), var(--app-background-image);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+[data-color-scheme="dark"] [data-component="app-shell"][data-background-image] {
+  background-image: linear-gradient(rgb(0 0 0 / 28%), rgb(0 0 0 / 28%)), var(--app-background-image);
+}
+
+[data-component="app-shell"][data-background-image] .bg-v2-background-bg-deep {
+  background-color: transparent;
+}
+
+[data-component="app-shell"][data-background-image] [data-background-surface="panel"] {
+  background-color: color-mix(in srgb, var(--v2-background-bg-base) 72%, transparent);
+}
+
+[data-component="app-shell"][data-background-image] [data-background-surface="canvas"] {
+  background-color: transparent;
+}
+
+[data-component="app-shell"][data-background-image] [data-background-surface="composer"] {
+  background-color: color-mix(in srgb, var(--v2-background-bg-base) 55%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+[data-component="app-shell"][data-background-image] [data-component="new-session-tip"][data-kind="provider"] {
+  display: none;
+}
+
 @font-face {
   font-family: "JetBrainsMono Nerd Font Mono";
   src: url("/assets/JetBrainsMonoNerdFontMono-Regular.woff2") format("woff2");

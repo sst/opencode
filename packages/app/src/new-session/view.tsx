@@ -63,6 +63,7 @@ export function NewSessionView(props: {
     <div class="@container relative flex flex-col min-h-0 h-full flex-1">
       <div
         data-component="new-session"
+        data-background-surface="canvas"
         class="relative flex-1 min-h-0 overflow-hidden rounded-[10px] bg-v2-background-bg-base shadow-[var(--v2-elevation-raised)]"
       >
         <ComposerDropzone
@@ -208,6 +209,7 @@ function NewSessionTips(props: { workspaceEligible: boolean; onWorkspace: () => 
         <div
           ref={setRef}
           data-component="new-session-tip"
+          data-kind={displayed()}
           data-visible={tip() !== undefined}
           class="group/new-session-tip pointer-events-auto relative flex h-6 max-w-full items-center transition-[opacity,transform] duration-[250ms] ease-[cubic-bezier(0.215,0.61,0.355,1)] motion-reduce:transition-none"
           classList={{ "data-[visible=false]:animate-out fade-out slide-out-to-bottom-4": true }}
