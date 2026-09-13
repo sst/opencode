@@ -44,6 +44,7 @@ describe("Model.Compatibility", () => {
         maxTokensField: "max_completion_tokens",
         requireFinishReason: false,
         requireAssistantAfterTool: true,
+        supportsThinkingBlockBinding: false,
       }),
     ).toEqual({
       reasoningField: "vendor_reasoning",
@@ -51,6 +52,7 @@ describe("Model.Compatibility", () => {
       maxTokensField: "max_completion_tokens",
       requireFinishReason: false,
       requireAssistantAfterTool: true,
+      supportsThinkingBlockBinding: false,
     })
   })
 })

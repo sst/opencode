@@ -60,6 +60,8 @@ export const Compatibility = Schema.Struct({
   maxTokensField: MaxTokensField.pipe(optional),
   requireFinishReason: Schema.Boolean.pipe(optional),
   requireAssistantAfterTool: Schema.Boolean.pipe(optional),
+  /** Whether Anthropic thinking-prefix binding controls are supported by the deployment. */
+  supportsThinkingBlockBinding: Schema.Boolean.pipe(optional),
 }).annotate({ identifier: "Model.Compatibility" })
 
 export interface Capabilities extends Schema.Schema.Type<typeof Capabilities> {}

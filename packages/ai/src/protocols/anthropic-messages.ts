@@ -59,6 +59,8 @@ export type ThinkingInput =
       readonly type: "adaptive"
       readonly display?: "summarized" | "omitted"
       readonly block_binding?: ThinkingBlockBinding
+      /** OpenCode-only opt-out; consumed before the request is serialized. */
+      readonly blockBinding?: false
     }
   | {
       readonly type: "disabled"
@@ -67,6 +69,8 @@ export type ThinkingInput =
       readonly type: "enabled"
       readonly display?: "summarized" | "omitted"
       readonly block_binding?: ThinkingBlockBinding
+      /** OpenCode-only opt-out; consumed before the request is serialized. */
+      readonly blockBinding?: false
     } & (
       | { readonly budgetTokens: number; readonly budget_tokens?: number }
       | { readonly budgetTokens?: number; readonly budget_tokens: number }
@@ -1042,8 +1046,9 @@ const resolveOptions = Effect.fn("AnthropicMessages.resolveOptions")(function* (
           ...(outputConfigFormat === undefined ? {} : { format: outputConfigFormat }),
         }
   const thinking = yield* resolveThinking(input?.thinking)
+  const blockBindingOptOut = ProviderShared.isRecord(input?.thinking) && input.thinking.blockBinding === false
   return {
-    thinking: applyThinkingBindingDefault(request.model, thinking),
+    thinking: blockBindingOptOut ? thinking : applyThinkingBindingDefault(request.model, thinking),
     effort: outputConfigEffort,
     output_config,
     service_tier,
