@@ -71,7 +71,7 @@ describe("opencode acp config option subprocess", () => {
 
         expect(effort.category).toBe("thought_level")
         expect(effort.currentValue).toBe("low")
-        expect(flattenSelectOptions(effort).map((option) => option.value)).toEqual(["low", "high"])
+        expect(flattenSelectOptions(effort).map((option) => option.value)).toEqual(["low", "high", "default"])
       }),
     60_000,
   )

@@ -114,6 +114,17 @@ describe("acp config options", () => {
     expect(buildEffortSelectOption({ variants: [] })).toBeUndefined()
   })
 
+  test("exposes an explicit default even when the provider only lists named variants", () => {
+    expect(buildEffortSelectOption({ variants: ["low", "medium"], currentVariant: "default" })).toMatchObject({
+      currentValue: "default",
+      options: [
+        { value: "low", name: "Low" },
+        { value: "medium", name: "Medium" },
+        { value: "default", name: "Default" },
+      ],
+    })
+  })
+
   test("builds the mode select option with descriptions when present", () => {
     expect(
       buildModeSelectOption({

@@ -8,7 +8,7 @@ import { BillingTable } from "./schema/billing.sql"
 import { WorkspaceTable } from "./schema/workspace.sql"
 import { AccountTable } from "./schema/account.sql"
 import { Key } from "./key"
-import { and, eq, isNull, sql } from "drizzle-orm"
+import { and, eq, inArray, isNull, sql } from "drizzle-orm"
 
 export namespace Workspace {
   export const Region = z.enum(["us", "eu", "sg", "cn"])
@@ -109,6 +109,26 @@ export namespace Workspace {
     },
   )
 
+  export const blockBatch = fn(
+    z.object({
+      workspaceIDs: z.array(Identifier.schema("workspace")).min(1),
+    }),
+    async (input) => {
+      const { applied, notFound } = await setBlockedBatch(input, true)
+      return { blocked: applied, notFound }
+    },
+  )
+
+  export const unblockBatch = fn(
+    z.object({
+      workspaceIDs: z.array(Identifier.schema("workspace")).min(1),
+    }),
+    async (input) => {
+      const { applied, notFound } = await setBlockedBatch(input, false)
+      return { unblocked: applied, notFound }
+    },
+  )
+
   export const remove = fn(z.void(), async () => {
     await Database.use((tx) =>
       tx
@@ -116,5 +136,29 @@ export namespace Workspace {
         .set({ timeDeleted: sql`now()` })
         .where(eq(WorkspaceTable.id, Actor.workspace())),
     )
+  })
+}
+
+// No size cap by design; large IN lists degrade on Vitess, so chunks stay fixed-size and
+// sequential to share one connection inside ambient transactions. Existence comes from the
+// follow-up select rather than rowsAffected, so no-op rows (already in the target state)
+// still report as applied instead of "not found".
+const setBlockedBatch = async (input: { workspaceIDs: string[] }, isBlocked: boolean) => {
+  const ids = [...new Set(input.workspaceIDs)]
+  return await Database.use(async (tx) => {
+    const applied = new Set<string>()
+    for (let index = 0; index < ids.length; index += 500) {
+      const chunk = ids.slice(index, index + 500)
+      await tx.update(WorkspaceTable).set({ is_blocked: isBlocked }).where(inArray(WorkspaceTable.id, chunk))
+      const rows = await tx
+        .select({ id: WorkspaceTable.id })
+        .from(WorkspaceTable)
+        .where(inArray(WorkspaceTable.id, chunk))
+      for (const row of rows) applied.add(row.id)
+    }
+    return {
+      applied: ids.filter((id) => applied.has(id)),
+      notFound: ids.filter((id) => !applied.has(id)),
+    }
   })
 }

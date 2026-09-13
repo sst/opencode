@@ -352,6 +352,40 @@ describe("acp event routing", () => {
     ).toEqual(["agent_thought_chunk", "agent_thought_chunk"])
   })
 
+  it("uses reasoning part ids as ACP thought message boundaries", async () => {
+    const harness = createHarness()
+    await createKnownSession(harness.session, "ses_reasoning", {
+      messageId: "msg_reasoning",
+      partId: "part_first",
+      partType: "reasoning",
+    })
+    await Effect.runPromise(
+      harness.session.recordPartMetadata({
+        sessionId: "ses_reasoning",
+        messageId: "msg_reasoning",
+        partId: "part_second",
+        partType: "reasoning",
+        role: "assistant",
+      }),
+    )
+
+    await harness.subscription.handle(textDelta("ses_reasoning", "msg_reasoning", "part_first", "First"))
+    await harness.subscription.handle(textDelta("ses_reasoning", "msg_reasoning", "part_second", "Second"))
+
+    expect(harness.updates.map((update) => update.update)).toEqual([
+      {
+        sessionUpdate: "agent_thought_chunk",
+        messageId: "part_first",
+        content: { type: "text", text: "First" },
+      },
+      {
+        sessionUpdate: "agent_thought_chunk",
+        messageId: "part_second",
+        content: { type: "text", text: "Second" },
+      },
+    ])
+  })
+
   it("does not create extra subscriptions on repeated loadSession", async () => {
     const harness = createHarness()
     let subscription: ACPEvent.Subscription | undefined
