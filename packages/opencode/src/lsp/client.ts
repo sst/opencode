@@ -134,6 +134,20 @@ export async function create(input: {
     new StreamMessageWriter(input.server.process.stdin as any),
   )
   input.server.process.stderr?.resume()
+  let alive = true
+  let shuttingDown = false
+  const deadListeners = new Set<() => void>()
+  const markDead = () => {
+    if (!alive || shuttingDown) return
+    alive = false
+    for (const listener of [...deadListeners]) listener()
+    emitRegistrationChange()
+  }
+  connection.onClose(markDead)
+  connection.onError(markDead)
+  input.server.process.stdout?.on("end", markDead)
+  input.server.process.stdout?.on("error", markDead)
+  input.server.process.once("exit", markDead)
   // --- Connection state ---
 
   const pushDiagnostics = new Map<string, Diagnostic[]>()
@@ -497,6 +511,7 @@ export async function create(input: {
   }
 
   async function waitForDocumentDiagnostics(request: { path: string; version: number; after?: number }) {
+    if (!alive) return
     const startedAt = request.after ?? Date.now()
     const pushWait = waitForFreshPush({
       path: request.path,
@@ -506,6 +521,7 @@ export async function create(input: {
     })
 
     while (Date.now() - startedAt < DIAGNOSTICS_DOCUMENT_WAIT_TIMEOUT_MS) {
+      if (!alive) return
       const result = await requestDocumentDiagnostics(request.path)
       if (result.matched) return
       const remaining = DIAGNOSTICS_DOCUMENT_WAIT_TIMEOUT_MS - (Date.now() - startedAt)
@@ -519,6 +535,7 @@ export async function create(input: {
   }
 
   async function waitForFullDiagnostics(request: { path: string; version: number; after?: number }) {
+    if (!alive) return
     const startedAt = request.after ?? Date.now()
     const pushWait = waitForFreshPush({
       path: request.path,
@@ -528,6 +545,7 @@ export async function create(input: {
     })
 
     while (Date.now() - startedAt < DIAGNOSTICS_FULL_WAIT_TIMEOUT_MS) {
+      if (!alive) return
       const result = await requestFullDiagnostics(request.path)
       if (result.handled || result.matched) return
       const remaining = DIAGNOSTICS_FULL_WAIT_TIMEOUT_MS - (Date.now() - startedAt)
@@ -546,6 +564,17 @@ export async function create(input: {
     root: input.root,
     get serverID() {
       return input.serverID
+    },
+    get isAlive() {
+      return alive
+    },
+    onDead(listener: () => void) {
+      if (!alive) {
+        listener()
+        return () => {}
+      }
+      deadListeners.add(listener)
+      return () => deadListeners.delete(listener)
     },
     get connection() {
       return connection
@@ -638,6 +667,8 @@ export async function create(input: {
       await waitForFullDiagnostics({ path: normalizedPath, version: request.version, after: request.after })
     },
     async shutdown() {
+      shuttingDown = true
+      alive = false
       connection.end()
       connection.dispose()
       await Process.stop(input.server.process)

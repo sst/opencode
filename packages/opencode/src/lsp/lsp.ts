@@ -241,6 +241,11 @@ const layer = Layer.effect(
 
           if (!client) return undefined
 
+          client.onDead(() => {
+            const index = s.clients.indexOf(client)
+            if (index !== -1) s.clients.splice(index, 1)
+          })
+
           const existing = s.clients.find((x) => x.root === root && x.serverID === server.id)
           if (existing) {
             await Process.stop(handle.process)
@@ -258,7 +263,7 @@ const layer = Layer.effect(
           if (!root) continue
           if (s.broken.has(root + server.id)) continue
 
-          const match = s.clients.find((x) => x.root === root && x.serverID === server.id)
+          const match = s.clients.find((x) => x.root === root && x.serverID === server.id && x.isAlive)
           if (match) {
             result.push(match)
             continue
@@ -314,7 +319,7 @@ const layer = Layer.effect(
       const ctx = yield* InstanceState.context
       const s = yield* InstanceState.get(state)
       const result: Status[] = []
-      for (const client of s.clients) {
+      for (const client of s.clients.filter((client) => client.isAlive)) {
         result.push({
           id: client.serverID,
           name: s.servers[client.serverID].id,

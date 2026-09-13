@@ -40,6 +40,34 @@ describe("LSPClient interop", () => {
     await client.shutdown()
   })
 
+  test("reports a dead client after the transport closes", async () => {
+    const handle = spawnFakeServer() as any
+
+    const client = await withTestInstance({
+      directory: process.cwd(),
+      fn: (ctx) =>
+        LSPClient.create({
+          serverID: "fake",
+          server: handle as unknown as LSPServer.Handle,
+          root: process.cwd(),
+          directory: process.cwd(),
+          instance: ctx,
+        }),
+    })
+
+    let dead = false
+    client.onDead(() => {
+      dead = true
+    })
+    expect(client.isAlive).toBe(true)
+    await client.connection.sendRequest("test/close-stdout", {})
+    await new Promise((resolve) => setTimeout(resolve, 100))
+
+    expect(client.isAlive).toBe(false)
+    expect(dead).toBe(true)
+    await client.shutdown()
+  })
+
   test("handles client/registerCapability request", async () => {
     const handle = spawnFakeServer() as any
 

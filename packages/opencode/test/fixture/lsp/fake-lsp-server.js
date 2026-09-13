@@ -201,6 +201,12 @@ function handle(raw) {
     return
   }
 
+  if (data.method === "test/close-stdout") {
+    sendResponse(data.id, null)
+    setImmediate(() => process.exit(0))
+    return
+  }
+
   if (data.method === "test/get-last-change") {
     sendResponse(data.id, lastChange)
     return
