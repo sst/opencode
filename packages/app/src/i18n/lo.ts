@@ -929,6 +929,8 @@ export const dict = {
   "settings.general.row.colorScheme.description": "ເລືອກວ່າ OpenCode ປະຕິບັດຕາມລະບົບ, ແສງສະຫວ່າງ, ຫຼືຮູບແບບຊ້ໍາ",
   "settings.general.row.theme.title": "ຫົວຂໍ້",
   "settings.general.row.theme.description": "ປັບແຕ່ງວິທີ OpenCode ເປັນຫົວຂໍ້.",
+  "settings.general.row.wordDiffHighlighting.title": "ການເນັ້ນຄວາມແຕກຕ່າງໃນລະດັບຄຳ",
+  "settings.general.row.wordDiffHighlighting.description": "ເນັ້ນຄຳທີ່ປ່ຽນແປງໃນບັນທັດທີ່ເພີ່ມ ແລະ ລຶບອອກ",
   "settings.general.row.font.title": "ຕົວອັກສອນລະຫັດ",
   "settings.general.row.font.description": "ປັບແຕ່ງຕົວອັກສອນທີ່ໃຊ້ໃນບລັອກລະຫັດ",
   "settings.general.row.terminalFont.title": "ຕົວອັກສອນປາຍ",

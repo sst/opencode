@@ -945,6 +945,9 @@ export const dict = {
     "منتخب کریں کہ آیا OpenCode سسٹم، لائٹ یا ڈارک تھیم کی پیروی کرتا ہے۔",
   "settings.general.row.theme.title": "تھیم",
   "settings.general.row.theme.description": "OpenCode کی تھیم حسب ضرورت بنائیں۔",
+  "settings.general.row.wordDiffHighlighting.title": "لفظ کی سطح پر فرق نمایاں کرنا",
+  "settings.general.row.wordDiffHighlighting.description":
+    "شامل کی گئی اور حذف کی گئی لائنوں میں تبدیل شدہ الفاظ نمایاں کریں",
   "settings.general.row.font.title": "کوڈ فونٹ",
   "settings.general.row.font.description": "کوڈ بلاکس میں استعمال ہونے والے فونٹ کو حسب ضرورت بنائیں",
   "settings.general.row.terminalFont.title": "ٹرمینل فونٹ",

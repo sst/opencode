@@ -931,6 +931,8 @@ export const dict = {
   "settings.general.row.colorScheme.description": "Valige, kas OpenCode järgib süsteemi, heledat või tumedat teemat",
   "settings.general.row.theme.title": "Teema",
   "settings.general.row.theme.description": "Kohandage, kuidas OpenCode on teemastatud.",
+  "settings.general.row.wordDiffHighlighting.title": "Sõnatasemel erinevuste esiletõstmine",
+  "settings.general.row.wordDiffHighlighting.description": "Tõstke muudetud sõnad lisatud ja eemaldatud ridadel esile",
   "settings.general.row.font.title": "Koodi font",
   "settings.general.row.font.description": "Kohandage koodiplokkides kasutatavat fonti",
   "settings.general.row.terminalFont.title": "Terminali font",

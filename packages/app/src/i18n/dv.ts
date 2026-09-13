@@ -950,6 +950,9 @@ export const dict = {
     "OpenCode އިން ސިސްޓަމް، ލައިޓް، ނުވަތަ ޑާކް ތީމް އަށް ތަބާވާތޯ ހޮވާށެވެ",
   "settings.general.row.theme.title": "ތީމް",
   "settings.general.row.theme.description": "OpenCode ތީމް ކުރެވިފައިވާ ގޮތް ކަސްޓަމައިޒް ކުރުން.",
+  "settings.general.row.wordDiffHighlighting.title": "ބަހުގެ ފެންވަރުގައި ތަފާތު ހައިލައިޓް ކުރުން",
+  "settings.general.row.wordDiffHighlighting.description":
+    "އިތުރުކޮށްފައިވާ އަދި ނައްތާލާފައިވާ ލައިންތަކުގައި ބަދަލުވެފައިވާ ބަސްތައް ހައިލައިޓް ކުރުން",
   "settings.general.row.font.title": "ކޯޑް ފޮންޓެވެ",
   "settings.general.row.font.description": "ކޯޑް ބްލޮކްތަކުގައި ބޭނުންކުރާ ފޮންޓް ކަސްޓަމައިޒް ކުރުން",
   "settings.general.row.terminalFont.title": "ޓާމިނަލް ފޮންޓެވެ",

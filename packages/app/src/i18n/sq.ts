@@ -939,6 +939,9 @@ export const dict = {
     "Zgjidhni nëse OpenCode ndjek temën e sistemit, të lehtë ose të errët",
   "settings.general.row.theme.title": "Tema",
   "settings.general.row.theme.description": "Personalizojeni se si është tema e OpenCode.",
+  "settings.general.row.wordDiffHighlighting.title": "Theksimi i dallimeve në nivel fjale",
+  "settings.general.row.wordDiffHighlighting.description":
+    "Theksoni fjalët e ndryshuara brenda rreshtave të shtuar dhe të hequr",
   "settings.general.row.font.title": "Fonti i kodit",
   "settings.general.row.font.description": "Personalizoni fontin e përdorur në blloqet e kodit",
   "settings.general.row.terminalFont.title": "Fonti i Terminalit",

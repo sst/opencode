@@ -944,6 +944,9 @@ export const dict = {
     "Válassza ki, hogy a OpenCode a rendszer, a világos vagy a sötét témát követi-e",
   "settings.general.row.theme.title": "Téma",
   "settings.general.row.theme.description": "Szabja személyre a OpenCode témáját.",
+  "settings.general.row.wordDiffHighlighting.title": "Szószintű eltérések kiemelése",
+  "settings.general.row.wordDiffHighlighting.description":
+    "Emelje ki a módosított szavakat a hozzáadott és eltávolított sorokban",
   "settings.general.row.font.title": "Kód betűtípus",
   "settings.general.row.font.description": "Testreszabhatja a kódblokkban használt betűtípust",
   "settings.general.row.terminalFont.title": "Terminal betűtípus",

@@ -934,6 +934,9 @@ export const dict = {
   "settings.general.row.colorScheme.description": "Pilih sama ada OpenCode mengikut sistem, tema cerah, atau gelap",
   "settings.general.row.theme.title": "Tema",
   "settings.general.row.theme.description": "Sesuaikan tema OpenCode.",
+  "settings.general.row.wordDiffHighlighting.title": "Penyerlahan perbezaan pada aras perkataan",
+  "settings.general.row.wordDiffHighlighting.description":
+    "Serlahkan perkataan yang berubah dalam baris yang ditambah dan dialih keluar",
   "settings.general.row.font.title": "Fon Kod",
   "settings.general.row.font.description": "Sesuaikan fon yang digunakan dalam blok kod",
   "settings.general.row.terminalFont.title": "Fon Terminal",

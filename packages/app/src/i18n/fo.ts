@@ -934,6 +934,9 @@ export const dict = {
   "settings.general.row.colorScheme.description": "Vel um OpenCode fylgir skipanini, ljósa ella myrka temanum",
   "settings.general.row.theme.title": "Tema",
   "settings.general.row.theme.description": "Tillaga hvussu OpenCode er tema.",
+  "settings.general.row.wordDiffHighlighting.title": "Markering av munum á orðastigi",
+  "settings.general.row.wordDiffHighlighting.description":
+    "Markera broytt orð í linjum, sum eru lagdar afturat ella strikaðar",
   "settings.general.row.font.title": "Koda skriftslag",
   "settings.general.row.font.description": "Tillaga skriftslagið, sum verður brúkt í kodublokkum",
   "settings.general.row.terminalFont.title": "Terminalskriftslag",

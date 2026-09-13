@@ -946,6 +946,9 @@ export const dict = {
   "settings.general.row.colorScheme.description": "Chọn xem OpenCode tuân theo hệ thống, chủ đề sáng hay tối",
   "settings.general.row.theme.title": "Chủ đề",
   "settings.general.row.theme.description": "Tùy chỉnh chủ đề của OpenCode.",
+  "settings.general.row.wordDiffHighlighting.title": "Làm nổi bật khác biệt ở cấp độ từ",
+  "settings.general.row.wordDiffHighlighting.description":
+    "Làm nổi bật các từ đã thay đổi trong những dòng được thêm và xóa",
   "settings.general.row.font.title": "Phông chữ mã",
   "settings.general.row.font.description": "Tùy chỉnh phông chữ được sử dụng trong khối mã",
   "settings.general.row.terminalFont.title": "Phông chữ terminal",

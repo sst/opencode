@@ -941,6 +941,9 @@ export const dict = {
   "settings.general.row.colorScheme.description": "چنو کہ آیا OpenCode سسٹم، لائٹ، یا ڈارک تھیم دی پیروی کردا اے",
   "settings.general.row.theme.title": "تھیم",
   "settings.general.row.theme.description": "OpenCode نوں کس طرح تھیم کیتا گیا اے، اپنی مرضی دے مطابق بناؤ۔",
+  "settings.general.row.wordDiffHighlighting.title": "لفظاں دے پدھر تے فرق نوں نمایاں کرنا",
+  "settings.general.row.wordDiffHighlighting.description":
+    "شامل کیتیاں تے ہٹائیاں گئیاں لائناں وچ بدلے ہوئے لفظ نمایاں کرو",
   "settings.general.row.font.title": "کوڈ فونٹ",
   "settings.general.row.font.description": "کوڈ بلاکس وچ استعمال ہون آلے فونٹ نو اپنی مرضی دے مطابق بناؤ",
   "settings.general.row.terminalFont.title": "Terminal فونٹ",

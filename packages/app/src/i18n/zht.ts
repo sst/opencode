@@ -901,6 +901,8 @@ export const dict = {
   "settings.general.row.colorScheme.description": "選擇 OpenCode 要跟隨系統、淺色或深色主題",
   "settings.general.row.theme.title": "主題",
   "settings.general.row.theme.description": "自訂 OpenCode 的主題。",
+  "settings.general.row.wordDiffHighlighting.title": "字詞層級差異醒目提示",
+  "settings.general.row.wordDiffHighlighting.description": "醒目提示新增行與移除行中已變更的字詞",
   "settings.general.row.font.title": "程式碼字型",
   "settings.general.row.font.description": "自訂程式碼區塊使用的字型",
   "settings.general.row.terminalFont.title": "終端機字型",

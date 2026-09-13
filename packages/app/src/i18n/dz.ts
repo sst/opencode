@@ -952,6 +952,9 @@ export const dict: Record<string, string> = {
     "OpenCode གིས་ རིམ་ལུགས་དང་ འོད་ ཡང་ན་ གནགཔོ་གི་བརྗོད་དོན་ལུ་ རྗེས་སུ་འཇུག་ནི་ཨིན་ན་ གདམ་ཁ་རྐྱབས།",
   "settings.general.row.theme.title": "བརྗོད༌དོན",
   "settings.general.row.theme.description": "OpenCodeའདི་བརྗོད་དོན་ག་དེ་སྦེ་ཡོདཔ་ཨིན་ན་སྲོལ་སྒྲིག་འབད།",
+  "settings.general.row.wordDiffHighlighting.title": "མིང་ཚིག་གི་གནས་རིམ་གྱི་ཁྱད་པར་གཙོ་དམིགས།",
+  "settings.general.row.wordDiffHighlighting.description":
+    "ཁ་སྐོང་དང་བཏོན་གཏང་འབད་ཡོད་པའི་གྲལ་ཐིག་ཚུ་ནང་ བསྒྱུར་བཅོས་འབད་ཡོད་པའི་མིང་ཚིག་ཚུ་གཙོ་དམིགས་འབད།",
   "settings.general.row.font.title": "ཨང་རྟགས་ཡིག་གཟུགས།",
   "settings.general.row.font.description": "གསང་གྲངས་སྡེབ་ཚན་ཚུ་ནང་ལག་ལེན་འཐབ་མི་ཡིག་གཟུགས་སྲོལ་སྒྲིག་འབད།",
   "settings.general.row.terminalFont.title": "ཊར་མི་ནཱལ་ཡིག་གཟུགས།",

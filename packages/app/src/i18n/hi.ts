@@ -943,6 +943,9 @@ export const dict = {
   "settings.general.row.colorScheme.description": "चुनें कि OpenCode सिस्टम, हल्की या गहरी थीम में से किसका उपयोग करे",
   "settings.general.row.theme.title": "थीम",
   "settings.general.row.theme.description": "अनुकूलित करें कि OpenCode की थीम कैसी है।",
+  "settings.general.row.wordDiffHighlighting.title": "शब्द-स्तरीय अंतर को हाइलाइट करना",
+  "settings.general.row.wordDiffHighlighting.description":
+    "जोड़ी गई और हटाई गई पंक्तियों में बदले हुए शब्दों को हाइलाइट करें",
   "settings.general.row.font.title": "कोड फ़ॉन्ट",
   "settings.general.row.font.description": "कोड ब्लॉक में प्रयुक्त फ़ॉन्ट को अनुकूलित करें",
   "settings.general.row.terminalFont.title": "टर्मिनल फ़ॉन्ट",

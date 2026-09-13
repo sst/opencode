@@ -835,6 +835,8 @@ export const dict = {
     "Valitse, käyttääkö OpenCode järjestelmän mukaista, vaaleaa vai tummaa teemaa",
   "settings.general.row.theme.title": "Teema",
   "settings.general.row.theme.description": "Mukauta OpenCoden teemaa.",
+  "settings.general.row.wordDiffHighlighting.title": "Sanatason erojen korostus",
+  "settings.general.row.wordDiffHighlighting.description": "Korosta muutetut sanat lisätyillä ja poistetuilla riveillä",
   "settings.general.row.font.title": "Koodifontti",
   "settings.general.row.font.description": "Mukauta koodilohkoissa käytettyä fonttia",
   "settings.general.row.terminalFont.title": "Terminaalin fontti",

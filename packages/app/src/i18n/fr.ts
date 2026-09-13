@@ -863,6 +863,9 @@ export const dict = {
   "settings.general.row.colorScheme.description": "Choisissez si OpenCode suit le thème système, clair ou sombre",
   "settings.general.row.theme.title": "Thème",
   "settings.general.row.theme.description": "Personnaliser le thème d'OpenCode.",
+  "settings.general.row.wordDiffHighlighting.title": "Mise en évidence des différences au niveau des mots",
+  "settings.general.row.wordDiffHighlighting.description":
+    "Mettre en évidence les mots modifiés dans les lignes ajoutées et supprimées",
   "settings.general.row.font.title": "Police de code",
   "settings.general.row.font.description": "Personnaliser la police utilisée dans les blocs de code",
   "settings.general.row.terminalFont.title": "Police du terminal",

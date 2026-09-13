@@ -946,6 +946,9 @@ export const dict = {
     "Επιλέξτε εάν το OpenCode ακολουθεί το σύστημα, το ανοιχτό ή το σκοτεινό θέμα",
   "settings.general.row.theme.title": "Θέμα",
   "settings.general.row.theme.description": "Προσαρμογή του τρόπου με τον οποίο έχει θέμα το OpenCode.",
+  "settings.general.row.wordDiffHighlighting.title": "Επισήμανση διαφορών σε επίπεδο λέξης",
+  "settings.general.row.wordDiffHighlighting.description":
+    "Επισημάνετε τις τροποποιημένες λέξεις στις γραμμές που προστέθηκαν και αφαιρέθηκαν",
   "settings.general.row.font.title": "Γραμματοσειρά κώδικα",
   "settings.general.row.font.description": "Προσαρμογή της γραμματοσειράς που χρησιμοποιείται στα μπλοκ κώδικα",
   "settings.general.row.terminalFont.title": "Τερματική γραμματοσειρά",

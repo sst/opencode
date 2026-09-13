@@ -937,6 +937,8 @@ export const dict = {
   "settings.general.row.colorScheme.description": "Veldu hvort OpenCode fylgir kerfis-, ljósu eða dökku þema",
   "settings.general.row.theme.title": "Þema",
   "settings.general.row.theme.description": "Sérsníddu hvernig OpenCode er þema.",
+  "settings.general.row.wordDiffHighlighting.title": "Áherslulitun mismunar á orðastigi",
+  "settings.general.row.wordDiffHighlighting.description": "Áherslulita breytt orð í viðbættum og fjarlægðum línum",
   "settings.general.row.font.title": "Kóða leturgerð",
   "settings.general.row.font.description": "Sérsníddu leturgerðina sem notuð er í kóðablokkum",
   "settings.general.row.terminalFont.title": "Leturgerð skjáhermis",

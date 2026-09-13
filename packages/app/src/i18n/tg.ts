@@ -940,6 +940,9 @@ export const dict = {
     "Интихоб кунед, ки OpenCode аз рӯи система, равшанӣ ё мавзӯи торик пайравӣ мекунад",
   "settings.general.row.theme.title": "Мавзӯъ",
   "settings.general.row.theme.description": "Чӣ тавр OpenCode мавзӯъро танзим кунед.",
+  "settings.general.row.wordDiffHighlighting.title": "Рангнишонии фарқиятҳо дар сатҳи калима",
+  "settings.general.row.wordDiffHighlighting.description":
+    "Калимаҳои тағйирёфтаро дар сатрҳои иловашуда ва хориҷшуда рангнишонӣ кунед",
   "settings.general.row.font.title": "Шрифти код",
   "settings.general.row.font.description": "Ҳарферо, ки дар блокҳои код истифода мешавад, танзим кунед",
   "settings.general.row.terminalFont.title": "Шрифти терминал",

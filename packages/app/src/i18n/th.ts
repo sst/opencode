@@ -910,6 +910,8 @@ export const dict = {
   "settings.general.row.colorScheme.description": "เลือกว่าจะให้ OpenCode ใช้ธีมตามระบบ สว่าง หรือมืด",
   "settings.general.row.theme.title": "ธีม",
   "settings.general.row.theme.description": "ปรับแต่งธีมของ OpenCode",
+  "settings.general.row.wordDiffHighlighting.title": "การเน้นความแตกต่างระดับคำ",
+  "settings.general.row.wordDiffHighlighting.description": "เน้นคำที่เปลี่ยนแปลงภายในบรรทัดที่เพิ่มและลบ",
   "settings.general.row.font.title": "แบบอักษรโค้ด",
   "settings.general.row.font.description": "ปรับแต่งแบบอักษรที่ใช้ในบล็อกโค้ด",
   "settings.general.row.terminalFont.title": "แบบอักษรเทอร์มินัล",

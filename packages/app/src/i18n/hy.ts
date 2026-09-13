@@ -942,6 +942,8 @@ export const dict = {
   "settings.general.row.colorScheme.description": "Ընտրեք՝ OpenCode-ը հետևում է համակարգին, թեթև թե մուգ թեմային",
   "settings.general.row.theme.title": "Թեմա",
   "settings.general.row.theme.description": "Անհատականացրեք, թե ինչպես է OpenCode-ի թեմատիկությունը։",
+  "settings.general.row.wordDiffHighlighting.title": "Տարբերությունների գունանշում բառերի մակարդակով",
+  "settings.general.row.wordDiffHighlighting.description": "Գունանշեք ավելացված և հեռացված տողերում փոփոխված բառերը",
   "settings.general.row.font.title": "Կոդի տառատեսակ",
   "settings.general.row.font.description": "Անհատականացրեք կոդերի բլոկներում օգտագործվող տառատեսակը",
   "settings.general.row.terminalFont.title": "Տերմինալ տառատեսակ",

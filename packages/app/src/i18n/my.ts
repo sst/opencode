@@ -948,6 +948,9 @@ export const dict = {
     "OpenCode သည် စနစ်၊ အလင်း သို့မဟုတ် အမှောင် အပြင်အဆင်ကို လိုက်နာခြင်း ရှိ၊ မရှိကို ရွေးပါ။",
   "settings.general.row.theme.title": "အပြင်အဆင်",
   "settings.general.row.theme.description": "OpenCode ကို ဘယ်လိုပုံစံနဲ့ စိတ်ကြိုက်လုပ်မလဲ။",
+  "settings.general.row.wordDiffHighlighting.title": "စကားလုံးအဆင့် ကွာခြားချက်များကို အသားပေးဖော်ပြခြင်း",
+  "settings.general.row.wordDiffHighlighting.description":
+    "ထည့်သွင်းထားသော စာကြောင်းများနှင့် ဖယ်ရှားထားသော စာကြောင်းများအတွင်းရှိ ပြောင်းလဲထားသည့် စကားလုံးများကို အသားပေးဖော်ပြပါ",
   "settings.general.row.font.title": "ကုဒ်ဖောင့်",
   "settings.general.row.font.description": "ကုဒ်တုံးများတွင် အသုံးပြုသည့် ဖောင့်ကို စိတ်ကြိုက်ပြင်ဆင်ပါ။",
   "settings.general.row.terminalFont.title": "Terminal ဖောင့်",

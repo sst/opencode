@@ -750,6 +750,9 @@ export const dict = {
     "Wählen Sie, ob OpenCode dem System-, hellen oder dunklen Thema folgt",
   "settings.general.row.theme.title": "Thema",
   "settings.general.row.theme.description": "Das Thema von OpenCode anpassen.",
+  "settings.general.row.wordDiffHighlighting.title": "Hervorhebung von Unterschieden auf Wortebene",
+  "settings.general.row.wordDiffHighlighting.description":
+    "Geänderte Wörter in hinzugefügten und entfernten Zeilen hervorheben",
   "settings.general.row.font.title": "Code-Schriftart",
   "settings.general.row.font.description": "Die in Codeblöcken verwendete Schriftart anpassen",
   "settings.general.row.terminalFont.title": "Terminalschriftart",

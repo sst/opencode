@@ -949,6 +949,9 @@ export const dict = {
   "settings.general.row.colorScheme.description": "Pasirinkite, ar OpenCode seka sistemos, šviesios ar tamsios temos",
   "settings.general.row.theme.title": "tema",
   "settings.general.row.theme.description": "Tinkinkite OpenCode temą.",
+  "settings.general.row.wordDiffHighlighting.title": "Žodžių lygmens skirtumų paryškinimas",
+  "settings.general.row.wordDiffHighlighting.description":
+    "Paryškinkite pakeistus žodžius pridėtose ir pašalintose eilutėse",
   "settings.general.row.font.title": "Kodo šriftas",
   "settings.general.row.font.description": "Tinkinkite kodo blokuose naudojamą šriftą",
   "settings.general.row.terminalFont.title": "Šriftas Terminal",

@@ -843,6 +843,8 @@ export const dict = {
   "settings.general.row.colorScheme.description": "OpenCodeがシステム、ライト、またはダークテーマに従うかを選択します",
   "settings.general.row.theme.title": "テーマ",
   "settings.general.row.theme.description": "OpenCodeのテーマをカスタマイズします。",
+  "settings.general.row.wordDiffHighlighting.title": "単語単位の差分強調表示",
+  "settings.general.row.wordDiffHighlighting.description": "追加行と削除行内で変更された単語を強調表示します",
   "settings.general.row.font.title": "コードフォント",
   "settings.general.row.font.description": "コードブロックで使用するフォントをカスタマイズします",
   "settings.general.row.terminalFont.title": "ターミナルのフォント",

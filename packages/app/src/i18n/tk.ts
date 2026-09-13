@@ -936,6 +936,9 @@ export const dict = {
     "OpenCode ulgamy, ýagtylygy ýa-da garaňky temany yzarlaýandygyny saýlaň",
   "settings.general.row.theme.title": "Mowzuk",
   "settings.general.row.theme.description": "OpenCode-iň mowzuklydygyny düzüň.",
+  "settings.general.row.wordDiffHighlighting.title": "Söz derejesindäki tapawutlary aýratyn görkezmek",
+  "settings.general.row.wordDiffHighlighting.description":
+    "Goşulan we aýrylan setirlerdäki üýtgedilen sözleri aýratyn görkezmek",
   "settings.general.row.font.title": "Kod şrifti",
   "settings.general.row.font.description": "Kod bloklarynda ulanylýan şrifti düzüň",
   "settings.general.row.terminalFont.title": "Terminal şrifti",
