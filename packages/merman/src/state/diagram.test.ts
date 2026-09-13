@@ -274,6 +274,34 @@ ${ids
     expect(renderStateDiagram(source, { layoutMaxWidth: 1 })).toBe(renderStateDiagram(source))
   })
 
+  test.each([
+    ["TB", 120],
+    ["LR", 40],
+  ] as const)(
+    "renders same-rank transitions between nested composite states from %s at %d columns",
+    (direction, width) => {
+      const diagram = parseMermaidStateDiagram(`stateDiagram-v2
+direction ${direction}
+A --> B
+A --> C
+state D {
+  state E {
+    B --> F
+  }
+  B --> C
+}`)
+
+      const drawing = createStateDiagramDrawing(diagram, { layoutMaxWidth: width })
+      const output = drawing.grid.toString({
+        trimTop: true,
+        trimBottom: true,
+      })
+
+      expect(drawing.diagram.direction).toBe("TB")
+      for (const state of ["A", "B", "C", "D", "E", "F"]) expect(output).toContain(state)
+    },
+  )
+
   test("preserves horizontal layouts that fit or have no finite width target", () => {
     const source = `stateDiagram-v2
   direction LR

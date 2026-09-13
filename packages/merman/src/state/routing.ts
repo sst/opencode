@@ -430,6 +430,15 @@ export function createStateTransitionRoutePlans(
     const targetIsHiddenMarker = isHiddenCompositeMarker(targetState)
     const base = { transition, from, to, targetIsChoice, targetIsHiddenMarker }
     const sideParallel = (): StateTransitionRoutePlan => {
+      if (from.centerY === to.centerY) {
+        const railY = allocateBottomRail()
+        return {
+          ...base,
+          kind: "bottom-parallel",
+          railY,
+          approachX: bottomApproachX(diagram, transition, from, to, bounds, railY),
+        }
+      }
       const railX = allocateSideRail(transition)
       return {
         ...base,
@@ -787,7 +796,7 @@ function addSideParallelTransition(builder: StateTransitionRenderBuilder): void 
   addRightDeparture(builder, from)
   addHorizontalLine(builder, startX, railX - 1, startY, 1)
   addCell(builder, { x: railX, y: startY, char: verticalStep === 1 ? "╮" : "╯" })
-  for (let y = startY + verticalStep; y !== endY; y += verticalStep) addCell(builder, { x: railX, y, char: "│" })
+  addVerticalLine(builder, railX, startY + verticalStep, endY - verticalStep, verticalStep)
   addCell(builder, { x: railX, y: endY, char: verticalStep === 1 ? "╯" : "╮" })
   if (targetApproach) {
     const targetX = innerConnectorX(to, from.centerX)
