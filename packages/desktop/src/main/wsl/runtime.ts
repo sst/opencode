@@ -39,7 +39,8 @@ const DEFAULT_WSL_TIMEOUT_MS = 20_000
 const DEFAULT_WSL_INSTALL_TIMEOUT_MS = 15 * 60_000
 
 export function wslArgs(args: string[], distro?: string | null, user?: string | null) {
-  return [...(distro ? ["-d", distro] : []), ...(user ? ["--user", user] : []), "--", ...args]
+  // Use --exec, not --, so the distro's default shell does not expand $VAR in our scripts.
+  return [...(distro ? ["-d", distro] : []), ...(user ? ["--user", user] : []), "--exec", ...args]
 }
 
 export function runWsl(args: string[], opts: RunWslOptions = {}) {
