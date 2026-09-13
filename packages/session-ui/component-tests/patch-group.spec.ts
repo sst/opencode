@@ -43,13 +43,14 @@ story("merges follow-up patches into one stack with a distinct file count", asyn
   await root.getByRole("button", { name: "Start follow-up patch" }).click()
   const usage = group.locator('[data-component="context-tool-group-trigger"] [data-slot="context-tool-group-usage"]')
   await expect(usage.locator('[data-slot="context-tool-group-prefix"]')).toHaveText("Used")
-  await expect(usage.locator('[data-slot="context-tool-group-count"]')).toHaveText("3")
+  await expect(usage.locator('[data-slot="context-tool-group-count"]')).toHaveText("2")
   await expect(patches).toHaveCount(1)
   await expect(patches.getByText("2 files", { exact: true })).toBeVisible()
   await root.getByRole("button", { name: "Finish follow-up patch" }).click()
+  await expect(usage.locator('[data-slot="context-tool-group-count"]')).toHaveText("4")
   await expect(patches).toHaveCount(1)
-  await expect(patches.getByText("3 files", { exact: true })).toBeVisible()
-  await expect(patches.locator('[data-slot="apply-patch-filename"]')).toHaveText(["a.ts", "b.ts", "c.ts"])
+  await expect(patches.getByText("4 files", { exact: true })).toBeVisible()
+  await expect(patches.locator('[data-slot="apply-patch-filename"]')).toHaveText(["a.ts", "b.ts", "c.ts", "d.ts"])
   await expect(first).toHaveAttribute("aria-expanded", "true")
   await expect(patches.locator('[data-component="file"]')).toBeVisible()
   await group.screenshot({ path: info.outputPath("merged.png") })
@@ -61,7 +62,13 @@ for (const separator of ["shell", "error", "reasoning"]) {
     await root.getByRole("button", { name: "Finish follow-up patch" }).click()
     const group = root.locator('[data-component="collapsed-tool-group"]')
     await expect(group.locator('[data-component="apply-patch-tool"]')).toHaveCount(2)
-    await expect(group.locator('[data-slot="apply-patch-filename"]')).toHaveText(["a.ts", "b.ts", "a.ts", "c.ts"])
+    await expect(group.locator('[data-slot="apply-patch-filename"]')).toHaveText([
+      "a.ts",
+      "b.ts",
+      "a.ts",
+      "c.ts",
+      "d.ts",
+    ])
     if (separator === "error") await expect(group.locator('[data-kind="tool-error-card"]')).toBeVisible()
   })
 }
@@ -72,8 +79,14 @@ story("does not retain patch files in the wrong batch when thoughts are shown", 
   await root.getByRole("button", { name: "Finish follow-up patch" }).click()
   const group = root.locator('[data-component="collapsed-tool-group"]')
   await expect(group.locator('[data-component="apply-patch-tool"]')).toHaveCount(1)
-  await expect(group.locator('[data-slot="apply-patch-filename"]')).toHaveText(["a.ts", "b.ts", "c.ts"])
+  await expect(group.locator('[data-slot="apply-patch-filename"]')).toHaveText(["a.ts", "b.ts", "c.ts", "d.ts"])
   await root.getByRole("button", { name: "Show thoughts", exact: true }).click()
   await expect(group.locator('[data-component="apply-patch-tool"]')).toHaveCount(2)
-  await expect(group.locator('[data-slot="apply-patch-filename"]')).toHaveText(["a.ts", "b.ts", "a.ts", "c.ts"])
+  await expect(group.locator('[data-slot="apply-patch-filename"]')).toHaveText([
+    "a.ts",
+    "b.ts",
+    "a.ts",
+    "c.ts",
+    "d.ts",
+  ])
 })

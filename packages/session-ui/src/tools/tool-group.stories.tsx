@@ -132,7 +132,10 @@ export const PatchFollowUps = {
               state.phase === "running" ? "running" : "completed",
               {},
               {
-                metadata: state.phase === "running" ? {} : { files: [file("src/a.ts", 1, 2), file("src/c.ts", 0, 1)] },
+                metadata:
+                  state.phase === "running"
+                    ? {}
+                    : { files: [file("src/a.ts", 1, 2), file("src/c.ts", 0, 1), file("src/d.ts", 0, 1)] },
               },
             ),
           ]),

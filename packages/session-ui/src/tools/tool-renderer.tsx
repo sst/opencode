@@ -533,6 +533,15 @@ export function CurrentContextToolGroup(props: {
       ),
     ].join(", "),
   )
+  const patchedFiles = createMemo(() =>
+    patchFileGroups(
+      tools().flatMap((tool) => {
+        if (tool.name !== "patch" || tool.state.status === "error") return []
+        const files = currentToolMetadata(tool).files
+        return Array.isArray(files) ? files : []
+      }),
+    ).length,
+  )
   const label = createMemo(() => {
     const thoughts = props.parts.filter((part) => part.type === "reasoning").length
     if (!names() && !thoughts) {
@@ -540,7 +549,8 @@ export function CurrentContextToolGroup(props: {
       return { text: title, title, before: "", count: "", between: "", after: "" }
     }
     const title = names() || i18n.plural("ui.messagePart.context.thought", thoughts)
-    const count = props.parts.filter((part) => part.type === "tool" || part.type === "shell").length || thoughts
+    const count =
+      patchedFiles() || props.parts.filter((part) => part.type === "tool" || part.type === "shell").length || thoughts
     const text = i18n.plural("ui.messagePart.tools.used", count, { tools: title })
     const index = text.indexOf(title)
     const before = text.slice(0, index).trim()

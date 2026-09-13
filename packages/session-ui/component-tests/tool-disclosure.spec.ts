@@ -29,16 +29,16 @@ for (const open of [true, false]) {
       await expect(second).toHaveAttribute("aria-expanded", "true")
       await expect(diff).toBeVisible()
       const original = await patch.elementHandle()
-      for (const count of [3, 4]) {
+      for (const call of [1, 2]) {
         await root.getByRole("button", { name: "Append tool call", exact: true }).click()
         await expect(
           group.locator('[data-component="context-tool-group-trigger"] [data-slot="basic-tool-tool-title"]'),
         ).toHaveText("Shell, Patch")
-        await expect(trigger).toHaveAccessibleName(`Used ${count} Shell, Patch`)
+        await expect(trigger).toHaveAccessibleName("Used 2 Shell, Patch")
         await expect(diff).toBeVisible()
         await root
           .locator('[data-component="session-timeline"]')
-          .screenshot({ path: info.outputPath(`append-${count}.png`) })
+          .screenshot({ path: info.outputPath(`append-${call}.png`) })
         await expect(shell).toHaveAttribute("aria-expanded", String(open))
         await expect(first).toHaveAttribute("aria-expanded", String(open))
         await expect(second).toHaveAttribute("aria-expanded", "true")
