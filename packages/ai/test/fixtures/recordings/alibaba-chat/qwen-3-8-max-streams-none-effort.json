@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "metadata": {
+    "tags": [
+      "prefix:alibaba-chat",
+      "provider:alibaba",
+      "protocol:alibaba-chat",
+      "region:ap-southeast-1",
+      "text",
+      "reasoning",
+      "usage"
+    ],
+    "name": "alibaba-chat/qwen-3-8-max-streams-none-effort",
+    "recordedAt": "2026-09-08T03:09:27.584Z"
+  },
+  "interactions": [
+    {
+      "transport": "http",
+      "request": {
+        "method": "POST",
+        "url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"model\":\"qwen3.8-max\",\"messages\":[{\"role\":\"user\",\"content\":\"What is 173 multiplied by 219? Reply with only the final integer.\"}],\"stream\":true,\"stream_options\":{\"include_usage\":true},\"reasoning_effort\":\"none\",\"max_completion_tokens\":4096}"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/event-stream;charset=utf-8"
+        },
+        "body": "data: {\"model\":\"qwen3.8-max\",\"id\":\"chatcmpl-d8fbc8fe-4d5a-9dc9-84c6-ed0c7b9dd3bb\",\"created\":1788836967,\"object\":\"chat.completion.chunk\",\"usage\":null,\"choices\":[{\"logprobs\":null,\"index\":0,\"delta\":{\"content\":\"\",\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"model\":\"qwen3.8-max\",\"id\":\"chatcmpl-d8fbc8fe-4d5a-9dc9-84c6-ed0c7b9dd3bb\",\"choices\":[{\"delta\":{\"content\":\"3\"},\"index\":0,\"finish_reason\":null,\"logprobs\":null}],\"created\":1788836967,\"object\":\"chat.completion.chunk\",\"usage\":null}\n\ndata: {\"model\":\"qwen3.8-max\",\"id\":\"chatcmpl-d8fbc8fe-4d5a-9dc9-84c6-ed0c7b9dd3bb\",\"choices\":[{\"delta\":{\"content\":\"78\"},\"index\":0,\"finish_reason\":null,\"logprobs\":null}],\"created\":1788836967,\"object\":\"chat.completion.chunk\",\"usage\":null}\n\ndata: {\"model\":\"qwen3.8-max\",\"id\":\"chatcmpl-d8fbc8fe-4d5a-9dc9-84c6-ed0c7b9dd3bb\",\"choices\":[{\"delta\":{\"content\":\"87\"},\"index\":0,\"finish_reason\":null,\"logprobs\":null}],\"created\":1788836967,\"object\":\"chat.completion.chunk\",\"usage\":null}\n\ndata: {\"model\":\"qwen3.8-max\",\"id\":\"chatcmpl-d8fbc8fe-4d5a-9dc9-84c6-ed0c7b9dd3bb\",\"choices\":[{\"delta\":{\"content\":\"\"},\"index\":0,\"finish_reason\":\"stop\",\"logprobs\":null}],\"created\":1788836967,\"object\":\"chat.completion.chunk\",\"usage\":null}\n\ndata: {\"choices\":[],\"created\":1788836967,\"id\":\"chatcmpl-d8fbc8fe-4d5a-9dc9-84c6-ed0c7b9dd3bb\",\"model\":\"qwen3.8-max\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":5,\"prompt_tokens\":32,\"prompt_tokens_details\":{\"cached_tokens\":0,\"text_tokens\":32},\"total_tokens\":37}}\n\ndata: [DONE]\n\n"
+      }
+    }
+  ]
+}

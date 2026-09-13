@@ -254,8 +254,6 @@ const layer = Layer.effect(
         })
         .pipe(Effect.mapError((error) => operationError(selected.id, "create", error)))
       const result = { directory: yield* canonical(fs, created.directory) }
-      if (result.directory !== (yield* canonical(fs, worktreeDirectory)))
-        return yield* new InvalidDirectoryError({ directory: result.directory })
       yield* changed(
         yield* ops.create({
           directory: result.directory,

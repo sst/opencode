@@ -1,0 +1,80 @@
+---
+title: "TUI"
+description: "Start a session and use the everyday workflows in the terminal interface."
+---
+
+Run OpenCode from your project, type a request, and press **Enter**.
+
+```bash
+cd ~/code/my-project
+opencode
+```
+
+```text
+Explain how authentication works in this project
+```
+
+Press **Shift+Enter**, **Ctrl+Enter**, or **Ctrl+J** for a new line. While OpenCode is working, **Enter** steers the active session and **Alt+Enter** queues the prompt for later.
+
+## Context
+
+Type `@` to search for a file, then select it to attach that file to the prompt. Keep typing after `@` to narrow the results.
+
+```text
+Review @src/auth.ts for error handling problems
+```
+
+You can include a line or range after the path.
+
+```text
+Explain @src/auth.ts#20-45
+```
+
+## Shell
+
+Type `!` at the start of an empty prompt to enter shell mode. Enter a command and press **Enter**; press **Esc** to leave shell mode without running one.
+
+```text
+!git status
+```
+
+Shell commands run in the session's working directory and their output stays in the session.
+
+## Commands
+
+Type `/` to list slash commands. Continue typing to filter the list, then press **Enter** to run the selected command.
+
+```text
+/models
+```
+
+Common commands include `/new`, `/sessions`, `/models`, `/agents`, `/undo`, `/redo`, and `/editor`. Press **Ctrl+P** to open the command palette for every action available in the current view.
+
+## Models
+
+Press **Ctrl+X**, then **M** to choose a model, or run `/models`. Press **F2** to cycle through recently used models.
+
+Press **Ctrl+X**, then **A** to choose an agent, or run `/agents`. Press **Shift+Tab** to cycle agents.
+
+## Sessions
+
+Press **Ctrl+X**, then **N** to start a new session. Press **Ctrl+X**, then **L** or run `/sessions` to return to an existing session; **Ctrl+O** opens recent sessions and projects together.
+
+Tabs are enabled by default. Use **Ctrl+Tab** and **Ctrl+Shift+Tab** to move between them, **Ctrl+X** then **W** to close one, and **Ctrl+Shift+T** to reopen the last closed tab.
+
+## History
+
+Press **Ctrl+X**, then **U**, or run `/undo`, to revert the latest user message and the work that followed it. The reverted prompt returns to the composer so you can edit it.
+
+Press **Ctrl+X**, then **R**, or run `/redo`, to restore the reverted work. Sending a new prompt instead accepts the revert and continues from that point.
+
+## Editor
+
+Set `VISUAL` or `EDITOR`, then press **Ctrl+X**, then **E**, or run `/editor`, to edit the current prompt in that editor. Save and exit to return the text to the composer, then press **Enter** to send it.
+
+```bash
+export EDITOR="nvim"
+opencode
+```
+
+The leader key is **Ctrl+X** by default. See [Keybinds](/cli/keybinds) to change these shortcuts.

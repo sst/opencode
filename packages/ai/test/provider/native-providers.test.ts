@@ -99,7 +99,7 @@ describe("native OpenAI-compatible providers", () => {
         const settings = {
           apiKey: "fixture",
           baseURL: "https://gateway.example/v1",
-          providerOptions: { reasoningEffort: "high" },
+          reasoningEffort: "high",
         }
         const selected = provider.configure(settings).model("test-model")
         expect(selected.provider).toBe(provider.id)
@@ -143,7 +143,7 @@ describe("native OpenAI-compatible providers", () => {
           tools: [
             ToolDefinition.make({ name: "lookup", description: "Look up data", inputSchema: { type: "object" } }),
           ],
-          providerOptions: { store: true },
+          store: true,
         }),
       )
 
@@ -168,7 +168,7 @@ describe("native OpenAI-compatible providers", () => {
             ]),
             Message.user("Continue."),
           ],
-          providerOptions: { store: true },
+          store: true,
         }),
       )
 
@@ -206,7 +206,7 @@ describe("native OpenAI-compatible providers", () => {
         baseURL: "https://gateway.example/v1",
         headers: { "x-application": "opencode" },
         body: { service_tier: "priority" },
-        providerOptions: { reasoningEffort: "high" },
+        reasoningEffort: "high",
       })
 
       expect(selected.route.endpoint.baseURL).toBe("https://gateway.example/v1")

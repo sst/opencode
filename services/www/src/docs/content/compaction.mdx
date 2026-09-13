@@ -2,54 +2,118 @@
 title: "Compaction"
 ---
 
-Compaction replaces the active model context from an older part of a session
-with a generated checkpoint. The checkpoint contains a structured summary and
-a serialized tail of recent context, so the agent can continue with more room
-in the model's context window.
+Compaction gives a long session more context space by replacing its older active
+context with a generated checkpoint. Earlier session messages remain stored,
+but future model requests start from the latest completed checkpoint.
 
-Compaction is lossy, but it does not delete the earlier durable session
-messages. After a successful compaction, V2 builds model requests from the
-latest completed checkpoint and the messages that follow it.
+## Start
 
-## Automatic compaction
+Automatic compaction is enabled by default. This minimal configuration keeps
+about 15,000 tokens of recent conversation beside the generated summary:
 
-Automatic compaction is enabled by default. Before a model call, V2 estimates
-the size of the final system prompt, messages, and advertised tools. It starts
-compaction when:
+```jsonc title="opencode.jsonc"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "compaction": {
+    "auto": true,
+    "keep": { "tokens": 15000 },
+    "buffer": 20000,
+  },
+}
+```
+
+Continue using the session normally. When its active context approaches the
+model limit, OpenCode creates a checkpoint and retries the pending work with
+more room. Compaction is lossy, so increase `keep.tokens` when exact recent
+details matter.
+
+## Manual
+
+Request compaction when you want a checkpoint before the automatic threshold.
+The server endpoint works even for a short history:
+
+```sh
+curl -X POST http://localhost:4096/api/session/ses_example/compact \
+  -H 'content-type: application/json' \
+  -d '{}'
+```
+
+OpenCode stores the request before waking the session. The response confirms
+admission; it does not wait for the summary. Wait for the session or follow
+`session.compaction.*` events to learn when it finishes. See the generated
+[API reference](/api) for the full operation.
+
+```json
+{
+  "data": {
+    "id": "msg_example",
+    "type": "compaction",
+    "sessionID": "ses_example",
+    "timeCreated": 1789056000000,
+    "payload": {},
+    "delivery": "steer"
+  }
+}
+```
+
+Manual requests follow these rules:
+
+| Rule | Behavior |
+| --- | --- |
+| Timing | Runs at the next safe model-step boundary. By default it runs before pending steered or queued prompts, even when a prompt was submitted first. |
+| Repeats | Requests made while one is pending merge into the pending request. |
+| Failure | Success or failure clears the wait point so pending prompts can continue. |
+| Automation | Works when `compaction.auto` is `false`. |
+
+Supply an optional message `id` to make an exact retry idempotent:
+
+```sh
+curl -X POST http://localhost:4096/api/session/ses_example/compact \
+  -H 'content-type: application/json' \
+  -d '{"id":"msg_compact_once"}'
+```
+
+Reusing that ID for another record returns a conflict.
+
+## Automatic
+
+Before each model call, OpenCode estimates the final size of the system prompt,
+messages, and advertised tools. It starts compaction at this ceiling:
 
 ```text
 estimated tokens >= min(input limit - buffer, context limit - max(output reserve, buffer))
 ```
 
-The estimate uses the latest model response's input usage plus output and newer
-content. Without usage, it estimates text, media, instructions, and tools locally.
-The output reserve is capped at 32,000 tokens; an absent input limit does not
-constrain the ceiling. Successful compaction rebuilds the request without promoting
-input again or spending another agent step.
+For example, with a 128,000-token input limit and the default 20,000-token
+buffer, the input-limit side of the ceiling is 108,000 tokens.
 
-V2 also recognizes provider errors classified as context overflow. If an
-overflow occurs before the provider produces assistant output or other retry
-evidence, V2 can compact and retry that step once. This recovery is attempted
-only when `auto` is enabled. A second overflow after recovery is returned as an error.
+```text
+128,000 - 20,000 = 108,000
+```
 
-## Manual compaction
+The estimate follows these rules:
 
-Manual compaction is available through session interfaces. See the generated [API reference](/api) for the server
-operation.
+- The latest model response's input usage is the starting point; output and
+  newer content are then added.
+- Without provider usage, OpenCode estimates text, media, instructions, and
+  tools locally.
+- The reserved model output is capped at 32,000 tokens.
+- A model without an input limit is constrained by its context limit instead.
+- A successful checkpoint rebuilds the same pending model step. It does not
+  promote the input again or spend another agent step.
 
-A manual request is durably admitted and wakes the session runner. It can
-compact short histories that would not trigger automatic compaction. By default,
-compaction runs at the next safe step boundary before pending steered or queued
-prompts, even if they were submitted first. Repeated requests while one is pending
-coalesce into that pending request. Whether compaction completes or fails, the
-barrier is then settled so pending prompts can proceed.
+OpenCode also recognizes provider errors classified as context overflow. If no
+assistant output or other retry evidence was produced, it can compact and retry
+that model step once:
 
-The server operation returns the admitted compaction input; it does not wait
-for summary generation. Clients can then wait for the session or follow the
-`session.compaction.*` events. Supplying an optional message `id` makes an exact
-retry idempotent, but reusing an ID owned by another record returns a conflict.
+```text
+model call → context overflow → compact → retry same step once
+```
 
-## Configuration
+This recovery requires `compaction.auto: true`. A second overflow is returned
+as an error.
+
+## Settings
 
 Add `compaction` to any [OpenCode configuration file](/config):
 
@@ -57,30 +121,27 @@ Add `compaction` to any [OpenCode configuration file](/config):
 {
   "$schema": "https://opencode.ai/config.json",
   "compaction": {
-    "auto": true,
-    "keep": {
-      "tokens": 15000,
-    },
-    "buffer": 20000,
+    "auto": false,
+    "keep": { "tokens": 24000 },
+    "buffer": 16000,
   },
 }
 ```
 
-| Field         | Default | V2 behavior                                                                                                                                   |
-| ------------- | ------: | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `auto`        |  `true` | Enables preflight context-size checks and one-shot provider-overflow recovery. Disabling it does not affect manual compaction.                |
-| `keep.tokens` | `15000` | Approximate number of tokens from the newest serialized conversation context to retain beside the summary.                                    |
-| `buffer`      | `20000` | Safety reserve below an explicit input limit. Without one, it is the minimum context reserve and the model output allowance wins when larger. |
+| Field | Default | Behavior |
+| --- | ---: | --- |
+| `auto` | `true` | Enables preflight checks and one provider-overflow recovery attempt. It does not control manual compaction. |
+| `keep.tokens` | `15000` | Approximate recent serialized context retained beside a local summary, or real user input retained for a provider checkpoint. |
+| `buffer` | `20000` | Safety margin below an explicit input limit. Without one, it is the minimum context reserve; a larger model output allowance wins. |
 
-`keep.tokens` and `buffer` accept non-negative integers. Larger `keep.tokens`
-preserves more recent detail but leaves less room for future work. Larger
-`buffer` triggers preflight compaction earlier.
+`keep.tokens` and `buffer` accept non-negative integers. Larger
+`keep.tokens` preserves more recent detail but leaves less room for new work;
+larger `buffer` starts automatic compaction earlier.
 
-## Provider compaction
+## Providers
 
-By default, compaction generates a local text summary. To use the selected
-provider's native compaction operation for automatic and manual requests, set a
-provider policy. An individual model's policy replaces the entire provider policy:
+Local text summaries are the default. Use a provider policy to request the
+selected provider's native compaction for both automatic and manual requests:
 
 ```jsonc title="opencode.jsonc"
 {
@@ -97,94 +158,140 @@ provider policy. An individual model's policy replaces the entire provider polic
 }
 ```
 
-- `threshold` is an optional positive integer in provider mode. Omit it to use the
-  selected model's usable input ceiling above. A configured threshold is clamped
-  to that ceiling. In this example, `gpt-5.4-mini` uses its own ceiling, not 120,000.
-- Scheduling uses the normal safe session step boundaries, not in-band provider
-  context management. `compaction.auto: false` disables all new automatic work.
-- After installing a native checkpoint, automatic checks wait for a fresh model
-  usage anchor. Encrypted checkpoint bytes are not a meaningful token count.
-- OpenAI Responses uses a streamed compaction trigger when the route supports it.
-  Endpoint-only routes use their standalone compaction endpoint. Deployment/model
-  support can vary. Transient provider failures retry under the same session retry
-  policy and plugin hook as other requests; nothing is installed until a checkpoint
-  is returned.
-- A known automatic context overflow uses local recovery over the durable original
-  history, re-expanding native checkpoints. This applies both to ordinary model
-  calls and native compaction rejection. If local recovery fails, the prior
-  checkpoint remains intact and the error surfaces. Authentication, rate limits,
-  cancellation, and other failures do not trigger local fallback. Manual native
-  compaction also surfaces errors without fallback.
-- Unsupported routes are rejected during model resolution. Configure custom
-  endpoints through provider/model `settings.baseURL`, not a `model.request` hook;
-  native compaction rejects endpoint rewrites by that hook.
-- Trigger checkpoints retain whole, real user messages and attachments up to the
-  `compaction.tokens` budget, including users retained across earlier native
-  compactions. Synthetic guidance is not retained as user input. Endpoint results
-  are stored as the provider returned them. Neither path fabricates a text summary.
-  Keep `threshold` comfortably above `tokens` plus the system prompt and tools, or
-  every step will compact again as soon as the next response reports usage.
-- Successful native checkpoints advance the instruction epoch and are replayed
-  only with a matching provider, model, protocol, and endpoint. Switching to an
-  incompatible route reuses an earlier compatible checkpoint or retained transcript.
-  Disabling automatic compaction does not remove an installed checkpoint.
+A model policy replaces the entire provider policy. In this example,
+`gpt-5.4-mini` therefore uses its own usable input ceiling rather than inheriting
+the provider's `120000` threshold.
 
-## Local checkpoint contents
+| Topic | Provider behavior |
+| --- | --- |
+| Threshold | `threshold` is an optional positive integer in provider mode. When omitted, OpenCode uses the model's usable input ceiling; when larger than that ceiling, it is clamped. |
+| Scheduling | Checkpoints run at normal safe step boundaries. `compaction.auto: false` disables all new automatic work. |
+| Usage | After a native checkpoint is installed, automatic checks wait for fresh model usage because encrypted checkpoint bytes cannot provide a meaningful token count. |
+| OpenAI | Responses routes use a streamed compaction trigger when supported; endpoint-only routes use the standalone compaction endpoint. Deployment and model support vary. |
+| Retries | Transient provider failures use the normal session retry policy and plugin hook. Nothing is installed until the provider returns a checkpoint. |
+| Routes | Unsupported routes fail during model resolution. Configure custom endpoints with provider or model `settings.baseURL`. Native compaction rejects endpoint rewrites made by a `model.request` hook. |
+| Replay | Native checkpoints are reused only with the same provider, model, protocol, and endpoint. An incompatible route falls back to an earlier compatible checkpoint or retained transcript. |
 
-V2 uses the session's selected agent, model, and variant to generate the summary.
-The request reuses the normal instructions, tool definitions, and structured
-history prefix, then appends a user message requesting a checkpoint. Context
-hooks run as they do for normal session requests.
+Choose a threshold comfortably above `keep.tokens` plus the system prompt and
+tools. For example, avoid a 20,000-token threshold when the retained input alone
+is 15,000 tokens and the prompt and tools require another 8,000:
 
-Compaction does not dispatch local tool calls or override tool choice. The
-summary must contain at least one heading from the requested template, such as
-`## Objective`. If it does not, V2 makes one additional request asking the model
-to fill in the template correctly. A second invalid response fails compaction.
-Provider-hosted tools remain subject to the selected provider's behavior.
+```text
+15,000 retained + 8,000 prompt and tools > 20,000 threshold
+```
 
-The summary records the objective, requirements, decisions, completed and active
-work, blockers, next moves, relevant files, and additional context.
+Otherwise each fresh usage report can immediately trigger another checkpoint.
+Disabling automatic compaction does not remove a checkpoint already installed.
 
-The newest serialized context up to `keep.tokens` is retained separately. This
-is not a byte-for-byte transcript: tool output is limited to 2000 characters,
-and file or media attachments become textual descriptors rather than embedded
-data. On later compactions, V2 updates the previous summary and carries forward
-its retained recent context before selecting a new tail.
+Streamed trigger checkpoints preserve whole, real user messages and attachments
+up to the `keep.tokens` budget, including user messages retained across earlier
+native checkpoints. Synthetic guidance is excluded. Standalone endpoint results
+are stored as returned; OpenCode does not fabricate a text summary for either
+native route.
 
-The completed compaction is presented to the model as historical conversation
-context, explicitly not as new instructions. Running and failed compactions are
-not included in model context.
+On a recognized automatic context overflow, OpenCode attempts local recovery
+from the original stored history, expanding native checkpoints first:
 
-## Compaction advances the instruction epoch
+```text
+native request rejected for overflow → rebuild stored history → local checkpoint
+```
 
-Conversation compaction and instruction synchronization are separate. Before
-each physical model attempt, V2 compares live instruction sources with the
-latest admitted values, before delivering pending input for that attempt.
-Ordinary changes become durable value deltas. Later changes freeze their
-model-facing text when admitted and project it as chronological System messages;
-request assembly renders only the epoch baseline from stored values.
+This applies to ordinary model calls and rejected native compaction. If recovery
+fails, the previous checkpoint remains active and the error is returned.
+Authentication, rate-limit, cancellation, and other errors do not use local
+fallback. Manual native compaction also returns errors without fallback.
 
-Completed compaction advances the instruction epoch at the exact ended-event
-sequence and makes the currently admitted values initial. It does not reread
-sources or publish an instruction event. Session movement retains instruction
-state so destination changes become chronological updates. Committed revert
-clears instruction state so the next model attempt requires one complete source
-read. See [Instructions](/instructions) for source ordering and update behavior.
+## Checkpoints
 
-## Current limitations
+For local compaction, OpenCode uses the session's selected agent, model, and
+variant. It sends the normal instructions, tools, and older history followed by
+a request for a structured checkpoint:
 
-- Compaction requires a resolvable model. Automatic scheduling needs a positive
-  catalog context limit; manual and overflow recovery do not.
-  There is no separate compaction-model setting or fallback model.
-- Summary generation can fail if the summary prompt itself cannot fit beside
-  its output allowance, the model returns no summary, or the provider fails.
-- Automatic and overflow compaction need older conversation context that can be
-  replaced. A provider overflow can still surface when there is no compressible
-  head or fixed instructions and tool schemas dominate the request.
-- Overflow recovery retries only once per step. Token estimation is heuristic,
-  so it cannot prevent every provider-specific overflow.
-- Earlier durable messages remain stored even though they are no longer in the
-  active model context.
+```md
+## Objective
+Finish the authentication migration.
 
-V1 used additional tail-turn and pruning behavior. Those V1 details are only
-migration context; the settings and behavior on this page describe V2.
+## Next Move
+- Update the callback handler.
+- Verify the login flow.
+```
+
+Context hooks run as they do for a normal session request. Local tool calls are
+not dispatched, and compaction does not override tool choice. Provider-hosted
+tools remain subject to provider behavior.
+
+The summary must contain at least one requested heading such as `## Objective`.
+An invalid response gets one corrective request; a second invalid response fails
+compaction. The template covers:
+
+- objective and requirements
+- decisions, completed work, and active work
+- blockers and next moves
+- relevant files and additional context
+
+The newest serialized context up to `keep.tokens` is retained separately from
+the summary. For example, a large tool result is represented by a shortened
+record rather than copied exactly:
+
+```text
+recent user message
+recent assistant message
+tool output (limited to 2,000 characters)
+attachment descriptor (embedded data omitted)
+```
+
+On later local compactions, OpenCode updates the previous summary, carries its
+retained recent context forward, and then selects a new tail. Completed
+checkpoints appear to the model as historical conversation, not new
+instructions. Running and failed checkpoints are excluded from model context.
+
+## Instructions
+
+Instruction updates and conversation compaction are tracked separately. Before
+each actual provider attempt, OpenCode checks live instruction sources before it
+delivers pending input. Later changes appear to the model as chronological
+system messages, while request construction renders the stored baseline.
+
+```text
+initial instructions → instruction update → completed checkpoint → new baseline
+```
+
+When compaction completes, the instruction values already accepted at that exact
+point become the new baseline. Compaction does not reread sources or emit a new
+instruction update. Moving a session keeps this state, so instructions changed
+at the destination appear chronologically. A committed revert clears it, and
+the next model attempt performs one complete source read. See
+[Instructions](/instructions) for source ordering and update behavior.
+
+## Limits
+
+| Limit | Result |
+| --- | --- |
+| Model | Compaction requires a resolvable model. There is no separate compaction model or fallback model. |
+| Catalog | Automatic scheduling requires a positive catalog context limit; manual compaction and overflow recovery do not. |
+| Summary | Generation can fail when its prompt and output allowance do not fit, the model returns no summary, or the provider fails. |
+| History | Automatic and overflow compaction require older context that can be replaced. An overflow can remain when there is no compressible history or fixed instructions and tool schemas dominate the request. |
+| Recovery | Overflow recovery retries only once per model step. Heuristic token estimates cannot prevent every provider-specific overflow. |
+| Storage | Earlier messages remain stored even when excluded from active model context. |
+
+For example, compaction cannot create room when almost the entire request is a
+fixed system prompt and tool schemas:
+
+```text
+128k context = 120k fixed instructions and tools + 8k conversation
+```
+
+## Migration
+
+V1 also used tail-turn and pruning behavior. V2 instead uses checkpoint-based
+compaction and `compaction.keep.tokens`:
+
+```jsonc
+{
+  "compaction": {
+    "keep": { "tokens": 15000 }
+  }
+}
+```
+
+The settings and behavior on this page apply to V2.

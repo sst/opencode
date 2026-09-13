@@ -9,11 +9,11 @@ test.use({ viewport: { width: 1440, height: 900 }, serviceWorkers: "block" })
 for (const window of ["assistant-only", "mixed"] as const) {
   test(`renders the ${window} latest page before parent hydration and preserves it afterward`, async ({ page }) => {
     const session = { ...fixture.sessions[0]!, id: `ses_hydration_${window}` }
-    // Both 20-message pages begin with an assistant; only page three supplies its parent.
-    const messages = Array.from({ length: 41 }, (_, index): SessionMessageInfo => {
+    // Compact's initial 40 and the next 20 begin with an assistant; page three supplies its parent.
+    const messages = Array.from({ length: 61 }, (_, index): SessionMessageInfo => {
       const id = `msg_hydration_${index}`
       const time = { created: 1700000000000 + index * 1_000 }
-      if (index === 0 || (window === "mixed" && index === 39))
+      if (index === 0 || (window === "mixed" && index === 59))
         return { id, type: "user", time, text: `Prompt ${index}` }
       return {
         id,
@@ -21,7 +21,7 @@ for (const window of ["assistant-only", "mixed"] as const) {
         time: { ...time, completed: time.created + 500 },
         model: { id: "claude-opus-4-6", providerID: "opencode" },
         agent: "build",
-        content: [{ type: "text", text: index === 40 ? "## Hydrated tail\n\n**Ready.**" : `Answer ${index}` }],
+        content: [{ type: "text", text: index === 60 ? "## Hydrated tail\n\n**Ready.**" : `Answer ${index}` }],
       }
     })
     const gates = [21, 1].map((index) => ({
@@ -43,18 +43,18 @@ for (const window of ["assistant-only", "mixed"] as const) {
         await gate.release.promise
       },
       pageMessages: (_, limit, before) => {
-        expect(limit).toBe(20)
+        expect(limit).toBe(before ? 20 : 40)
         const end = before ? messages.findIndex((message) => message.id === before) : messages.length
         const start = Math.max(0, end - limit)
         return { items: messages.slice(start, end), cursor: start > 0 ? messages[start]!.id : undefined }
       },
     })
-    const tail = page.locator('[data-timeline-part-id="msg_hydration_40:text:0"]')
+    const tail = page.locator('[data-timeline-part-id="msg_hydration_60:text:0"]')
     const markdown = tail.locator('[data-component="markdown"]')
     const content = page.locator("[data-timeline-virtual-content]", { has: tail })
     const viewport = page.locator(".scroll-view__viewport", { has: tail })
     const orphan = page.locator('[data-timeline-row="AssistantPart"]', {
-      has: page.locator('[data-timeline-part-id="msg_hydration_38:text:0"]'),
+      has: page.locator('[data-timeline-part-id="msg_hydration_58:text:0"]'),
     })
     const expectReadyTail = async () => {
       await expect(content).toHaveCSS("visibility", "visible")
@@ -75,7 +75,7 @@ for (const window of ["assistant-only", "mixed"] as const) {
       await expect(orphan).toHaveAttribute("data-message-id", "msg_hydration_21")
       if (window === "mixed")
         await expect(
-          page.locator('[data-timeline-row="UserMessage"][data-message-id="msg_hydration_39"]'),
+          page.locator('[data-timeline-row="UserMessage"][data-message-id="msg_hydration_59"]'),
         ).toBeInViewport()
       const original = await markdown.elementHandle()
 

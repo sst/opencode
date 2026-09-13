@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
-APP=opencode2
+APP=opencode
+SOURCE_APP=opencode
 
 MUTED='\033[0;2m'
 RED='\033[0;31m'
@@ -22,7 +23,7 @@ Options:
 Examples:
     curl -fsSL https://opencode.ai/v2/install | bash
     curl -fsSL https://opencode.ai/v2/install | bash -s -- --version 0.0.0-beta-17236
-    ./install --binary /path/to/opencode2
+    ./install --binary /path/to/opencode
 EOF
 }
 
@@ -201,9 +202,9 @@ else
 
     filename="cli-$target-$specific_version.tgz"
     url="https://registry.npmjs.org/$package_name/-/$filename"
-    binary_name="$APP"
+    binary_name="$SOURCE_APP"
     if [ "$os" = "windows" ]; then
-        binary_name="$APP.exe"
+        binary_name="$SOURCE_APP.exe"
     fi
 fi
 
@@ -230,12 +231,7 @@ check_version() {
         installed_version="${installed_version##* }"
         installed_version="${installed_version#v}"
 
-        if [[ "$installed_version" != "$specific_version" ]]; then
-            print_message info "${MUTED}Installed version: ${NC}$installed_version."
-        else
-            print_message info "${MUTED}Version ${NC}$specific_version${MUTED} already installed"
-            exit 0
-        fi
+        print_message info "${MUTED}Installed version: ${NC}$installed_version."
     fi
 }
 
@@ -340,15 +336,46 @@ download_and_install() {
     fi
 
     tar -xzf "$tmp_dir/$filename" -C "$tmp_dir"
-    mv "$tmp_dir/package/bin/$binary_name" "$INSTALL_DIR"
-    chmod 755 "${INSTALL_DIR}/$binary_name"
+    local installed_binary="$APP"
+    if [ "$os" = "windows" ]; then
+        installed_binary="$APP.exe"
+    fi
+    mv "$tmp_dir/package/bin/$binary_name" "$INSTALL_DIR/$installed_binary"
+    chmod 755 "$INSTALL_DIR/$installed_binary"
     rm -rf "$tmp_dir"
 }
 
 install_from_binary() {
     print_message info "\n${MUTED}Installing ${NC}$APP ${MUTED}from: ${NC}$binary_path"
-    cp "$binary_path" "${INSTALL_DIR}/$APP"
-    chmod 755 "${INSTALL_DIR}/$APP"
+    local installed_binary="$APP"
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*) installed_binary="$APP.exe" ;;
+    esac
+    cp "$binary_path" "$INSTALL_DIR/$installed_binary"
+    chmod 755 "$INSTALL_DIR/$installed_binary"
+}
+
+install_legacy_shim() {
+    local shim_os="${os:-}"
+    if [[ -z "$shim_os" ]]; then
+        case "$(uname -s)" in
+            MINGW*|MSYS*|CYGWIN*) shim_os="windows" ;;
+        esac
+    fi
+    rm -f "$INSTALL_DIR/opencode2" "$INSTALL_DIR/opencode2.exe" "$INSTALL_DIR/opencode2.cmd"
+    if [[ "$shim_os" == "windows" ]]; then
+        cat > "$INSTALL_DIR/opencode2.cmd" <<'EOF'
+@echo off
+"%~dp0opencode.exe" %*
+exit /b %errorlevel%
+EOF
+        return
+    fi
+    cat > "$INSTALL_DIR/opencode2" <<'EOF'
+#!/bin/sh
+exec "$(dirname "$0")/opencode" "$@"
+EOF
+    chmod 755 "$INSTALL_DIR/opencode2"
 }
 
 if [ -n "$binary_path" ]; then
@@ -357,6 +384,7 @@ else
     check_version
     download_and_install
 fi
+install_legacy_shim
 
 
 add_to_path() {
@@ -453,7 +481,7 @@ echo -e ""
 echo -e "${MUTED}OpenCode includes free models, to start:${NC}"
 echo -e ""
 echo -e "cd <project>  ${MUTED}# Open directory${NC}"
-echo -e "opencode2     ${MUTED}# Run command${NC}"
+echo -e "opencode      ${MUTED}# Run command${NC}"
 echo -e ""
 echo -e "${MUTED}For more information visit ${NC}https://opencode.ai/v2/docs"
 echo -e ""

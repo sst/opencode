@@ -26,8 +26,7 @@ title/body for the user.
 
 Collect these values when possible:
 
-- opencode version: run `opencode --version` or `opencode2 --version`,
-  depending on the executable in use.
+- opencode version: run `opencode --version`.
 - Operating system: run `uname -a` on Unix-like systems, or `ver` on Windows.
 - Terminal: inspect `$TERM`, `$TERM_PROGRAM`, `$COLORTERM`, and any obvious
   terminal app context the user provides.

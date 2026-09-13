@@ -23,7 +23,7 @@ const sessions = {
   "child-b": session("child-b", "Second", "parent"),
 }
 
-const shells = [shell("sh-a", "bun test"), shell("sh-b", "bun dev")]
+const shells = [shell("sh-a", "bun test"), shell("sh-b", "bun dev"), shell("sh-c", "python3 - <<'PY'\nimport json")]
 
 async function renderComposer(
   defaultTab: "subagents" | "shell",
@@ -186,6 +186,17 @@ test("disabled shell bindings have no component fallbacks", async () => {
     composer.dispatch("composer.shell.kill")
     await wait(() => composer.removed.length === 1)
     expect(composer.removed).toEqual(["sh-a"])
+  } finally {
+    composer.app.renderer.destroy()
+  }
+})
+
+test("shell list shows one line per command", async () => {
+  const composer = await renderComposer("shell", {})
+  try {
+    const frame = composer.app.captureCharFrame()
+    expect(frame).toContain("python3 - <<'PY'")
+    expect(frame).not.toContain("import json")
   } finally {
     composer.app.renderer.destroy()
   }

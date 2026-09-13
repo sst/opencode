@@ -2,13 +2,104 @@
 title: "Snapshots"
 ---
 
-OpenCode snapshots let clients roll back conversation history and related file changes. They are a convenience for
-revising recent work, not a replacement for Git commits or backups.
+Snapshots let you undo recent conversation and file changes together. Use them to revise recent work, but keep Git commits
+or backups for anything important.
 
-## Configuration
+## Workflow
 
-Snapshots are enabled by default. Set `snapshots` to `false` in your [configuration](/config#snapshots) to stop capturing
-filesystem state:
+Run `/undo` after a response you want to revise. OpenCode stages the rollback, restores the affected files, and puts the
+removed prompt back in the composer so you can edit it.
+
+```text
+/undo
+
+# Edit the restored prompt, then submit it again.
+Add validation without changing the public API.
+```
+
+Submitting the edited prompt commits the staged rollback. Before submitting, run `/redo` to cancel it and restore the
+conversation and files you had before `/undo`.
+
+```text
+/redo
+```
+
+The terminal also provides default shortcuts:
+
+| Action | Command | Shortcut |
+| --- | --- | --- |
+| Stage the previous message rollback | `/undo` | `<leader>u` |
+| Cancel the staged rollback | `/redo` | `<leader>r` |
+
+You can also select an earlier message and choose **Revert** to stage a rollback to that point.
+
+## Capture
+
+For each model step, OpenCode attempts a snapshot immediately before the model call and another when the step reaches a
+recorded success or failure. The assistant message records which paths changed between those snapshots.
+
+```text
+before model step ── snapshot A
+model edits src/api.ts
+step finishes ────── snapshot B ── changed: src/api.ts
+```
+
+Capture is best effort. If either snapshot is unavailable, the conversation continues, but that step may not have file
+changes available to restore.
+
+## Scope
+
+Snapshots cover the session's active directory inside a Git worktree. For example, a session opened in `packages/app`
+captures eligible files below `packages/app`, not changes elsewhere in the repository.
+
+| Content | Captured | Example |
+| --- | --- | --- |
+| Tracked files in the active directory | Yes | `packages/app/src/app.tsx` |
+| Non-ignored untracked files up to 2 MiB each | Yes | `packages/app/notes.txt` |
+| Git-ignored files | No | `packages/app/dist/app.js` |
+| Individual untracked files larger than 2 MiB | No | `packages/app/debug.log` |
+| Files outside the active directory | No | `packages/server/src/index.ts` |
+| Git metadata and other side effects | No | commits, branches, databases, or processes |
+
+Filesystem snapshots require a Git repository. Outside one, `/undo` can still roll back conversation history, but it
+cannot restore files.
+
+## Restore
+
+A rollback restores only paths attributed to assistant steps after the selected conversation boundary. Each path returns
+to its state before the first reverted step; a file created by those steps is removed if it did not exist then.
+
+| Timeline | `src/api.ts` | `src/new.ts` |
+| --- | --- | --- |
+| Selected boundary | version A | missing |
+| Later assistant steps | version B | created |
+| After rollback | version A | removed |
+
+Paths not attributed to those steps are left alone. Current edits to an affected path can be overwritten, so review the
+restored summary and `git diff` before continuing.
+
+```sh
+git diff --stat
+git diff
+```
+
+## Storage
+
+OpenCode stores snapshots locally in a separate internal Git object database under its data directory. Snapshot capture
+does not create commits, move branches, or intentionally change your repository's index.
+
+```sh
+# Your repository remains an ordinary dirty worktree after capture.
+git status --short
+```
+
+Snapshot objects can contain the complete contents of tracked and eligible untracked files. Treat the OpenCode data
+directory as sensitive local data.
+
+## Settings
+
+Snapshots are enabled by default. Set `snapshots` to `false` in your [configuration](/config#snapshots) to stop future
+filesystem capture.
 
 ```jsonc title="opencode.jsonc"
 {
@@ -17,47 +108,20 @@ filesystem state:
 }
 ```
 
-Filesystem snapshots require a Git repository. With snapshots disabled, unavailable, or missing, a client can still
-request a conversation rollback, but there is no captured file state to restore. Disabling snapshots does not delete
-snapshots that were already stored.
+Disabling snapshots does not delete snapshots already stored. Conversation rollback remains available, but without a
+captured filesystem state it cannot restore related file changes.
 
-## What is captured
+## Safety
 
-For each model step, OpenCode attempts to capture the worktree immediately before the model call and after a cleanly
-completed step. It records the paths changed between those two points on the assistant message.
+Snapshots are a convenience, not a transaction or backup:
 
-Snapshots use a separate internal Git object database in the OpenCode data directory. They do not create commits, move
-branches, or intentionally modify your repository's Git index. Capture is limited to the session's active directory, which
-may be a subdirectory of the repository.
+- Shell commands can change services, processes, network resources, databases, Git state, ignored output, or files outside
+  the active directory. Restoring a snapshot does not reverse those effects.
+- Interrupted or failed work can leave changes when capture fails or no usable snapshot pair exists.
+- Restoring affected paths overwrites their current contents. Cancelling a staged rollback can also overwrite later edits.
+- OpenCode rejects rollback operations while the session is running, but external editors and commands can still change
+  the worktree between capture and restoration.
+- Committing a rollback removes messages from the active conversation view, not from durable session history or existing
+  snapshot storage. It is not secure erasure.
 
-Within that directory, snapshots include tracked files and untracked files that are not ignored by Git. An individual
-untracked file larger than 2 MiB is excluded. Ignored files, files outside the active directory, and changes to Git
-metadata are not captured.
-
-## Restoration
-
-A restoration selects a conversation boundary and restores only paths attributed to cleanly completed assistant steps
-after it. Each affected path returns to its state before the first restored step, and a file created by those steps is
-removed when it did not exist in the earlier snapshot.
-
-Clients may stage a restoration before committing it so the previous conversation and filesystem state can still be
-recovered.
-
-## Limitations and safety
-
-- Capture is best effort. A failed capture is logged and the model step continues, so conversation rollback may have no
-  matching file rollback.
-- Interrupted or failed steps do not receive a completed end snapshot. File changes made before the failure may remain.
-- Shell commands can change databases, services, processes, network resources, Git state, ignored build output, or files
-  outside the active directory. Snapshot restoration does not reverse those side effects.
-- Restoring a snapshot overwrites the current contents of affected paths. Recovering the pre-restoration state can also
-  overwrite edits made after the restoration was staged.
-- Other processes can edit the worktree between capture and restore. The server rejects revert operations while the
-  session is actively running, but it cannot protect against external editors or commands.
-- Snapshot objects can contain complete contents of tracked and non-ignored untracked files. They are stored locally in
-  the OpenCode data directory; do not treat snapshots as secret-free metadata.
-- Snapshot restoration is not secure erasure. Committing a revert removes messages from the active projection, not from
-  durable session history or existing snapshot storage.
-
-Review the restored file summary and your Git diff before continuing. Commit or back up important work independently
-before restoring snapshots on a dirty worktree.
+Commit or back up important work before using `/undo` on a dirty worktree.

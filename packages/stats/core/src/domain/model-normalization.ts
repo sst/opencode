@@ -14,6 +14,7 @@ export const MODEL_AUTHOR_RULES = [
 ] as const
 export const EXCLUDED_MODELS = new Set(["alpha-gpt-next"])
 export const MODEL_NAME_ALIASES: Record<string, string> = {
+  "deepseek-flash": "deepseek-v4.1-flash",
   "x-preview-f": "ox-alpha",
   "xiaomi/mimo-v2.5": "mimo-v2.5",
 }

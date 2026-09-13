@@ -1,7 +1,12 @@
 import type { Browser } from "@opencode/plugin-browser/rpc"
 
 export type BrowserPaneEndpoint = Readonly<{ url: string; username?: string; password?: string }>
-export type BrowserPaneTarget = Readonly<{ sessionID: string; endpoint: BrowserPaneEndpoint }>
+export type BrowserPaneTarget = Readonly<{
+  serverKey: string
+  sessionID: string
+  endpoint: BrowserPaneEndpoint
+  restore?: Browser.State
+}>
 export type BrowserPaneLayout = {
   tabID: Browser.TabID
   visible: boolean

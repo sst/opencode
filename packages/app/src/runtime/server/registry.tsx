@@ -5,6 +5,7 @@ import { Persist, persisted } from "@/runtime/persistence/storage"
 import { pathKey } from "@/workspaces/path-key"
 import { ServerScope } from "@/runtime/server/scope"
 import { ServerHttp, ServerHttpBase, ServerKey, serverState } from "./persistence"
+import type { SshItem } from "@/servers/ssh/types"
 
 type ServerState = ReturnType<typeof serverState>["current"]["Type"]
 // The store retains more history than is displayed. Consumers filter recently closed entries
@@ -24,6 +25,7 @@ export function normalizeServerUrl(input: string) {
 export function serverName(conn?: ServerConnection.Any, ignoreDisplayName = false) {
   if (!conn) return ""
   if (conn.displayName && !ignoreDisplayName) return conn.displayName
+  if (conn.type === "ssh") return conn.host
   return conn.http.url.replace(/^https?:\/\//, "").replace(/\/+$/, "")
 }
 
@@ -159,9 +161,14 @@ export namespace ServerConnection {
   // Remote server desktop can SSH into
   export type Ssh = {
     type: "ssh"
+    stage?: SshItem["stage"]
+    connecting?: boolean
+    authenticationRequired?: boolean
+    id?: string
     host: string
     // SSH client exposes an HTTP server for the app to use as a proxy
     http: HttpBase
+    reconnect?: (signal: AbortSignal) => Promise<HttpBase>
   } & Base
 
   export type Any =
@@ -178,7 +185,7 @@ export namespace ServerConnection {
         return Key.make("sidecar")
       }
       case "ssh":
-        return Key.make(`ssh:${conn.host}`)
+        return Key.make(`ssh:${conn.id ?? conn.host}`)
     }
   }
 

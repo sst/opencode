@@ -20,11 +20,11 @@ export type Config = RouteDefaultsInput &
     readonly providerOptions?: Gemini.ProviderOptionsInput
   }
 
-export interface Settings extends ProviderPackage.Settings {
-  readonly apiKey?: string
-  readonly baseURL?: string
-  readonly providerOptions?: Gemini.ProviderOptionsInput
-}
+export type Settings = ProviderPackage.Settings &
+  Gemini.ProviderOptionsInput & {
+    readonly apiKey?: string
+    readonly baseURL?: string
+  }
 
 const auth = (options: ProviderAuthOption<"optional">) => {
   if ("auth" in options && options.auth) return options.auth
@@ -57,13 +57,16 @@ export const configure = (input: Config = {}) => {
 }
 
 export const provider = configure()
-export const model: ProviderPackage.Definition<Settings, Gemini.ProviderOptionsInput>["model"] = (modelID, settings) =>
+export const model: ProviderPackage.Definition<Settings, Gemini.ProviderOptionsInput>["model"] = (
+  modelID,
+  { apiKey, baseURL, body, headers, ...providerOptions },
+) =>
   configure({
-    apiKey: settings.apiKey,
-    baseURL: settings.baseURL,
-    headers: settings.headers === undefined ? undefined : { ...settings.headers },
-    http: settings.body === undefined ? undefined : { body: { ...settings.body } },
-    providerOptions: settings.providerOptions,
+    apiKey,
+    baseURL,
+    headers: headers === undefined ? undefined : { ...headers },
+    http: body === undefined ? undefined : { body: { ...body } },
+    providerOptions,
   }).model(modelID)
 
 export const image = provider.image

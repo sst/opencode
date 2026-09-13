@@ -33,7 +33,7 @@ for (const open of [true, false]) {
         await root.getByRole("button", { name: "Append tool call", exact: true }).click()
         await expect(
           group.locator('[data-component="context-tool-group-trigger"] [data-slot="basic-tool-tool-title"]'),
-        ).toHaveText(`${count} Shell, Patch`)
+        ).toHaveText("Shell, Patch")
         await expect(trigger).toHaveAccessibleName(`Used ${count} Shell, Patch`)
         await expect(diff).toBeVisible()
         await root

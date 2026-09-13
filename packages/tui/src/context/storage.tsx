@@ -139,3 +139,7 @@ export function useStorage() {
   if (!storage) throw new Error("StorageProvider is missing")
   return storage
 }
+
+export function useStorageOptional() {
+  return useContext(Context)
+}

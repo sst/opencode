@@ -99,6 +99,22 @@ Unknown command IDs are rejected.
 | `service.restart`          | `none`                    | Restart service                     |
 | `permission.mode`          | `none`                    | Toggle auto-approve permissions     |
 
+## Mini
+
+The `app.clear` command works only in [`opencode mini`](/cli). Press `ctrl+l` to clear the visible screen and draw the prompt again. The terminal keeps the scrollback.
+
+```json title="cli.json"
+{
+  "keybinds": {
+    "app.clear": "ctrl+l"
+  }
+}
+```
+
+| ID          | Default  | Description      |
+| ----------- | -------- | ---------------- |
+| `app.clear` | `ctrl+l` | Clear the screen |
+
 ## Diff Viewer
 
 Press `d` (`diff.switch_source`) to choose **All**, **Committed**, or **Uncommitted**, or select **Base** to change the comparison branch. Choices are remembered until the TUI exits. Set the initial scope with [`diffs.source` in `cli.json`](/cli/config#diffs).

@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "metadata": {
+    "tags": [
+      "prefix:alibaba-messages",
+      "provider:alibaba",
+      "protocol:alibaba-messages",
+      "region:ap-southeast-1",
+      "thinking",
+      "usage"
+    ],
+    "name": "alibaba-messages/qwen-3-7-plus-streams-thinking-disabled",
+    "recordedAt": "2026-09-08T03:10:57.819Z"
+  },
+  "interactions": [
+    {
+      "transport": "http",
+      "request": {
+        "method": "POST",
+        "url": "https://dashscope-intl.aliyuncs.com/apps/anthropic/v1/messages",
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"model\":\"qwen3.7-plus\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"What is 173 multiplied by 219? Reply with only the final integer.\"}]}],\"stream\":true,\"max_tokens\":4096,\"thinking\":{\"type\":\"disabled\"}}"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/event-stream"
+        },
+        "body": "event:ping\ndata:{\"type\":\"ping\"}\n\nevent:message_start\ndata:{\"message\":{\"model\":\"qwen3.7-plus\",\"id\":\"msg_c4d58b4f-a61d-9d0c-a9e4-cb45d34b1120\",\"role\":\"assistant\",\"type\":\"message\",\"content\":[],\"usage\":{\"input_tokens\":20,\"output_tokens\":0}},\"type\":\"message_start\"}\n\nevent:content_block_start\ndata:{\"type\":\"content_block_start\",\"content_block\":{\"type\":\"text\",\"text\":\"\"},\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"text_delta\",\"text\":\"3\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"text_delta\",\"text\":\"7887\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_stop\ndata:{\"type\":\"content_block_stop\",\"index\":0}\n\nevent:message_delta\ndata:{\"delta\":{\"stop_reason\":\"end_turn\"},\"type\":\"message_delta\",\"usage\":{\"output_tokens\":5,\"cache_creation_input_tokens\":0,\"input_tokens\":32,\"cache_read_input_tokens\":0,\"prompt_tokens_details\":{\"cached_tokens\":0}}}\n\nevent:message_stop\ndata:{\"type\":\"message_stop\"}\n\n"
+      }
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 import { createSimpleContext } from "@opencode/ui/context"
 import { base64Encode } from "@opencode/util/encode"
 import { useParams } from "@solidjs/router"
-import { batch, createEffect, createMemo, startTransition } from "solid-js"
+import { batch, createEffect, createMemo, onCleanup } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Schema, SchemaGetter } from "effect"
 import { useModels } from "@/providers/models/models"
@@ -16,6 +16,7 @@ import { useData } from "@/runtime/server/current"
 import { normalizeAgentList } from "@/runtime/server/global-sync/utils"
 import { useServerSDK } from "@/runtime/server/client"
 import { ScopedKey, type ServerScope } from "@/runtime/server/scope"
+import { useConfiguredModel } from "./configured"
 
 const ModelKeySchema = Schema.Struct({
   providerID: Schema.String,
@@ -24,10 +25,14 @@ const ModelKeySchema = Schema.Struct({
 })
 export type ModelKey = typeof ModelKeySchema.Type
 
-const StateSchema = Schema.Struct({
-  agent: Persistence.optional(Schema.String),
+const ChoiceSchema = Schema.Struct({
   model: Persistence.optional(ModelKeySchema),
   variant: Persistence.optional(Schema.NullOr(Schema.String)),
+})
+const StateSchema = Schema.Struct({
+  ...ChoiceSchema.fields,
+  agent: Persistence.optional(Schema.String),
+  choices: Persistence.optional(Schema.Record(Schema.String, ChoiceSchema)),
 })
 type State = typeof StateSchema.Type
 
@@ -78,6 +83,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     const providers = useProviders(() => sdk().directory)
     const models = useModels()
     const settings = useSettings()
+    const configuredModel = useConfiguredModel()
 
     const id = createMemo(() => params.id || undefined)
     const list = createMemo(() =>
@@ -98,16 +104,9 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       current?: string
       draft?: State
       promoting?: State
-      last?: {
-        type: "agent" | "model" | "variant"
-        agent?: string
-        model?: ModelKey | null
-        variant?: string | null
-      }
     }>({
       current: list()[0]?.name,
       draft: undefined,
-      last: undefined,
     })
 
     const validModel = (model: ModelKey) => {
@@ -176,13 +175,17 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       }
     }
 
-    const fallback = createMemo<ModelKey | undefined>(() => recentModel() ?? defaultModel())
+    const fallback = createMemo(() => firstModel(configuredModel, recentModel, defaultModel))
+    const durable = () => {
+      const session = id()
+      return session ? data.session.get(session) : undefined
+    }
 
     const agent = {
       list,
       visible: agentsVisible,
       current() {
-        return pickAgent(agentsVisible() ? (scope()?.agent ?? store.current) : "build")
+        return pickAgent(scope()?.agent ?? durable()?.agent ?? (agentsVisible() ? store.current : "build"))
       },
       set(name: string | undefined) {
         const item = pickAgent(name)
@@ -192,25 +195,24 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         }
 
         batch(() => {
-          setStore("current", item.name)
-          setStore("last", {
-            type: "agent",
-            agent: item.name,
-            model: item.model,
-            variant: item.variant ?? null,
-          })
+          const previous = snapshot()
+          if (previous.agent === item.name) return
           const prev = scope()
+          const choices = {
+            ...prev?.choices,
+            ...(previous.agent ? { [previous.agent]: { model: previous.model, variant: previous.variant } } : {}),
+          }
+          setStore("current", item.name)
           const next = {
             agent: item.name,
-            model: item.model ?? prev?.model,
-            variant: item.variant ?? prev?.variant,
+            model: choices[item.name]?.model,
+            variant: choices[item.name]?.variant,
+            choices,
           } satisfies State
-          const session = id()
-          if (session) {
-            setSaved("session", session, next)
-            return
-          }
-          setStore("draft", next)
+          write(next)
+          // Pin both choices while the agent and model acknowledgments arrive separately.
+          const selected = current()
+          if (selected) model.set({ providerID: selected.provider.id, modelID: selected.id })
         })
       },
       move(direction: 1 | -1) {
@@ -230,8 +232,15 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     }
 
     const current = createMemo(() => {
+      if (!configuredModel.ready()) return
       const item = firstModel(
         () => scope()?.model,
+        () => {
+          const session = durable()
+          if (session?.agent && session.agent !== agent.current()?.name) return
+          const model = session?.model
+          return model && { providerID: model.providerID, modelID: model.id }
+        },
         () => agent.current()?.model,
         fallback,
       )
@@ -243,26 +252,41 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       const item = agent.current()
       const model = current()
       if (!item || !model) return
-      return getConfiguredAgentVariant({
-        agent: { model: item.model, variant: item.variant },
-        model: { providerID: model.provider.id, modelID: model.id, variants: model.variants },
-      })
+      const global = configuredModel()
+      return (
+        getConfiguredAgentVariant({
+          agent: { model: item.model, variant: item.variant },
+          model: { providerID: model.provider.id, modelID: model.id, variants: model.variants },
+        }) ??
+        getConfiguredAgentVariant({
+          agent: { model: global, variant: global?.variant },
+          model: { providerID: model.provider.id, modelID: model.id, variants: model.variants },
+        })
+      )
     }
 
-    const selected = () => scope()?.variant
+    const selected = () => {
+      const draft = scope()
+      if (draft?.model && validModel(draft.model)) return draft.variant
+      const session = durable()
+      if (session?.agent && session.agent !== agent.current()?.name) return
+      const value = session?.model
+      if (value && validModel({ providerID: value.providerID, modelID: value.id })) return value.variant ?? null
+    }
 
     const snapshot = () => {
-      const model = current()
+      const selected = current()
       return {
         agent: agent.current()?.name,
-        model: model ? { providerID: model.provider.id, modelID: model.id } : undefined,
-        variant: selected(),
+        model: selected ? { providerID: selected.provider.id, modelID: selected.id } : undefined,
+        variant: selected ? (model.variant.current() ?? null) : undefined,
       } satisfies State
     }
 
     const write = (next: Partial<State>) => {
       const state = {
-        ...(scope() ?? { agent: agent.current()?.name }),
+        ...scope(),
+        agent: agent.current()?.name,
         ...next,
       } satisfies State
 
@@ -274,22 +298,59 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       setStore("draft", state)
     }
 
-    const recent = createMemo(() => models.recent.list().map(models.find).filter(Boolean))
+    const recent = createMemo(() => models.recent.list().filter(validModel).map(models.find).filter(Boolean))
+    const pending = new Map<string, State>()
+    const sameSelection = (a: State, b: State) =>
+      a.agent === b.agent &&
+      a.model?.providerID === b.model?.providerID &&
+      a.model?.modelID === b.model?.modelID &&
+      (a.variant ?? "default") === (b.variant ?? "default")
+
+    const reconcile = (sessionID: string) => {
+      const expected = pending.get(sessionID)
+      const session = data.session.get(sessionID)
+      if (!expected || !session?.model) return
+      if (
+        !sameSelection(expected, {
+          agent: session.agent,
+          model: { providerID: session.model.providerID, modelID: session.model.id },
+          variant: session.model.variant,
+        })
+      )
+        return
+      pending.delete(sessionID)
+      const draft = saved.session[sessionID]
+      if (id() !== sessionID || !draft || !sameSelection(draft, expected)) return
+      setSaved("session", sessionID, { agent: undefined, model: undefined, variant: undefined })
+    }
+    onCleanup(serverSDK.event.on("session.model.selected", (event) => reconcile(event.data.sessionID)))
+    onCleanup(serverSDK.event.on("session.agent.selected", (event) => reconcile(event.data.sessionID)))
+    onCleanup(
+      serverSDK.event.on("session.deleted", (event) => {
+        pending.delete(event.data.sessionID)
+        setSaved("session", event.data.sessionID, undefined)
+      }),
+    )
 
     const model = {
-      ready: models.ready,
+      ready: Object.assign(() => models.ready() && configuredModel.ready(), { promise: models.ready.promise }),
       current,
       recent,
       list: models.list,
+      trackSessionCommit(sessionID: string, selection: { agent: string; model: ModelKey; variant?: string }) {
+        pending.set(sessionID, selection)
+        reconcile(sessionID)
+        return () => {
+          if (pending.get(sessionID) === selection) pending.delete(sessionID)
+        }
+      },
       cycle(direction: 1 | -1) {
         const items = recent()
         const item = current()
         if (!item) return
 
         const index = items.findIndex((entry) => entry?.provider.id === item.provider.id && entry?.id === item.id)
-        if (index === -1) return
-
-        let next = index + direction
+        let next = index === -1 ? (direction === 1 ? 0 : items.length - 1) : index + direction
         if (next < 0) next = items.length - 1
         if (next >= items.length) next = 0
 
@@ -298,21 +359,18 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         model.set({ providerID: entry.provider.id, modelID: entry.id })
       },
       set(item: ModelKey | undefined, options?: { recent?: boolean }) {
-        startTransition(() =>
-          batch(() => {
-            setStore("last", {
-              type: "model",
-              agent: agent.current()?.name,
-              model: item ?? null,
-              variant: selected(),
-            })
-            write({ model: item })
-            if (!item) return
-            models.setVisibility(item, true)
-            if (!options?.recent) return
-            models.recent.push(item)
-          }),
-        )
+        batch(() => {
+          if (item && !validModel(item)) return
+          const previous = current()
+          const same = item && previous?.provider.id === item.providerID && previous.id === item.modelID
+          write({ model: item, variant: same ? (model.variant.current() ?? null) : undefined })
+          if (!item) return
+          // A session draft owns its variant even when preferences change in another session.
+          if (id() && !same) write({ variant: model.variant.current() ?? null })
+          models.setVisibility(item, true)
+          if (!options?.recent) return
+          models.recent.push(item)
+        })
       },
       visible(item: ModelKey) {
         return models.visible(item)
@@ -324,16 +382,13 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         configured,
         selected,
         current() {
-          const resolved = resolveModelVariant({
+          const model = current()
+          return resolveModelVariant({
             variants: this.list(),
             selected: this.selected(),
             configured: this.configured(),
+            preferred: model ? models.variant.get({ providerID: model.provider.id, modelID: model.id }) : undefined,
           })
-          if (resolved) return resolved
-          const model = current()
-          if (!model) return
-          const saved = models.variant.get({ providerID: model.provider.id, modelID: model.id })
-          if (saved && this.list().includes(saved)) return saved
         },
         list() {
           const item = current()
@@ -341,21 +396,12 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           return Object.keys(item.variants)
         },
         set(value: string | undefined) {
-          startTransition(() =>
-            batch(() => {
-              const model = current()
-              setStore("last", {
-                type: "variant",
-                agent: agent.current()?.name,
-                model: model ? { providerID: model.provider.id, modelID: model.id } : null,
-                variant: value ?? null,
-              })
-              write({ variant: value ?? null })
-              if (model) {
-                models.variant.set({ providerID: model.provider.id, modelID: model.id }, value ?? undefined)
-              }
-            }),
-          )
+          batch(() => {
+            const model = current()
+            if (!model) return
+            write({ model: { providerID: model.provider.id, modelID: model.id }, variant: value ?? null })
+            models.variant.set({ providerID: model.provider.id, modelID: model.id }, value)
+          })
         },
         cycle() {
           const items = this.list()
@@ -363,8 +409,8 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           this.set(
             cycleModelVariant({
               variants: items,
-              selected: this.selected(),
-              configured: this.configured(),
+              selected: this.current() ?? null,
+              configured: undefined,
             }),
           )
         },
@@ -383,20 +429,34 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         promote(dir: string, session: string, state?: State) {
           const next = clone(state ?? snapshot())
           if (!next) return
+          // Creation already owns the active selection; keep only agent memory once it is in the read model.
+          // Otherwise a first-message command's configured overrides would stay hidden behind this handoff.
+          const created = data.session.get(session)
+          const selection = created?.model
+          const committed =
+            selection &&
+            sameSelection(next, {
+              agent: created.agent,
+              model: { providerID: selection.providerID, modelID: selection.id },
+              variant: selection.variant,
+            })
+              ? { choices: next.choices }
+              : next
           const key = handoffKey(serverSDK.scope, dir, session)
-          handoff.set(key, next)
+          handoff.set(key, committed)
 
           if (dir === sdk().directory) {
-            setSaved("session", session, next)
+            setSaved("session", session, committed)
           }
 
-          setStore("promoting", next)
+          setStore("promoting", committed)
           setStore("draft", undefined)
         },
         restore(msg: { sessionID: string; agent: string; model: ModelKey }) {
           const session = id()
           if (!session) return
           if (msg.sessionID !== session) return
+          if (durable()?.model) return
           if (saved.session[session] !== undefined) return
           if (handoff.has(handoffKey(serverSDK.scope, sdk().directory, session))) return
 
@@ -412,4 +472,5 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
   },
 })
 
-export type ModelSelection = ReturnType<typeof useLocal>["model"]
+export type ModelSelection = Omit<ReturnType<typeof useLocal>["model"], "trackSessionCommit"> &
+  Partial<Pick<ReturnType<typeof useLocal>["model"], "trackSessionCommit">>

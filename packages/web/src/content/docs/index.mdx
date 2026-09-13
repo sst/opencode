@@ -8,8 +8,8 @@ import config from "../../../config.mjs"
 export const console = config.console
 
 :::note
-OpenCode 1 installs and runs as `opencode`. OpenCode 2 installs separately as `opencode2`, so you can keep both versions
-installed and run them side by side. See the [OpenCode 2 docs](https://opencode.ai/v2/docs/) to install V2.
+OpenCode 1 and OpenCode 2 both use the `opencode` command and cannot be installed side by side under their default command.
+See the [OpenCode 2 docs](https://opencode.ai/v2/docs/) to migrate to V2.
 :::
 
 [**OpenCode**](/) is an open source AI coding agent. It's available as a terminal-based interface, desktop app, or IDE extension.
@@ -37,7 +37,7 @@ To use OpenCode in your terminal, you'll need:
 ## Install
 
 The easiest way to install OpenCode 1 is through the install script. These installation methods provide the `opencode`
-binary and do not replace an `opencode2` installation.
+binary and can conflict with or replace an OpenCode 2 installation.
 
 ```bash
 curl -fsSL https://opencode.ai/install | bash

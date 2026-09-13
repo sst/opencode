@@ -184,6 +184,15 @@ function decode(file: { directory: string; filepath: string; primary: boolean },
     .replace(/\.md$/, "")
   const body = markdown.content.trim()
   const legacy = Object.keys(markdown.data).some((key) => !agentKeys.has(key))
+  // Join legacy model + variant without sending native request/permissions through migration.
+  // Embedded and structured native selections, and a variant without a model, stay unchanged.
+  const data =
+    typeof markdown.data.model === "string" &&
+    !markdown.data.model.includes("#") &&
+    typeof markdown.data.variant === "string" &&
+    /^[^#]+$/.test(markdown.data.variant)
+      ? { ...markdown.data, model: `${markdown.data.model}#${markdown.data.variant}` }
+      : markdown.data
   const agent = legacy
     ? Option.getOrUndefined(
         Option.map(
@@ -191,9 +200,7 @@ function decode(file: { directory: string; filepath: string; primary: boolean },
           ConfigMigrateV1.migrateAgent,
         ),
       )
-    : Option.getOrUndefined(
-        decodeAgent({ ...markdown.data, system: body }, { errors: "all", propertyOrder: "original" }),
-      )
+    : Option.getOrUndefined(decodeAgent({ ...data, system: body }, { errors: "all", propertyOrder: "original" }))
   if (!agent) return
   const info = Option.getOrUndefined(
     decodeConfig({

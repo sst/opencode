@@ -173,7 +173,6 @@ const appBindingCommands = [
   "app.toggle.file_context",
   "app.toggle.diffwrap",
   "app.toggle.paste_summary",
-  "permission.mode",
 ] as const
 
 export type TuiInput = {
@@ -286,8 +285,6 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
       )
       renderer.once("destroy", () => shutdown.openUnsafe())
       yield* Effect.tryPromise(async () => {
-        // Prewarm palette before ThemeProvider mounts so `system` theme avoids a first-paint fallback flash.
-        void renderer.getPalette({ size: 16 }).catch(() => undefined)
         const mode = handoff?.mode ?? (await renderer.waitForThemeMode(1000)) ?? "dark"
         if (renderer.isDestroyed) return
 
@@ -485,7 +482,7 @@ function App(props: { pair?: DialogPairCredentials }) {
   const toast = useToast()
   const updater = useUpdateNotification()
   const theme = useTheme()
-  const { mode, supports, setMode, locked, lock, unlock } = useThemes()
+  const { mode, supports, setMode, locked, lock, unlock, afterPaint } = useThemes()
   const data = useData()
   const location = useLocation()
   const exit = useExit()
@@ -493,6 +490,16 @@ function App(props: { pair?: DialogPairCredentials }) {
   const plugins = usePlugin()
   const clipboard = useClipboard()
   const terminalEnvironment = useTuiTerminalEnvironment()
+  let paletteTimer: ReturnType<typeof setTimeout> | undefined
+  const afterFrame = () => {
+    // The native writer can still be flushing the frame when FRAME fires. Keep OSC probes behind visible app output.
+    paletteTimer = setTimeout(afterPaint, 50)
+  }
+  onMount(() => renderer.once(CliRenderEvents.FRAME, afterFrame))
+  onCleanup(() => {
+    renderer.off(CliRenderEvents.FRAME, afterFrame)
+    if (paletteTimer) clearTimeout(paletteTimer)
+  })
   createEffect(() => {
     if (client.connection.status() !== "connected") return
     if (route.data.type !== "session") return
@@ -579,7 +586,7 @@ function App(props: { pair?: DialogPairCredentials }) {
   const terminalTitleEnabled = () => config.data.terminal?.title ?? true
   const pasteSummaryEnabled = () => config.data.prompt?.paste !== "full"
   const tabsVertical = () =>
-    config.data.tabs.layout === "vertical" && sessionTabsFitVertically(dimensions().width, tabsResize.preferredSize())
+    config.data.tabs.layout === "vertical" && sessionTabsFitVertically(dimensions().width, tabsResize.size())
   const tabsAvailable = () => sessionTabs.enabled() && sessionTabs.tabs().length > 0 && route.data.type !== "plugin"
   const fullscreenPanel = () =>
     route.data.type === "session" &&
@@ -821,8 +828,7 @@ function App(props: { pair?: DialogPairCredentials }) {
         title: "Switch model",
         suggested: true,
         category: "Agent",
-        // Bias /mo toward /models over /move without changing global fuzzy scoring.
-        slash: { name: "models", aliases: ["mo"] },
+        slash: { name: "models" },
         run: () => {
           dialog.replace(() => <DialogModel />)
         },
@@ -903,7 +909,7 @@ function App(props: { pair?: DialogPairCredentials }) {
         title: "Switch model variant",
         category: "Agent",
         palette: local.model.variant.list().length === 0 ? undefined : (true as const),
-        slash: { name: "variants" },
+        slash: { name: "variants", aliases: ["thinking"] },
         run: () => {
           if (local.model.variant.list().length === 0) {
             return toast.show({
@@ -962,7 +968,7 @@ function App(props: { pair?: DialogPairCredentials }) {
             {
               name: "opencode.update",
               title: "Update OpenCode",
-              slash: { name: "update" },
+              slash: { name: "update", aliases: ["upgrade"] },
               run: () => updater.open?.("manual"),
               category: "System",
             },
@@ -1166,16 +1172,6 @@ function App(props: { pair?: DialogPairCredentials }) {
               draft.prompt = { ...draft.prompt, paste: pasteSummaryEnabled() ? "full" : "compact" }
             })
             .catch(toast.error)
-          dialog.clear()
-        },
-      },
-      {
-        name: "permission.mode",
-        title:
-          local.permission.mode === "auto" ? "Disable auto-approve permissions" : "Enable auto-approve permissions",
-        category: "System",
-        run: () => {
-          local.permission.toggle()
           dialog.clear()
         },
       },

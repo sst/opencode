@@ -15,6 +15,7 @@ import { ServiceConfig } from "./services/service-config"
 import { ServiceRegistration } from "./services/service-registration"
 import { Updater } from "./services/updater"
 import { WebUi } from "./services/web-ui"
+import { databasePath } from "./database-path"
 
 export type Mode = "default" | "service" | "stdio"
 
@@ -94,13 +95,7 @@ const processEffect = Effect.fnUntraced(function* (options: Options) {
           pty: { handoff },
           simulation: truthy(process.env.OPENCODE_SIMULATE),
           database: {
-            path:
-              process.env.OPENCODE_DB ??
-              (["latest", "dev", "beta", "next", "prod"].includes(OPENCODE_CHANNEL) ||
-              process.env.OPENCODE_DISABLE_CHANNEL_DB === "1" ||
-              process.env.OPENCODE_DISABLE_CHANNEL_DB === "true"
-                ? "opencode.db"
-                : `opencode-${OPENCODE_CHANNEL.replace(/[^a-zA-Z0-9._-]/g, "-")}.db`),
+            path: databasePath(global.data),
           },
           models: {
             url: process.env.OPENCODE_MODELS_URL,

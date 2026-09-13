@@ -4,7 +4,7 @@ import { HttpServer, HttpServerError, HttpServerResponse } from "effect/unstable
 import { it } from "../../core/test/lib/effect"
 import { ServerProcess } from "../src/process"
 
-it.live("allows browser preflight requests without credentials", () =>
+it.live("authenticates API and frontend requests while allowing browser preflight", () =>
   Effect.gen(function* () {
     const fallback = "fallback".repeat(256)
     const server = yield* ServerProcess.start<never, never>(
@@ -128,6 +128,36 @@ it.live("allows browser preflight requests without credentials", () =>
         const response = yield* Effect.promise(() => fetch(new URL(pathname, HttpServer.formatAddress(server.address))))
         expect(response.status).toBe(401)
         expect(yield* Effect.promise(() => response.text())).toBe("")
+      }),
+    )
+
+    yield* Effect.forEach(["/", "/workspace/example", "/_assets/app.js", "/icons/icon.svg", "/sw.js"], (pathname) =>
+      Effect.gen(function* () {
+        yield* Effect.forEach(["GET", "HEAD"], (method) =>
+          Effect.gen(function* () {
+            yield* Effect.forEach([undefined, `Basic ${btoa("opencode:wrong")}`], (authorization) =>
+              Effect.gen(function* () {
+                const response = yield* Effect.promise(() =>
+                  fetch(new URL(pathname, HttpServer.formatAddress(server.address)), {
+                    method,
+                    headers: authorization ? { authorization } : undefined,
+                  }),
+                )
+                expect(response.status).toBe(401)
+                expect(response.headers.get("www-authenticate")).toBe('Basic realm="Secure Area"')
+                expect(yield* Effect.promise(() => response.text())).toBe("")
+              }),
+            )
+            const response = yield* Effect.promise(() =>
+              fetch(new URL(pathname, HttpServer.formatAddress(server.address)), {
+                method,
+                headers: { authorization: `Basic ${btoa("opencode:secret")}` },
+              }),
+            )
+            expect(response.status).toBe(200)
+            expect(yield* Effect.promise(() => response.text())).toBe(method === "HEAD" ? "" : fallback)
+          }),
+        )
       }),
     )
   }),

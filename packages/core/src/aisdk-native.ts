@@ -1,242 +1,188 @@
 export * as AISDKNative from "./aisdk-native.js"
 
-import { isRecord } from "@opencode/ai/utils/record"
+import { Effect, Option, Schema, Struct } from "effect"
 import { Provider } from "./provider.js"
 
 export interface Mapping {
   readonly package: string
-  readonly settings: Readonly<Record<string, unknown>>
+  readonly settings: Provider.Settings
   readonly headers?: Readonly<Record<string, string>>
   readonly body?: Readonly<Record<string, unknown>>
 }
 
 export interface MapInput {
   readonly packageName: string | undefined
-  readonly settings: Readonly<Record<string, unknown>>
+  readonly settings: Provider.Settings
   readonly modelID: string
   readonly providerID: string
 }
 
+// A wrongly typed legacy value is dropped rather than failing the whole decode.
+const lenient = <S extends Schema.Top>(schema: S) =>
+  Schema.optional(Schema.UndefinedOr(schema).pipe(Schema.catchDecoding(() => Effect.succeed(Option.some(undefined)))))
+
+const Credentials = Schema.Struct({
+  accessKeyId: Schema.String,
+  secretAccessKey: Schema.String,
+  sessionToken: lenient(Schema.String),
+  region: lenient(Schema.String),
+})
+
+/** AI SDK settings whose spelling differs from the native package. Everything else passes through. */
+const Legacy = Schema.StructWithRest(
+  Schema.Struct({
+    apiKey: lenient(Schema.String),
+    baseURL: lenient(Schema.String),
+    headers: lenient(Schema.Record(Schema.String, Schema.String)),
+    extraBody: lenient(Schema.Record(Schema.String, Schema.Unknown)),
+    useCompletionUrls: lenient(Schema.Boolean),
+    // Bedrock
+    auth: lenient(Schema.Literals(["bearer", "sigv4"])),
+    bearerToken: lenient(Schema.String),
+    endpoint: lenient(Schema.String),
+    region: lenient(Schema.String),
+    credentials: lenient(Credentials),
+    accessKeyId: lenient(Schema.String),
+    secretAccessKey: lenient(Schema.String),
+    sessionToken: lenient(Schema.String),
+    anthropicBeta: lenient(Schema.Array(Schema.String)),
+    serviceTier: lenient(Schema.String),
+    reasoningConfig: lenient(
+      Schema.Struct({
+        type: lenient(Schema.String),
+        display: lenient(Schema.String),
+        maxReasoningEffort: lenient(Schema.String),
+        budgetTokens: lenient(Schema.Number),
+      }),
+    ),
+    additionalModelRequestFields: lenient(
+      Schema.StructWithRest(
+        Schema.Struct({
+          anthropic_beta: lenient(Schema.Array(Schema.String)),
+          output_config: lenient(Schema.Record(Schema.String, Schema.Unknown)),
+          reasoning: lenient(Schema.Record(Schema.String, Schema.Unknown)),
+        }),
+        [Schema.Record(Schema.String, Schema.Unknown)],
+      ),
+    ),
+    // OpenRouter
+    appName: lenient(Schema.String),
+    appUrl: lenient(Schema.String),
+    api_keys: lenient(Schema.Record(Schema.String, Schema.String)),
+  }),
+  [Schema.Record(Schema.String, Schema.Unknown)],
+)
+type Legacy = typeof Legacy.Type
+const decode = Schema.decodeUnknownSync(Legacy)
+
+/** Maps a legacy AI SDK package onto the native package that replaces it. */
 export function map(input: MapInput): Mapping | undefined {
-  const baseSettings = mapBaseSettings(input.settings)
-  switch (input.packageName) {
+  const settings = decode(input.settings)
+  const native = mapPackage(input.packageName, input.modelID, settings)
+  if (!native) return
+  const converse = native === "@opencode/ai/providers/amazon-bedrock"
+  const mapped = {
+    ...Struct.omit(settings, ["headers", "extraBody", "useCompletionUrls", ...OPENROUTER_KEYS]),
+    ...(native === "@opencode/ai/providers/openai-compatible" ? { provider: input.providerID } : {}),
+  }
+  return {
+    package: native,
+    settings: native.startsWith("@opencode/ai/providers/amazon-bedrock") ? bedrockSettings(mapped, converse) : mapped,
+    ...(settings.headers === undefined ? {} : { headers: settings.headers }),
+    ...(settings.extraBody === undefined ? {} : { body: settings.extraBody }),
+    ...(converse ? bedrockRequest(input.modelID, settings) : {}),
+    ...(native === "@opencode/ai/providers/openrouter" ? openRouterRequest(settings) : {}),
+  }
+}
+
+function mapPackage(packageName: string | undefined, modelID: string, settings: Legacy) {
+  switch (packageName) {
     case "@ai-sdk/anthropic":
-      return {
-        package: "@opencode/ai/providers/anthropic",
-        settings: {
-          ...baseSettings,
-          ...mapAPIKey(input.settings),
-          ...(typeof input.settings.authToken === "string" ? { authToken: input.settings.authToken } : {}),
-          ...mapProviderOptions(input.settings, ["apiKey", "authToken", "baseURL"]),
-        },
-      }
-    case "@ai-sdk/amazon-bedrock":
-      return {
-        package: "@opencode/ai/providers/amazon-bedrock",
-        settings: mapBedrockSettings(input.settings, baseSettings),
-        ...mapBedrockRequest(input),
-      }
-    case "@ai-sdk/amazon-bedrock/mantle":
-      return mapBedrockMantle(input, baseSettings)
-    case "@ai-sdk/azure":
-      return {
-        package: `@opencode/ai/providers/azure/${input.settings.useCompletionUrls === true ? "chat" : "responses"}`,
-        settings: {
-          ...baseSettings,
-          ...mapAPIKey(input.settings),
-          ...(typeof input.settings.resourceName === "string" ? { resourceName: input.settings.resourceName } : {}),
-          ...(typeof input.settings.apiVersion === "string" ? { apiVersion: input.settings.apiVersion } : {}),
-          ...(isStringRecord(input.settings.queryParams) ? { queryParams: input.settings.queryParams } : {}),
-          ...(typeof input.settings.useDeploymentBasedUrls === "boolean"
-            ? { useDeploymentBasedUrls: input.settings.useDeploymentBasedUrls }
-            : {}),
-          ...mapOpenAIOptions(input.settings),
-        },
-      }
     case "@ai-sdk/cerebras":
     case "@ai-sdk/deepinfra":
-    case "@ai-sdk/groq":
-    case "@ai-sdk/togetherai":
-      return {
-        package: `@opencode/ai/providers/${input.packageName.slice("@ai-sdk/".length)}`,
-        settings: {
-          ...baseSettings,
-          ...mapAPIKey(input.settings),
-          ...mapProviderOptions(input.settings, ["apiKey", "baseURL", "fetch", "headers", "name"]),
-        },
-        ...(isStringRecord(input.settings.headers) ? { headers: input.settings.headers } : {}),
-      }
     case "@ai-sdk/google":
-      return {
-        package: "@opencode/ai/providers/google",
-        settings: {
-          ...baseSettings,
-          ...mapAPIKey(input.settings),
-          ...mapGoogleOptions(input.settings),
-        },
-      }
     case "@ai-sdk/google-vertex":
-      return {
-        package: "@opencode/ai/providers/google-vertex",
-        settings: {
-          ...baseSettings,
-          ...(typeof input.settings.accessToken === "string" ? { accessToken: input.settings.accessToken } : {}),
-          ...mapAPIKey(input.settings),
-          ...(typeof input.settings.location === "string" ? { location: input.settings.location } : {}),
-          ...(typeof input.settings.project === "string" ? { project: input.settings.project } : {}),
-          ...mapGoogleOptions(input.settings),
-        },
-        ...(isStringRecord(input.settings.headers) ? { headers: input.settings.headers } : {}),
-      }
-    case "@ai-sdk/google-vertex/anthropic":
-      return {
-        package: "@opencode/ai/providers/google-vertex/messages",
-        settings: {
-          ...baseSettings,
-          ...(typeof input.settings.accessToken === "string" ? { accessToken: input.settings.accessToken } : {}),
-          ...(typeof input.settings.location === "string" ? { location: input.settings.location } : {}),
-          ...(typeof input.settings.project === "string" ? { project: input.settings.project } : {}),
-          ...(isRecord(input.settings.thinking) || typeof input.settings.effort === "string"
-            ? {
-                providerOptions: {
-                  ...(isRecord(input.settings.thinking) ? { thinking: input.settings.thinking } : {}),
-                  ...(typeof input.settings.effort === "string" ? { effort: input.settings.effort } : {}),
-                },
-              }
-            : {}),
-        },
-        ...(isStringRecord(input.settings.headers) ? { headers: input.settings.headers } : {}),
-      }
+    case "@ai-sdk/groq":
     case "@ai-sdk/mistral":
-      return {
-        package: "@opencode/ai/providers/mistral",
-        settings: {
-          ...baseSettings,
-          ...mapAPIKey(input.settings),
-          ...mapMistralOptions(input.settings),
-        },
-        ...(isStringRecord(input.settings.headers) ? { headers: input.settings.headers } : {}),
-        ...(isRecord(input.settings.extraBody) ? { body: input.settings.extraBody } : {}),
-      }
     case "@ai-sdk/openai":
-      return {
-        package: "@opencode/ai/providers/openai",
-        settings: {
-          ...baseSettings,
-          ...mapAPIKey(input.settings),
-          ...(typeof input.settings.organization === "string" ? { organization: input.settings.organization } : {}),
-          ...(typeof input.settings.project === "string" ? { project: input.settings.project } : {}),
-          ...(isStringRecord(input.settings.queryParams) ? { queryParams: input.settings.queryParams } : {}),
-          ...mapProviderOptions(input.settings, ["apiKey", "baseURL", "organization", "project", "queryParams"]),
-        },
-      }
-    case "@ai-sdk/openai-compatible":
-      if (typeof input.settings.baseURL !== "string") return
-      return {
-        package: "@opencode/ai/providers/openai-compatible",
-        settings: {
-          ...baseSettings,
-          ...mapAPIKey(input.settings),
-          provider: input.providerID,
-          ...mapProviderOptions(input.settings, ["apiKey", "baseURL"]),
-        },
-      }
-    case "@openrouter/ai-sdk-provider":
-      return mapOpenRouter(input.settings, baseSettings)
+    case "@ai-sdk/togetherai":
     case "@ai-sdk/xai":
-      return {
-        package: "@opencode/ai/providers/xai",
-        settings: {
-          ...baseSettings,
-          ...mapAPIKey(input.settings),
-          ...mapXAIOptions(input.settings),
-        },
-      }
+    case "@ai-sdk/amazon-bedrock":
+      return `@opencode/ai/providers/${packageName.slice("@ai-sdk/".length)}`
+    case "@ai-sdk/amazon-bedrock/mantle":
+      return `@opencode/ai/providers/amazon-bedrock/mantle/${modelID.includes("gpt-oss") ? "chat" : "responses"}`
+    case "@ai-sdk/azure":
+      return `@opencode/ai/providers/azure/${settings.useCompletionUrls === true ? "chat" : "responses"}`
+    case "@ai-sdk/google-vertex/anthropic":
+      return "@opencode/ai/providers/google-vertex/messages"
+    case "@ai-sdk/openai-compatible":
+      return settings.baseURL === undefined ? undefined : "@opencode/ai/providers/openai-compatible"
+    case "@openrouter/ai-sdk-provider":
+      return "@opencode/ai/providers/openrouter"
   }
 }
 
-function mapProviderOptions(settings: Readonly<Record<string, unknown>>, excluded: ReadonlyArray<string>) {
-  const options = Object.fromEntries(Object.entries(settings).filter(([name]) => !excluded.includes(name)))
-  if (Object.keys(options).length === 0) return {}
-  return { providerOptions: options }
-}
+// AI SDK spellings the native Bedrock packages do not read.
+const BEDROCK_KEYS = [
+  "bearerToken",
+  "endpoint",
+  "credentials",
+  "credentialProvider",
+  "accessKeyId",
+  "secretAccessKey",
+  "sessionToken",
+]
+// Request settings Converse takes in the body; translated by `bedrockRequest`.
+const CONVERSE_KEYS = ["additionalModelRequestFields", "reasoningConfig", "anthropicBeta", "serviceTier"]
 
-function mapBedrockMantle(input: MapInput, baseSettings: Readonly<Record<string, unknown>>): Mapping | undefined {
-  const settings = input.settings
-  const chat = input.modelID === "openai.gpt-oss-safeguard-20b" || input.modelID === "openai.gpt-oss-safeguard-120b"
+function bedrockSettings(settings: Legacy, converse: boolean) {
+  const region = settings.region ?? settings.credentials?.region
+  const credentials = settings.credentials ?? settings
+  const baseURL = settings.baseURL ?? settings.endpoint
   return {
-    package: `@opencode/ai/providers/amazon-bedrock/mantle/${chat ? "chat" : "responses"}`,
-    settings: {
-      ...mapBedrockSettings(settings, baseSettings),
-      ...mapOpenAIOptions(settings),
-    },
-    ...(isStringRecord(settings.headers) ? { headers: settings.headers } : {}),
+    ...Struct.omit(settings, converse ? [...BEDROCK_KEYS, ...CONVERSE_KEYS] : BEDROCK_KEYS),
+    ...(baseURL === undefined
+      ? {}
+      : { baseURL: region === undefined ? baseURL : baseURL.replaceAll("${AWS_REGION}", region) }),
+    ...(settings.apiKey === undefined && settings.bearerToken !== undefined ? { apiKey: settings.bearerToken } : {}),
+    ...(region === undefined || credentials.accessKeyId === undefined || credentials.secretAccessKey === undefined
+      ? {}
+      : {
+          credentials: {
+            region,
+            accessKeyId: credentials.accessKeyId,
+            secretAccessKey: credentials.secretAccessKey,
+            ...(credentials.sessionToken === undefined ? {} : { sessionToken: credentials.sessionToken }),
+          },
+        }),
   }
 }
 
-function mapBedrockSettings(
-  settings: Readonly<Record<string, unknown>>,
-  baseSettings: Readonly<Record<string, unknown>>,
-) {
-  const apiKey =
-    typeof settings.apiKey === "string"
-      ? settings.apiKey
-      : typeof settings.bearerToken === "string"
-        ? settings.bearerToken
-        : undefined
-  const region = bedrockRegion(settings)
-  const credentials = mapBedrockCredentials(settings, region)
-  return {
-    ...baseSettings,
-    ...(typeof baseSettings.baseURL === "string" && region !== undefined
-      ? { baseURL: baseSettings.baseURL.replaceAll("${AWS_REGION}", region) }
-      : {}),
-    ...(typeof settings.baseURL !== "string" && typeof settings.endpoint === "string"
-      ? { baseURL: settings.endpoint }
-      : {}),
-    ...(apiKey === undefined ? {} : { apiKey }),
-    ...(settings.auth === "bearer" || settings.auth === "sigv4" ? { auth: settings.auth } : {}),
-    ...(credentials === undefined ? {} : { credentials }),
-    ...(typeof settings.profile === "string" ? { profile: settings.profile } : {}),
-    ...(typeof settings.region === "string" ? { region: settings.region } : {}),
-    ...(typeof settings.topP === "number" ? { topP: settings.topP } : {}),
-  }
-}
-
-function mapBedrockRequest(input: MapInput): Pick<Mapping, "headers" | "body"> {
-  const settings = input.settings
-  const headers = isStringRecord(settings.headers) ? settings.headers : undefined
-  const additional = isRecord(settings.additionalModelRequestFields) ? settings.additionalModelRequestFields : {}
-  const reasoning = isRecord(settings.reasoningConfig) ? settings.reasoningConfig : undefined
-  const anthropic = input.modelID.includes("anthropic")
-  const openai = input.modelID.startsWith("openai.")
-  const effort = typeof reasoning?.maxReasoningEffort === "string" ? reasoning.maxReasoningEffort : undefined
-  const type = typeof reasoning?.type === "string" ? reasoning.type : undefined
-  const budget = typeof reasoning?.budgetTokens === "number" ? reasoning.budgetTokens : undefined
-  const display = typeof reasoning?.display === "string" ? reasoning.display : undefined
-  const betas = Array.isArray(settings.anthropicBeta)
-    ? settings.anthropicBeta.filter((item): item is string => typeof item === "string")
-    : []
-  const existingBetas = Array.isArray(additional.anthropic_beta)
-    ? additional.anthropic_beta.filter((item): item is string => typeof item === "string")
-    : []
+function bedrockRequest(modelID: string, settings: Legacy): Pick<Mapping, "body"> {
+  const additional = settings.additionalModelRequestFields ?? {}
+  const reasoning = settings.reasoningConfig
+  const anthropic = modelID.includes("anthropic")
+  const openai = modelID.includes("openai.")
+  // gpt-oss (Harmony) takes the flat chat-completions `reasoning_effort`; GPT-5.6+ take Responses-style `reasoning.effort`.
+  const harmony = modelID.includes("openai.gpt-oss")
+  const effort = reasoning?.maxReasoningEffort
+  const type = reasoning?.type
+  const budget = reasoning?.budgetTokens
+  const display = reasoning?.display
+  const betas = settings.anthropicBeta ?? []
   const fields = Provider.mergeOverlay(additional, {
-    ...(betas.length > 0 ? { anthropic_beta: [...existingBetas, ...betas] } : {}),
+    ...(betas.length > 0 ? { anthropic_beta: [...(additional.anthropic_beta ?? []), ...betas] } : {}),
     ...(anthropic && type === "enabled" && budget !== undefined
       ? { thinking: { type: "enabled", budget_tokens: budget } }
       : {}),
     ...(anthropic && type === "adaptive"
       ? { thinking: { type: "adaptive", ...(display === undefined ? {} : { display }) } }
       : {}),
-    ...(anthropic && effort !== undefined
-      ? {
-          output_config: {
-            ...(isRecord(additional.output_config) ? additional.output_config : {}),
-            effort,
-          },
-        }
+    ...(anthropic && effort !== undefined ? { output_config: { ...additional.output_config, effort } } : {}),
+    ...(!anthropic && openai && harmony && effort !== undefined ? { reasoning_effort: effort } : {}),
+    ...(!anthropic && openai && !harmony && effort !== undefined
+      ? { reasoning: { ...additional.reasoning, effort } }
       : {}),
-    ...(!anthropic && openai && effort !== undefined ? { reasoning_effort: effort } : {}),
     ...(!anthropic && !openai && effort !== undefined
       ? {
           reasoningConfig: {
@@ -249,151 +195,26 @@ function mapBedrockRequest(input: MapInput): Pick<Mapping, "headers" | "body"> {
   })
   const body = {
     ...(fields && Object.keys(fields).length > 0 ? { additionalModelRequestFields: fields } : {}),
-    ...(typeof settings.serviceTier === "string" ? { serviceTier: { type: settings.serviceTier } } : {}),
+    ...(settings.serviceTier === undefined ? {} : { serviceTier: { type: settings.serviceTier } }),
   }
-  return {
-    ...(headers === undefined ? {} : { headers }),
-    ...(Object.keys(body).length === 0 ? {} : { body }),
-  }
+  return Object.keys(body).length === 0 ? {} : { body }
 }
 
-function mapBedrockCredentials(settings: Readonly<Record<string, unknown>>, region: string | undefined) {
-  const credentials = isRecord(settings.credentials) ? settings.credentials : settings
-  if (
-    region === undefined ||
-    typeof credentials.accessKeyId !== "string" ||
-    typeof credentials.secretAccessKey !== "string"
-  )
-    return undefined
-  return {
-    region,
-    accessKeyId: credentials.accessKeyId,
-    secretAccessKey: credentials.secretAccessKey,
-    ...(typeof credentials.sessionToken === "string" ? { sessionToken: credentials.sessionToken } : {}),
-  }
-}
+// Constructor options the native OpenRouter package takes as headers, plus `compatibility`, which the
+// native package would otherwise forward to the request body.
+const OPENROUTER_KEYS = ["appName", "appUrl", "api_keys", "compatibility"] as const
 
-function bedrockRegion(settings: Readonly<Record<string, unknown>>) {
-  const credentials = isRecord(settings.credentials) ? settings.credentials : settings
-  return typeof settings.region === "string"
-    ? settings.region
-    : typeof credentials.region === "string"
-      ? credentials.region
-      : undefined
-}
-
-function mapOpenAIOptions(settings: Readonly<Record<string, unknown>>) {
-  const options = {
-    ...(typeof settings.reasoningEffort === "string" ? { reasoningEffort: settings.reasoningEffort } : {}),
-    ...(typeof settings.reasoningSummary === "string" ? { reasoningSummary: settings.reasoningSummary } : {}),
-    ...(Array.isArray(settings.include) ? { include: settings.include } : {}),
-    ...(typeof settings.store === "boolean" ? { store: settings.store } : {}),
-    ...(typeof settings.promptCacheKey === "string" ? { promptCacheKey: settings.promptCacheKey } : {}),
-    ...(typeof settings.textVerbosity === "string" ? { textVerbosity: settings.textVerbosity } : {}),
-    ...(typeof settings.serviceTier === "string" ? { serviceTier: settings.serviceTier } : {}),
-  }
-  if (Object.keys(options).length === 0) return {}
-  return { providerOptions: options }
-}
-
-function mapMistralOptions(settings: Readonly<Record<string, unknown>>) {
-  const options = {
-    ...(typeof settings.safePrompt === "boolean" ? { safePrompt: settings.safePrompt } : {}),
-    ...(typeof settings.documentImageLimit === "number" ? { documentImageLimit: settings.documentImageLimit } : {}),
-    ...(typeof settings.documentPageLimit === "number" ? { documentPageLimit: settings.documentPageLimit } : {}),
-    ...(typeof settings.parallelToolCalls === "boolean" ? { parallelToolCalls: settings.parallelToolCalls } : {}),
-    ...(typeof settings.promptCacheKey === "string" ? { promptCacheKey: settings.promptCacheKey } : {}),
-    ...(typeof settings.reasoningEffort === "string" ? { reasoningEffort: settings.reasoningEffort } : {}),
-    ...(settings.promptMode === "reasoning" ? { promptMode: settings.promptMode } : {}),
-  }
-  if (Object.keys(options).length === 0) return {}
-  return { providerOptions: options }
-}
-
-function mapBaseSettings(settings: Readonly<Record<string, unknown>>) {
-  return {
-    ...(typeof settings.baseURL === "string" ? { baseURL: settings.baseURL } : {}),
-  }
-}
-
-function mapAPIKey(settings: Readonly<Record<string, unknown>>) {
-  return typeof settings.apiKey === "string" ? { apiKey: settings.apiKey } : {}
-}
-
-function mapGoogleOptions(settings: Readonly<Record<string, unknown>>) {
-  const input = settings.thinkingConfig
-  const thinkingConfig = {
-    ...(isRecord(input) && typeof input.thinkingBudget === "number" ? { thinkingBudget: input.thinkingBudget } : {}),
-    ...(isRecord(input) && typeof input.includeThoughts === "boolean"
-      ? { includeThoughts: input.includeThoughts }
-      : {}),
-    ...(isRecord(input) && typeof input.thinkingLevel === "string" ? { thinkingLevel: input.thinkingLevel } : {}),
-  }
-  const options = {
-    ...(typeof settings.cachedContent === "string" ? { cachedContent: settings.cachedContent } : {}),
-    ...(isStringRecord(settings.labels) ? { labels: settings.labels } : {}),
-    ...(Array.isArray(settings.safetySettings) ? { safetySettings: settings.safetySettings } : {}),
-    ...(typeof settings.serviceTier === "string" ? { serviceTier: settings.serviceTier } : {}),
-    ...(Object.keys(thinkingConfig).length > 0 ? { thinkingConfig } : {}),
-  }
-  if (Object.keys(options).length === 0) return {}
-  return { providerOptions: options }
-}
-
-function mapOpenRouter(
-  settings: Readonly<Record<string, unknown>>,
-  baseSettings: Readonly<Record<string, unknown>>,
-): Mapping {
+function openRouterRequest(settings: Legacy): Pick<Mapping, "headers"> {
   const headers =
     Provider.mergeHeaders(
       {
-        ...(typeof settings.appName === "string" ? { "X-OpenRouter-Title": settings.appName } : {}),
-        ...(typeof settings.appUrl === "string" ? { "HTTP-Referer": settings.appUrl } : {}),
-        ...(isStringRecord(settings.api_keys) && Object.keys(settings.api_keys).length > 0
-          ? { "X-Provider-API-Keys": JSON.stringify(settings.api_keys) }
-          : {}),
+        ...(settings.appName === undefined ? {} : { "X-OpenRouter-Title": settings.appName }),
+        ...(settings.appUrl === undefined ? {} : { "HTTP-Referer": settings.appUrl }),
+        ...(settings.api_keys === undefined || Object.keys(settings.api_keys).length === 0
+          ? {}
+          : { "X-Provider-API-Keys": JSON.stringify(settings.api_keys) }),
       },
-      isStringRecord(settings.headers) ? settings.headers : undefined,
+      settings.headers,
     ) ?? {}
-  return {
-    package: "@opencode/ai/providers/openrouter",
-    settings: {
-      ...baseSettings,
-      ...mapAPIKey(settings),
-      ...mapOpenRouterOptions(settings),
-    },
-    ...(Object.keys(headers).length > 0 ? { headers } : {}),
-    ...(isRecord(settings.extraBody) ? { body: settings.extraBody } : {}),
-  }
-}
-
-function mapOpenRouterOptions(settings: Readonly<Record<string, unknown>>) {
-  return mapProviderOptions(settings, [
-    "apiKey",
-    "api_keys",
-    "appName",
-    "appUrl",
-    "authToken",
-    "baseURL",
-    "chunkTimeout",
-    "compatibility",
-    "extraBody",
-    "fetch",
-    "headers",
-    "promptCacheKey",
-    "timeout",
-  ])
-}
-
-function isStringRecord(value: unknown): value is Readonly<Record<string, string>> {
-  return isRecord(value) && Object.values(value).every((item) => typeof item === "string")
-}
-
-function mapXAIOptions(settings: Readonly<Record<string, unknown>>) {
-  const options = {
-    ...(typeof settings.reasoningEffort === "string" ? { reasoningEffort: settings.reasoningEffort } : {}),
-    ...(typeof settings.store === "boolean" ? { store: settings.store } : {}),
-  }
-  if (Object.keys(options).length === 0) return {}
-  return { providerOptions: options }
+  return Object.keys(headers).length === 0 ? {} : { headers }
 }

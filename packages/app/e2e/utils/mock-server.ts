@@ -6,9 +6,13 @@ import { HttpApiBuilder, HttpApiSchema } from "effect/unstable/httpapi"
 import { MockApi, MockBadRequest, MockNotFound } from "./mock-api"
 
 export interface MockServerConfig {
+  server?: string
   provider: unknown | (() => unknown)
   integrationMethods?: Record<string, unknown[]>
   onConnectKey?: (input: { integrationID: string; body: unknown }) => void
+  preferences?: Record<string, unknown>
+  shells?: unknown[]
+  websearchProviders?: unknown[]
   directory: string
   project: unknown
   sessions: ({ id: string } & Record<string, unknown>)[]
@@ -47,7 +51,9 @@ type MockStreamWindow = Window & {
 }
 
 export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
-  const server = `http://${process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"}:${process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"}`
+  const server =
+    config.server ??
+    `http://${process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"}:${process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"}`
 
   await page.addInitScript(
     ({ server, retry }) => {
@@ -80,6 +86,7 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
         const id = state.connections
         let ended = false
         let own: ReadableStreamDefaultController<Uint8Array> | undefined
+        let keepalive: ReturnType<typeof setInterval> | undefined
         const stream = new ReadableStream<Uint8Array>({
           start(controller) {
             own = controller
@@ -89,11 +96,15 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
               encoder.encode(frame({ id: `evt_mock_connected_${id}`, type: "server.connected", data: {} })),
             )
             state.buffer.splice(0).forEach((item) => controller.enqueue(encoder.encode(item)))
+            // Match the real server's idle stream so long scenarios do not
+            // trigger the client's 45-second stall watchdog and reload history.
+            keepalive = setInterval(() => controller.enqueue(encoder.encode(": keepalive\n\n")), 15_000)
             request.signal.addEventListener(
               "abort",
               () => {
                 if (ended) return
                 ended = true
+                clearInterval(keepalive)
                 if (state.controller === controller) state.controller = undefined
                 controller.error(request.signal.reason ?? new DOMException("The operation was aborted", "AbortError"))
               },
@@ -103,6 +114,7 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
           cancel() {
             if (ended) return
             ended = true
+            clearInterval(keepalive)
             if (state.controller === own) state.controller = undefined
           },
         })
@@ -179,13 +191,14 @@ export function createMockServerHandler(config: MockServerConfig) {
 const corsHeaders = {
   "access-control-allow-origin": "*",
   "access-control-allow-headers": "*",
-  "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "access-control-allow-methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
   "access-control-expose-headers": "x-next-cursor",
 }
 
 function mockHandlers(config: MockServerConfig, state: { cursors: Map<string, string>; nextCursor: number }) {
   const noContent = Effect.succeed(HttpApiSchema.NoContent.make())
   const delay = config.messageDelay === undefined ? Effect.void : Effect.sleep(Duration.millis(config.messageDelay))
+  const preferences = { current: config.preferences ?? {} }
   return HttpApiBuilder.group(MockApi, "mock", (handlers) =>
     handlers
       .handleRaw("event", () => {
@@ -207,6 +220,7 @@ function mockHandlers(config: MockServerConfig, state: { cursors: Map<string, st
       )
       .handleAll({
         health: () => Effect.succeed({ healthy: true, version: "2.0.0", pid: 1 }),
+        config: () => Effect.succeed([]),
         reference: () =>
           Effect.succeed({
             location: {
@@ -262,12 +276,29 @@ function mockHandlers(config: MockServerConfig, state: { cursors: Map<string, st
           const project = config.project as typeof config.project & { canonical?: string; worktree?: string }
           return Effect.succeed([{ ...project, canonical: project.canonical ?? project.worktree ?? config.directory }])
         },
+        projectUpdate: (ctx) => {
+          const project = config.project as { canonical?: string }
+          return Effect.succeed({
+            ...project,
+            ...ctx.payload,
+            id: ctx.params.projectID,
+            canonical: project.canonical ?? config.directory,
+          })
+        },
         projectCurrent: () =>
           Effect.succeed({
             id: (config.project as { id?: string }).id,
             directory: config.directory,
             canonical: config.directory,
           }),
+        configPreferences: () => Effect.succeed(preferences.current),
+        configUpdatePreferences: (ctx) =>
+          Effect.sync(() => {
+            preferences.current = { ...preferences.current, ...ctx.payload }
+            return preferences.current
+          }),
+        configShells: () => Effect.succeed(config.shells ?? []),
+        websearchProviders: () => Effect.succeed({ location: location(config), data: config.websearchProviders ?? [] }),
         worktreeList: () =>
           Effect.succeed([
             { directory: config.directory },

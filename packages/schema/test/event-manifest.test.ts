@@ -115,6 +115,7 @@ describe("public event manifest", () => {
         "session.model.selected.1",
         "session.moved.1",
         "session.renamed.1",
+        "session.permissions.updated.1",
         "session.viewed.1",
         "session.message.content.updated.1",
         "session.usage.recorded.1",
@@ -158,6 +159,7 @@ describe("public event manifest", () => {
     expect(SessionEvent.DurableDefinitions).toEqual([
       ...SessionEvent.Definitions.filter((definition) => definition.durability === "durable"),
       SessionEvent.UsageRecorded,
+      SessionEvent.MessageContentUpdated,
     ])
     expect(SessionEvent.UsageRecorded.durability).toBe("durable")
     expect(EventManifest.Durable.get("session.usage.recorded.1")).toBe(SessionEvent.UsageRecorded)

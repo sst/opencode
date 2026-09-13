@@ -21,12 +21,10 @@ import { SettingsRow } from "@/settings/row"
 import {
   createAppearanceSettingsController,
   createShellOptions,
-  createShellSettingsController,
   type AppearanceSettingsController,
   type ShellSettingsController,
 } from "./controllers"
 import "@/settings/settings.css"
-import { ServerConnection } from "@/runtime/server/registry"
 
 const schemeOptions: ("system" | "light" | "dark")[] = ["system", "light", "dark"]
 const fontSettings = {
@@ -85,6 +83,7 @@ const WorkspaceDestinationSetting: Component = () => {
       description={language.t("settings.workspaces.default.description")}
     >
       <Select
+        data-action="settings-workspace-destination"
         options={options()}
         current={options().find((option) => option.value === settings.workspaces.defaultDestination())}
         value={(option) => option.value}
@@ -97,7 +96,7 @@ const WorkspaceDestinationSetting: Component = () => {
   )
 }
 
-const ShellSetting: Component<{ controller: ShellSettingsController }> = (props) => {
+export const ShellSetting: Component<{ controller: ShellSettingsController }> = (props) => {
   const language = useLanguage()
   const options = createMemo(() =>
     createShellOptions({
@@ -295,15 +294,12 @@ const LanguageSetting = () => {
   )
 }
 
-export const SettingsGeneral: Component<{
-  server?: ServerConnection.Any
-}> = (props) => {
+export const SettingsGeneral: Component = () => {
   const language = useLanguage()
   const platform = usePlatform()
   const settings = useSettings()
   const mobile = createMediaQuery("(max-width: 767px)")
   const updater = useUpdaterAction()
-  const shell = createShellSettingsController(() => props.server)
   const desktop = createMemo(() => platform.platform === "desktop")
 
   const [pinchZoom, { mutate: setPinchZoom }] = createResource(
@@ -328,9 +324,31 @@ export const SettingsGeneral: Component<{
         <WorkspaceDestinationSetting />
         <AutoApprovePermissionsSetting />
 
-        <ShellSetting controller={shell} />
+        <SettingsRow
+          title={language.t("settings.general.row.showCustomAgents.title")}
+          description={language.t("settings.general.row.showCustomAgents.description")}
+        >
+          <div data-action="settings-show-custom-agents">
+            <Switch
+              checked={settings.general.showCustomAgents()}
+              onChange={(checked) => settings.general.setShowCustomAgents(checked)}
+            />
+          </div>
+        </SettingsRow>
+
         <TerminalPlacementSetting />
         <FollowUpBehaviorSetting />
+
+        <Show when={desktop()}>
+          <SettingsRow
+            title={language.t("settings.general.row.pinchZoom.title")}
+            description={language.t("settings.general.row.pinchZoom.description")}
+          >
+            <div data-action="settings-pinch-zoom">
+              <Switch checked={pinchZoom.latest} onChange={onPinchZoomChange} />
+            </div>
+          </SettingsRow>
+        </Show>
 
         <SettingsRow
           title={language.t("session.review.wrapLines")}
@@ -361,50 +379,6 @@ export const SettingsGeneral: Component<{
             </div>
           </SettingsRow>
         </Show>
-      </SettingsList>
-    </div>
-  )
-
-  const AdvancedSection = () => (
-    <div class="settings-section">
-      <h3 class="settings-section-title">{language.t("settings.general.section.advanced")}</h3>
-
-      <SettingsList>
-        <SettingsRow
-          title={language.t("settings.general.row.showSearch.title")}
-          description={language.t("settings.general.row.showSearch.description")}
-        >
-          <div data-action="settings-show-search">
-            <Switch
-              checked={settings.general.showSearch()}
-              onChange={(checked) => settings.general.setShowSearch(checked)}
-            />
-          </div>
-        </SettingsRow>
-
-        <SettingsRow
-          title={language.t("settings.general.row.showStatus.title")}
-          description={language.t("settings.general.row.showStatus.description")}
-        >
-          <div data-action="settings-show-status">
-            <Switch
-              checked={settings.general.showStatus()}
-              onChange={(checked) => settings.general.setShowStatus(checked)}
-            />
-          </div>
-        </SettingsRow>
-
-        <SettingsRow
-          title={language.t("settings.general.row.showCustomAgents.title")}
-          description={language.t("settings.general.row.showCustomAgents.description")}
-        >
-          <div data-action="settings-show-custom-agents">
-            <Switch
-              checked={settings.general.showCustomAgents()}
-              onChange={(checked) => settings.general.setShowCustomAgents(checked)}
-            />
-          </div>
-        </SettingsRow>
       </SettingsList>
     </div>
   )
@@ -474,32 +448,18 @@ export const SettingsGeneral: Component<{
           title={language.t("settings.updates.row.check.title")}
           description={language.t("settings.updates.row.check.description")}
         >
-          <Button size="normal" variant="neutral" disabled={!updater.action().run} onClick={() => updater.run()}>
+          <Button
+            data-action="settings-check-updates"
+            size="normal"
+            variant="neutral"
+            disabled={!updater.action().run}
+            onClick={() => updater.run()}
+          >
             {language.t(updater.action().label)}
           </Button>
         </SettingsRow>
       </SettingsList>
     </div>
-  )
-
-  // We can probably remove this, right?
-  const DisplaySection = () => (
-    <Show when={desktop()}>
-      <div class="settings-section">
-        <h3 class="settings-section-title">{language.t("settings.general.section.display")}</h3>
-
-        <SettingsList>
-          <SettingsRow
-            title={language.t("settings.general.row.pinchZoom.title")}
-            description={language.t("settings.general.row.pinchZoom.description")}
-          >
-            <div data-action="settings-pinch-zoom">
-              <Switch checked={pinchZoom.latest} onChange={onPinchZoomChange} />
-            </div>
-          </SettingsRow>
-        </SettingsList>
-      </div>
-    </Show>
   )
 
   return (
@@ -514,7 +474,7 @@ export const SettingsGeneral: Component<{
           </div>
         </div>
       </div>
-      <div class="settings-tab-body">
+      <div class="settings-tab-body settings-tab-body--sectioned">
         <GeneralSection />
 
         <section class="settings-section" aria-label={language.t("settings.timeline.title")}>
@@ -532,10 +492,6 @@ export const SettingsGeneral: Component<{
         <Show when={desktop()}>
           <UpdatesSection />
         </Show>
-
-        <DisplaySection />
-
-        <AdvancedSection />
       </div>
     </>
   )

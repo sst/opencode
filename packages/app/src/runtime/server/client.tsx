@@ -1,7 +1,7 @@
 import type { OpenCodeEvent } from "@opencode/client/promise"
 import { createClientConnection, createPtyClient, type ClientConnectionStatus } from "@opencode/client/solid"
 import { createGlobalEmitter } from "@solid-primitives/event-bus"
-import { type Accessor, onCleanup } from "solid-js"
+import { type Accessor, createEffect, on, onCleanup } from "solid-js"
 import { createApiForServer, type ServerApi } from "@/runtime/server/api"
 import { usePlatform } from "@/runtime/platform/platform"
 import { ServerConnection } from "./registry"
@@ -74,8 +74,18 @@ type ServerSDKBase = {
 function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerScope): ServerSDKBase {
   const platform = usePlatform()
   const transport = createServerTransport({ http: server.http, fetch: platform.fetch })
+  if (server.type === "ssh") {
+    createEffect(
+      on(
+        () => `${server.http.url}\0${server.http.password ?? ""}`,
+        () => transport.update(server.http),
+        { defer: true },
+      ),
+    )
+  }
   const events = createOpenCodeEventSource()
-  const reconnect = server.type === "sidecar" && server.variant === "base" ? server.reconnect : undefined
+  const reconnect =
+    server.type === "ssh" || (server.type === "sidecar" && server.variant === "base") ? server.reconnect : undefined
 
   const connection = createClientConnection(transport.api, {
     reconnect: reconnect ? async (signal) => transport.update(await reconnect(signal)) : undefined,

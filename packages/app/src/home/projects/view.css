@@ -1,0 +1,59 @@
+/* Home server/project rows keep the label underneath the hover actions.
+   The actions carry a tab-style background with a fade on the left, and the
+   label fades out where it slides underneath. Mirrors tab-nav.css. */
+[data-home-row] {
+  --home-row-surface: var(--v2-background-bg-base);
+  --home-row-background: color-mix(
+    in srgb,
+    var(--home-row-surface) var(--home-row-opacity, 100%),
+    var(--v2-background-bg-base)
+  );
+  background: var(--home-row-background);
+}
+
+[data-home-row]:is(:hover, :focus-within, [data-dragging="true"], :has([data-menu="true"])) {
+  --home-row-surface: var(--v2-background-bg-layer-01);
+}
+
+[data-home-row][data-selected] {
+  --home-row-surface: var(--v2-background-bg-layer-03);
+}
+
+[data-home-row][data-dimmed="true"] {
+  --home-row-opacity: 60%;
+}
+
+/* Keep the background outside the button's disabled-content opacity. */
+[data-home-row] > button {
+  background: transparent;
+}
+
+[data-home-row] [data-slot="home-row-actions"] {
+  background: linear-gradient(to right, transparent, var(--home-row-background) 8px);
+}
+
+[data-home-row]:dir(rtl) [data-slot="home-row-actions"] {
+  background: linear-gradient(to left, transparent, var(--home-row-background) 8px);
+}
+
+[data-home-row]:is(:hover, :focus-within, :has([data-menu="true"])) [data-slot="home-row-label"] {
+  -webkit-mask-image: linear-gradient(to right, black 0, black calc(100% - 44px), transparent calc(100% - 36px));
+  mask-image: linear-gradient(to right, black 0, black calc(100% - 44px), transparent calc(100% - 36px));
+}
+
+[data-home-row]:is(:hover, :focus-within, :has([data-menu="true"])):dir(rtl) [data-slot="home-row-label"] {
+  -webkit-mask-image: linear-gradient(to left, black 0, black calc(100% - 44px), transparent calc(100% - 36px));
+  mask-image: linear-gradient(to left, black 0, black calc(100% - 44px), transparent calc(100% - 36px));
+}
+
+@media (hover: none) {
+  [data-home-row] [data-slot="home-row-label"] {
+    -webkit-mask-image: linear-gradient(to right, black 0, black calc(100% - 44px), transparent calc(100% - 36px));
+    mask-image: linear-gradient(to right, black 0, black calc(100% - 44px), transparent calc(100% - 36px));
+  }
+
+  [data-home-row]:dir(rtl) [data-slot="home-row-label"] {
+    -webkit-mask-image: linear-gradient(to left, black 0, black calc(100% - 44px), transparent calc(100% - 36px));
+    mask-image: linear-gradient(to left, black 0, black calc(100% - 44px), transparent calc(100% - 36px));
+  }
+}

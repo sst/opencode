@@ -603,6 +603,7 @@ export class RunFooter implements FooterApi {
     }
 
     this.finishStartup()
+    if (this.miniSettings().tools === "hide" && toolTranscript(commit)) return
     const last = this.queue.at(-1)
     const merged = last ? coalesceProgressCommit(last, commit) : undefined
     if (merged) this.queue[this.queue.length - 1] = merged
@@ -1166,6 +1167,10 @@ export class RunFooter implements FooterApi {
         this.flushError = error
       })
   }
+}
+
+function toolTranscript(commit: StreamCommit) {
+  return commit.kind === "tool" || commit.partID?.startsWith("skill:")
 }
 
 /** @internal Exported for queue identity regression tests. */

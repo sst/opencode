@@ -8,7 +8,7 @@ import { Event } from "@opencode/schema/event"
 import type { Tool } from "@opencode/schema/tool"
 import type { StandardSchemaV1 } from "@standard-schema/spec"
 import { makeLocationNode } from "@opencode/util/effect/app-node"
-import { Context, Effect, JsonSchema, Layer, Schema, SchemaRepresentation, Stream } from "effect"
+import { Context, Deferred, Effect, JsonSchema, Layer, Schema, SchemaRepresentation, Stream } from "effect"
 import { Bus } from "./bus.js"
 import { Location } from "./location.js"
 import { optional, statics } from "./schema.js"
@@ -17,6 +17,7 @@ export interface Interface {
   readonly register: RpcDomain["register"]
   readonly client: <D extends Rpc.Definition>(definition: D) => RpcClient<D, Rpc.SystemError, never, unknown>
   readonly call: (rpcID: string, method: string, input: unknown) => Effect.Effect<unknown, Rpc.Failure>
+  readonly close: Effect.Effect<void>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/Rpc") {}
@@ -37,6 +38,7 @@ const layer = Layer.effect(
     const bus = yield* Bus.Service
     const location = yield* Location.Service
     const ref = Location.Ref.make({ directory: location.directory, workspaceID: location.workspaceID })
+    const closed = yield* Deferred.make<void>()
     const callContext = {
       error: (type: string, message: string, data?: unknown) => new DeclaredError(type, message, data),
     }
@@ -78,9 +80,7 @@ const layer = Layer.effect(
         registrations.set(definition.id, remaining)
       })
       yield* Effect.acquireRelease(
-        Effect.sync(() =>
-          registrations.set(definition.id, [...(registrations.get(definition.id) ?? []), entry]),
-        ),
+        Effect.sync(() => registrations.set(definition.id, [...(registrations.get(definition.id) ?? []), entry])),
         () => dispose,
       )
 
@@ -90,8 +90,7 @@ const layer = Layer.effect(
         events: {
           emit: Effect.fn("Rpc.emit")(function* (...args: Rpc.EventInput<D>) {
             const registered = events.get(args[0])
-            if (!registered)
-              return yield* Effect.fail(new Error(`Unknown RPC event: ${definition.id}.${args[0]}`))
+            if (!registered) return yield* Effect.fail(new Error(`Unknown RPC event: ${definition.id}.${args[0]}`))
             const event = registered.event
             // SAFETY: The public event-schema contract guarantees an object encoded/output type.
             // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
@@ -107,9 +106,10 @@ const layer = Layer.effect(
     })
 
     const call = Effect.fn("Rpc.call")(function* (rpcID: string, name: string, input: unknown) {
-      const entry = registrations.get(rpcID)?.at(-1)
-      if (!entry)
+      if (yield* Deferred.isDone(closed))
         return yield* Effect.fail(failure("rpc.unavailable", `RPC is unavailable: ${rpcID}`))
+      const entry = registrations.get(rpcID)?.at(-1)
+      if (!entry) return yield* Effect.fail(failure("rpc.unavailable", `RPC is unavailable: ${rpcID}`))
       if (!Object.hasOwn(entry.definition.methods, name) || !Object.hasOwn(entry.handlers, name))
         return yield* Effect.fail(failure("rpc.method_not_found", `Unknown RPC method: ${rpcID}.${name}`))
       const method = entry.definition.methods[name]
@@ -127,6 +127,12 @@ const layer = Layer.effect(
         Effect.catchDefect((defect) =>
           Effect.logError("rpc handler failed", { rpc: rpcID, method: name, defect }).pipe(
             Effect.andThen(Effect.fail(failure("rpc.internal", "RPC call failed"))),
+          ),
+        ),
+        // A long-lived RPC must release its location when the routing cache invalidates it.
+        Effect.raceFirst(
+          Deferred.await(closed).pipe(
+            Effect.andThen(Effect.fail(failure("rpc.unavailable", `RPC is unavailable: ${rpcID}`))),
           ),
         ),
       )
@@ -164,7 +170,7 @@ const layer = Layer.effect(
       } as RpcClient<D, Rpc.SystemError, never, unknown>
     }
 
-    return Service.of({ register, call, client })
+    return Service.of({ register, call, client, close: Deferred.succeed(closed, undefined).pipe(Effect.asVoid) })
   }),
 )
 

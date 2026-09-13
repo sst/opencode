@@ -45,7 +45,7 @@ export function SessionPermissionDock(props: {
             >
               {language.t("ui.permission.allowAlways")}
             </Button>
-            <Button variant="contrast" size="normal" onClick={() => props.onDecide("once")} disabled={props.responding}>
+            <Button variant="submit" size="normal" onClick={() => props.onDecide("once")} disabled={props.responding}>
               {language.t("ui.permission.allowOnce")}
             </Button>
           </div>

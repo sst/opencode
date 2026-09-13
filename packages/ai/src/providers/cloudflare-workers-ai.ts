@@ -3,7 +3,7 @@ import { OpenAIChat } from "../protocols/openai-chat.js"
 import { AuthOptions, type AtLeastOne, type ProviderAuthOption } from "../route/auth-options.js"
 import { Route, type RouteDefaultsInput } from "../route/client.js"
 import { Endpoint } from "../route/endpoint.js"
-import { ProviderID, type ModelID } from "../schema/index.js"
+import { ProviderConfigurationError, ProviderID, type ModelID } from "../schema/index.js"
 import type { OpenAIProviderOptionsInput } from "./openai-options.js"
 
 export const id = ProviderID.make("cloudflare-workers-ai")
@@ -21,14 +21,18 @@ export type LanguageModelOptions = WorkersAIURL &
   }
 
 export type Settings = ProviderPackage.Settings &
+  OpenAIProviderOptionsInput &
   WorkersAIURL & {
     readonly apiKey?: string
-    readonly providerOptions?: OpenAIProviderOptionsInput
   }
 
 export const baseURL = (input: WorkersAIURL) => {
   if (input.baseURL) return input.baseURL
-  if (!input.accountId) throw new Error("CloudflareWorkersAI.configure requires accountId unless baseURL is supplied")
+  if (!input.accountId)
+    throw new ProviderConfigurationError({
+      provider: id,
+      message: "CloudflareWorkersAI.configure requires accountId unless baseURL is supplied",
+    })
   return `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(input.accountId)}/ai/v1`
 }
 
@@ -59,13 +63,15 @@ export const configure = (input: LanguageModelOptions) => {
 
 export const provider = { id, configure }
 
-export const model: ProviderPackage.Definition<Settings, OpenAIProviderOptionsInput>["model"] = (modelID, settings) =>
-  configure({
-    apiKey: settings.apiKey,
+export const model: ProviderPackage.Definition<Settings, OpenAIProviderOptionsInput>["model"] = (modelID, settings) => {
+  const { accountId: _, apiKey, baseURL: _url, body, headers, ...providerOptions } = settings
+  return configure({
+    apiKey,
     baseURL: baseURL(settings),
-    headers: settings.headers === undefined ? undefined : { ...settings.headers },
-    http: settings.body === undefined ? undefined : { body: { ...settings.body } },
-    providerOptions: settings.providerOptions,
+    headers: headers === undefined ? undefined : { ...headers },
+    http: body === undefined ? undefined : { body: { ...body } },
+    providerOptions,
   }).model(modelID)
+}
 
 export * as CloudflareWorkersAI from "./cloudflare-workers-ai.js"

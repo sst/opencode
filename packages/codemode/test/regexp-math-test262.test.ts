@@ -126,7 +126,7 @@ describe("RegExp Test262 parity", () => {
         const match = /(?<a>a)(b)?/d.exec("a")
         const stringMatch = "a".match(/a/d)
         const all = "a a".matchAll(/a/dg)
-        const blocked = /(?<constructor>a)(?<safe>b)/d.exec("ab")
+        const named = /(?<constructor>a)(?<safe>b)/d.exec("ab")
         return [
           /./.hasIndices,
           /./d.hasIndices,
@@ -138,10 +138,10 @@ describe("RegExp Test262 parity", () => {
           stringMatch.indices[0],
           all[0].indices[0],
           all[1].indices[0],
-          Object.keys(blocked.indices.groups),
+          Object.keys(named.indices.groups),
         ]
       `),
-    ).toEqual([false, true, true, [0, 1], [0, 1], null, [0, 1], [0, 1], [0, 1], [2, 3], ["safe"]])
+    ).toEqual([false, true, true, [0, 1], [0, 1], null, [0, 1], [0, 1], [0, 1], [2, 3], ["constructor", "safe"]])
   })
 
   test("match indices preserve captures, Unicode offsets, and groups properties", async () => {
@@ -177,13 +177,13 @@ describe("RegExp Test262 parity", () => {
     ])
   })
 
-  test("match and matchAll preserve named, unmatched, and blocked index groups", async () => {
+  test("match and matchAll preserve named, unmatched, and prototype-named index groups", async () => {
     expect(
       await value(`
         const matched = "a".match(/(?<a>a)|(?<x>x)/d).indices.groups
         const all = "a x".matchAll(/(?<a>a)|(?<x>x)/dg)
-        const blockedMatch = "ab".match(/(?<constructor>a)(?<safe>b)/d).indices.groups
-        const blockedAll = "ab".matchAll(/(?<constructor>a)(?<safe>b)/dg)[0].indices.groups
+        const namedMatch = "ab".match(/(?<constructor>a)(?<safe>b)/d).indices.groups
+        const namedAll = "ab".matchAll(/(?<constructor>a)(?<safe>b)/dg)[0].indices.groups
         return [
           matched.a,
           matched.x,
@@ -191,11 +191,11 @@ describe("RegExp Test262 parity", () => {
           all[0].indices.groups.x,
           all[1].indices.groups.a,
           all[1].indices.groups.x,
-          Object.keys(blockedMatch),
-          Object.keys(blockedAll),
+          Object.keys(namedMatch),
+          Object.keys(namedAll),
         ]
       `),
-    ).toEqual([[0, 1], null, [0, 1], null, null, [2, 3], ["safe"], ["safe"]])
+    ).toEqual([[0, 1], null, [0, 1], null, null, [2, 3], ["constructor", "safe"], ["constructor", "safe"]])
   })
 
   test("v flag exposes unicodeSets and remains exclusive with u", async () => {

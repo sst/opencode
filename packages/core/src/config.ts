@@ -3,7 +3,7 @@ export * as Config from "./config.js"
 import { makeLocationNode } from "@opencode/util/effect/app-node"
 import path from "path"
 import { isDeepStrictEqual } from "node:util"
-import { type ParseError, parse } from "jsonc-parser"
+import { applyEdits, modify, type ParseError, parse } from "jsonc-parser"
 import { Context, Effect, FiberMap, Layer, Option, PubSub, Ref, Schema, Semaphore, Stream } from "effect"
 import {
   AgentsDirectory,
@@ -11,6 +11,8 @@ import {
   Directory,
   Document,
   Info,
+  type Preferences,
+  type PreferencesPatch,
   type Entry,
   Event,
 } from "@opencode/schema/config"
@@ -41,6 +43,10 @@ export interface Interface {
    * source files they parse and rebuild their own state.
    */
   readonly changes: () => Stream.Stream<Watcher.Update>
+  /** Returns preferences from the highest-precedence global config document. */
+  readonly preferences?: () => Effect.Effect<Preferences, FSUtil.Error>
+  /** Patches preferences in the highest-precedence global config document. */
+  readonly updatePreferences?: (patch: PreferencesPatch) => Effect.Effect<Preferences, FSUtil.Error>
 }
 
 export const Options = Schema.Struct({
@@ -80,6 +86,19 @@ export const testLayer = (initial: Entry[] = []) =>
     }),
   )
 
+function decodePreferences(text: string): Preferences {
+  const errors: ParseError[] = []
+  const input: unknown = parse(text, errors, { allowTrailingComma: true })
+  if (errors.length) return {}
+  const normalized = ConfigNormalize.normalize(input)
+  if (normalized.type === "rejected") return {}
+  const info = Option.getOrUndefined(Schema.decodeUnknownOption(Info)(normalized.encoded))
+  return {
+    ...(info?.shell === undefined ? {} : { shell: info.shell }),
+    ...(info?.websearch === undefined ? {} : { websearch: info.websearch }),
+  }
+}
+
 export const layer = (options?: Options) =>
   Layer.effect(
     Service,
@@ -89,8 +108,10 @@ export const layer = (options?: Options) =>
       const watcher = yield* Watcher.Service
       const bus = yield* Bus.Service
       const credentials = yield* Credential.Service
+      const globalService = yield* Global.Service
       const wellknown = yield* WellKnown.Service
       const reloadLock = Semaphore.makeUnsafe(1)
+      const updateLock = Semaphore.makeUnsafe(1)
       const decodeOptions = { errors: "all", onExcessProperty: "ignore", propertyOrder: "original" } as const
       const decodeInfo = Schema.decodeUnknownOption(Info, decodeOptions)
       const parseInfo = Effect.fn("Config.parseInfo")(function* (text: string, source: string) {
@@ -317,11 +338,50 @@ export const layer = (options?: Options) =>
       )
       yield* reloadLock.withPermit(reconcile(initial))
 
+      const globalConfigPath = Effect.fn("Config.globalConfigPath")(function* () {
+        const directory = initial.global ?? AbsolutePath.make(globalService.config)
+        const candidates = ConfigDiscovery.names.map((name) => path.join(directory, name))
+        const existing = yield* Effect.filter(candidates, fs.isFile)
+        return existing.at(-1) ?? path.join(directory, "opencode.jsonc")
+      })
+
+      const preferences = Effect.fn("Config.preferences")(function* () {
+        const filepath = yield* globalConfigPath()
+        const text = yield* fs.readFileStringSafe(filepath)
+        return text === undefined ? {} : decodePreferences(text)
+      })
+
+      const updatePreferences = Effect.fn("Config.updatePreferences")(
+        function* (patch: PreferencesPatch) {
+          const filepath = yield* globalConfigPath()
+          const text = (yield* fs.readFileStringSafe(filepath)) ?? "{}\n"
+          const updated = yield* Effect.try({
+            try: () =>
+              (["shell", "websearch"] as const).reduce((content, key) => {
+                if (!Object.prototype.hasOwnProperty.call(patch, key)) return content
+                return applyEdits(
+                  content,
+                  modify(content, [key], patch[key] === null ? undefined : patch[key], {
+                    formattingOptions: { tabSize: 2, insertSpaces: true },
+                  }),
+                )
+              }, text),
+            catch: (cause) => new FSUtil.FileSystemError({ method: "config.updatePreferences", cause }),
+          })
+          yield* fs.writeWithDirs(filepath, updated.endsWith("\n") ? updated : `${updated}\n`)
+          yield* requestReload
+          return decodePreferences(updated)
+        },
+        (effect) => updateLock.withPermit(effect),
+      )
+
       return Service.of({
         entries: Effect.fnUntraced(function* () {
           return configs
         }),
         changes: () => Stream.fromPubSub(updates),
+        preferences,
+        updatePreferences,
       })
     }),
   )

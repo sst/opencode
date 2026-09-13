@@ -6,6 +6,7 @@ import { WebSearchExa } from "@opencode/core/plugin/websearch/exa"
 import { WebSearchFirecrawl } from "@opencode/core/plugin/websearch/firecrawl"
 import { WebSearchParallel } from "@opencode/core/plugin/websearch/parallel"
 import { WebSearchTavily } from "@opencode/core/plugin/websearch/tavily"
+import { WebSearchTinyFish } from "@opencode/core/plugin/websearch/tinyfish"
 import { host, integrationHost, webSearchHost } from "./host"
 import { requests, signals, resetWebSearchFixture, webSearchIntegrationTest } from "./websearch-fixture"
 
@@ -30,24 +31,26 @@ beforeEach(() => {
 const it = webSearchIntegrationTest
 
 describe("built-in web search providers", () => {
-  ;[WebSearchExa.Plugin, WebSearchParallel.Plugin, WebSearchFirecrawl.Plugin, WebSearchTavily.Plugin].forEach(
-    (plugin) => {
-      it.effect(`releases rate-limited HTTP requests for ${plugin.id} before caching their errors`, () =>
-        Effect.gen(function* () {
-          resetWebSearchFixture("Rate limited", 429)
-          const integrations = yield* Integration.Service
-          const websearch = yield* WebSearch.Service
-          yield* plugin.effect(
-            host({ integration: integrationHost(integrations), websearch: webSearchHost(websearch) }),
-          )
-          yield* websearch.select("random")
-          expect(yield* websearch.query({ query: "limited" }).pipe(Effect.flip)).toBeInstanceOf(WebSearch.RequestError)
-          expect(signals).toHaveLength(1)
-          expect(signals[0]?.aborted).toBe(true)
-        }),
-      )
-    },
-  )
+  ;[
+    WebSearchExa.Plugin,
+    WebSearchParallel.Plugin,
+    WebSearchFirecrawl.Plugin,
+    WebSearchTavily.Plugin,
+    WebSearchTinyFish.Plugin,
+  ].forEach((plugin) => {
+    it.effect(`releases rate-limited HTTP requests for ${plugin.id} before caching their errors`, () =>
+      Effect.gen(function* () {
+        resetWebSearchFixture("Rate limited", 429)
+        const integrations = yield* Integration.Service
+        const websearch = yield* WebSearch.Service
+        yield* plugin.effect(host({ integration: integrationHost(integrations), websearch: webSearchHost(websearch) }))
+        yield* websearch.select("random")
+        expect(yield* websearch.query({ query: "limited" }).pipe(Effect.flip)).toBeInstanceOf(WebSearch.RequestError)
+        expect(signals).toHaveLength(1)
+        expect(signals[0]?.aborted).toBe(true)
+      }),
+    )
+  })
 
   it.effect("registers a provider without an integration", () =>
     Effect.gen(function* () {
@@ -275,6 +278,86 @@ describe("built-in web search providers", () => {
         headers: { authorization: "Bearer tavily-secret", "x-client-name": "opencode2" },
       })
       expect(requests[1]?.headers["x-tavily-access-mode"]).toBeUndefined()
+    }),
+  )
+
+  it.effect("registers TinyFish with keyless and keyed MCP search access", () =>
+    Effect.gen(function* () {
+      resetWebSearchFixture(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          result: {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  query: "effect typescript",
+                  results: [
+                    {
+                      position: 1,
+                      site_name: "effect.website",
+                      snippet: "Effect documentation",
+                      title: "Effect",
+                      url: "https://effect.website",
+                    },
+                  ],
+                  total_results: 1,
+                  page: 0,
+                }),
+              },
+            ],
+          },
+        }),
+      )
+      const integrations = yield* Integration.Service
+      const websearch = yield* WebSearch.Service
+      yield* WebSearchTinyFish.Plugin.effect(
+        host({ integration: integrationHost(integrations), websearch: webSearchHost(websearch) }),
+      )
+
+      expect(yield* integrations.get(Integration.ID.make("tinyfish"))).toMatchObject({
+        id: "tinyfish",
+        name: "TinyFish",
+        methods: [{ type: "key" }, { type: "env", names: ["TINYFISH_API_KEY"] }],
+      })
+      expect(yield* websearch.query({ query: "effect typescript", providerID: WebSearch.ID.make("tinyfish") })).toEqual(
+        new WebSearch.Response({
+          providerID: WebSearch.ID.make("tinyfish"),
+          results: [
+            {
+              url: "https://effect.website",
+              title: "Effect",
+              content: "Effect documentation",
+              time: {},
+            },
+          ],
+        }),
+      )
+      expect(requests[0]).toMatchObject({
+        url: WebSearchTinyFish.endpoint,
+        headers: { "x-tinyfish-access-mode": "keyless" },
+        body: {
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: {
+            name: "search",
+            arguments: { query: "effect typescript" },
+          },
+        },
+      })
+      expect(requests[0]?.headers.authorization).toBeUndefined()
+
+      yield* integrations.connection.key({
+        integrationID: Integration.ID.make("tinyfish"),
+        key: "tinyfish-secret",
+      })
+      yield* websearch.query({ query: "effect typescript", providerID: WebSearch.ID.make("tinyfish") })
+      expect(requests[1]).toMatchObject({
+        headers: { "x-api-key": "tinyfish-secret" },
+      })
+      expect(requests[1]?.headers["x-tinyfish-access-mode"]).toBeUndefined()
     }),
   )
 })

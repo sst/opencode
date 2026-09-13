@@ -1,8 +1,9 @@
 export * as Session from "./session.js"
 
-import { DateTime, Effect, Fiber, Schema, Scope } from "effect"
+import { DateTime, Effect, Fiber, Scope } from "effect"
 import type { Agent } from "@opencode/schema/agent"
 import type { Model } from "@opencode/schema/model"
+import type { Permission } from "@opencode/schema/permission"
 import { Event } from "@opencode/schema/event"
 import { FSUtil } from "@opencode/util/fs-util"
 import { Bus } from "../bus.js"
@@ -14,10 +15,7 @@ import {
   BusyError,
   CompactionConflictError,
   InboxConflictError,
-  MessageIncompleteError,
-  MessageNotAssistantError,
   MessageNotFoundError,
-  MessageToolIncompleteError,
   NotFoundError,
   PromptConflictError,
   SyntheticConflictError,
@@ -61,26 +59,6 @@ export const make = Effect.fn("Session.make")(function* () {
     const stored = yield* store.message(messageID)
     return stored?.sessionID === sessionID ? stored.message : undefined
   })
-  const updateMessage = Effect.fn("Session.updateMessage")(function* (
-    sessionID: SessionSchema.ID,
-    input: { readonly messageID: SessionMessage.ID; readonly content: readonly SessionMessage.AssistantContent[] },
-  ) {
-    const ref = { sessionID, messageID: input.messageID }
-    yield* get(sessionID)
-    if (yield* execution.isActive(sessionID)) return yield* new BusyError({ sessionID })
-    const current = yield* message(sessionID, input.messageID)
-    if (!current) return yield* new MessageNotFoundError(ref)
-    if (current.type !== "assistant") return yield* new MessageNotAssistantError(ref)
-    if (!current.time.completed) return yield* new MessageIncompleteError(ref)
-    if (input.content.some(isUnfinishedTool)) return yield* new MessageToolIncompleteError(ref)
-    yield* bus.publish(SessionEvent.MessageContentUpdated, {
-      ...ref,
-      content: Schema.encodeSync(Schema.Array(SessionMessage.AssistantContent))(input.content),
-    })
-    const updated = yield* message(sessionID, input.messageID)
-    if (updated?.type !== "assistant") return yield* new MessageNotFoundError(ref)
-    return updated
-  })
   const view = Effect.fn("Session.view")(function* (sessionID: SessionSchema.ID, input: { idle: number }) {
     const session = yield* get(sessionID)
     if (
@@ -94,6 +72,13 @@ export const make = Effect.fn("Session.make")(function* () {
   const rename = Effect.fn("Session.rename")(function* (sessionID: SessionSchema.ID, input: { title: string }) {
     yield* get(sessionID)
     yield* bus.publish(SessionEvent.Renamed, { sessionID, title: input.title })
+  })
+  const setPermissions = Effect.fn("Session.setPermissions")(function* (
+    sessionID: SessionSchema.ID,
+    input: { permissions: Permission.Ruleset },
+  ) {
+    yield* get(sessionID)
+    yield* bus.publish(SessionEvent.PermissionsUpdated, { sessionID, permissions: input.permissions })
   })
   const switchAgent = Effect.fn("Session.switchAgent")(function* (
     sessionID: SessionSchema.ID,
@@ -355,9 +340,9 @@ export const make = Effect.fn("Session.make")(function* () {
   const operations = {
     get,
     message,
-    updateMessage,
     view,
     rename,
+    setPermissions,
     switchAgent,
     switchModel,
     inbox,
@@ -378,9 +363,9 @@ export const make = Effect.fn("Session.make")(function* () {
   const forSession = (sessionID: SessionSchema.ID) => {
     const get = operations.get.bind(undefined, sessionID)
     const message = operations.message.bind(undefined, sessionID)
-    const updateMessage = operations.updateMessage.bind(undefined, sessionID)
     const view = operations.view.bind(undefined, sessionID)
     const rename = operations.rename.bind(undefined, sessionID)
+    const setPermissions = operations.setPermissions.bind(undefined, sessionID)
     const switchAgent = operations.switchAgent.bind(undefined, sessionID)
     const switchModel = operations.switchModel.bind(undefined, sessionID)
     const inbox = operations.inbox.bind(undefined, sessionID)
@@ -404,9 +389,9 @@ export const make = Effect.fn("Session.make")(function* () {
       id: sessionID,
       get,
       message,
-      updateMessage,
       view,
       rename,
+      setPermissions,
       switchAgent,
       switchModel,
       inbox,
@@ -428,9 +413,5 @@ export const make = Effect.fn("Session.make")(function* () {
 })
 
 export type Handle = ReturnType<Effect.Success<ReturnType<typeof make>>["forSession"]>
-
-function isUnfinishedTool(content: SessionMessage.AssistantContent) {
-  return content.type === "tool" && (content.state.status === "streaming" || content.state.status === "running")
-}
 
 // Mirrors the shell tool's in-memory preview safety limit.

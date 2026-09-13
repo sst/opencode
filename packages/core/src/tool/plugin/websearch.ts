@@ -1,6 +1,7 @@
 export * as WebSearchTool from "./websearch.js"
 
 import type { Context } from "@opencode/plugin/effect/plugin"
+import type { SessionHooks } from "@opencode/plugin/effect/session"
 import { ToolFailure } from "@opencode/ai"
 import { Effect, Schema, Semaphore } from "effect"
 import { HttpClientError } from "effect/unstable/http"
@@ -180,14 +181,16 @@ export const Plugin = {
       )
       .pipe(Effect.orDie)
 
-    yield* ctx.session.hook("context", (event) =>
+    const hook = (event: SessionHooks["context"]) =>
       Effect.gen(function* () {
         const disabled = yield* websearch.default().pipe(
           Effect.as(false),
           Effect.catchTag("WebSearch.Disabled", () => Effect.succeed(true)),
         )
         if (disabled) delete event.tools[name]
-      }),
-    )
+      })
+    yield* ctx.session.hook("context", hook)
+    yield* ctx.session.hook("compaction", hook)
+    yield* ctx.session.hook("generate", hook)
   }),
 }

@@ -91,7 +91,7 @@ describe("Open Responses-compatible route", () => {
       expect(prepared.body.input).toEqual([
         { role: "user", content: [{ type: "input_text", text: "Before." }] },
         { role: "developer", content: "Operator update." },
-        { type: "message", role: "assistant", content: [{ type: "output_text", text: "After." }] },
+        { type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: "After." }] },
       ])
     }),
   )
@@ -299,23 +299,27 @@ describe("Open Responses-compatible route", () => {
           type: "message",
           id: "history_1",
           role: "assistant",
+          status: "completed",
           content: [{ type: "output_text", text: "Kept." }],
         },
         {
           type: "message",
           id: `history_${"a".repeat(64)}`,
           role: "assistant",
+          status: "completed",
           content: [{ type: "output_text", text: "Long." }],
         },
         {
           type: "message",
           id: "provider_value/with+symbols",
           role: "assistant",
+          status: "completed",
           content: [{ type: "output_text", text: "Opaque." }],
         },
         {
           type: "message",
           role: "assistant",
+          status: "completed",
           content: [
             { type: "output_text", text: "No suffix." },
             { type: "output_text", text: "No prefix." },
@@ -856,6 +860,7 @@ describe("Open Responses-compatible route", () => {
           type: "message",
           id: "msg_refusal",
           role: "assistant",
+          status: "completed",
           content: [{ type: "output_text", text: "I can't help with that." }],
         },
       ])

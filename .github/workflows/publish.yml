@@ -25,7 +25,7 @@ on:
         required: false
         type: string
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.version || inputs.bump }}
+concurrency: ${{ github.workflow }}-${{ github.ref }}-${{ (github.ref_name == 'v2' && (inputs.version || inputs.bump) && 'release') || inputs.version || inputs.bump }}
 
 permissions:
   id-token: write
@@ -33,7 +33,7 @@ permissions:
   packages: write
 
 env:
-  OPENCODE_CHANNEL: ${{ (github.ref_name == 'v2' && 'dev') || '' }}
+  OPENCODE_CHANNEL: ${{ (github.ref_name == 'v2' && !inputs.bump && !inputs.version && 'dev') || '' }}
 
 jobs:
   version:
@@ -48,7 +48,7 @@ jobs:
 
       - name: Deploy update service
         if: github.ref_name == 'v2'
-        working-directory: services/updates
+        working-directory: services/update
         run: bun run deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -168,7 +168,7 @@ jobs:
           fi
 
           found=0
-          for file in packages/cli/dist/cli-darwin-*/bin/opencode2; do
+          for file in packages/cli/dist/cli-darwin-*/bin/opencode; do
             if [ ! -f "$file" ]; then
               continue
             fi
@@ -191,7 +191,7 @@ jobs:
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: opencode-preview-cli
+          name: opencode-preview-cli-macos
           path: packages/cli/dist/cli-*
           if-no-files-found: error
 
@@ -199,7 +199,7 @@ jobs:
     needs: version
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 30
-    if: github.repository == 'anomalyco/opencode'
+    if: github.repository == 'anomalyco/opencode' && !(github.ref_name == 'v2' && (inputs.bump || inputs.version))
     steps:
       - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
@@ -221,7 +221,7 @@ jobs:
     needs:
       - version
       - build-node-app-archive
-    if: github.repository == 'anomalyco/opencode'
+    if: github.repository == 'anomalyco/opencode' && !(github.ref_name == 'v2' && (inputs.bump || inputs.version))
     strategy:
       fail-fast: false
       matrix:
@@ -276,10 +276,9 @@ jobs:
 
   sign-cli-windows:
     needs:
-      - build-cli
-      - version
+      - sign-cli-macos
     runs-on: blacksmith-4vcpu-windows-2025
-    if: github.repository == 'anomalyco/opencode' && github.ref_name != 'v2' && github.ref_name != 'beta'
+    if: github.repository == 'anomalyco/opencode' && (github.ref_name == 'v2' || github.ref_name == 'beta')
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -292,15 +291,8 @@ jobs:
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: opencode-cli-windows
-          path: packages/opencode/dist
-
-      - name: Setup git committer
-        id: committer
-        uses: ./.github/actions/setup-git-committer
-        with:
-          opencode-app-id: ${{ vars.OPENCODE_APP_ID }}
-          opencode-app-secret: ${{ secrets.OPENCODE_APP_SECRET }}
+          name: opencode-preview-cli-macos
+          path: packages/cli/dist
 
       - name: Azure login
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
@@ -315,9 +307,9 @@ jobs:
           signing-account-name: ${{ env.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
           certificate-profile-name: ${{ env.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE }}
           files: |
-            ${{ github.workspace }}\packages\opencode\dist\opencode-windows-arm64\bin\opencode.exe
-            ${{ github.workspace }}\packages\opencode\dist\opencode-windows-x64\bin\opencode.exe
-            ${{ github.workspace }}\packages\opencode\dist\opencode-windows-x64-baseline\bin\opencode.exe
+            ${{ github.workspace }}\packages\cli\dist\cli-windows-arm64\bin\opencode.exe
+            ${{ github.workspace }}\packages\cli\dist\cli-windows-x64\bin\opencode.exe
+            ${{ github.workspace }}\packages\cli\dist\cli-windows-x64-baseline\bin\opencode.exe
           exclude-environment-credential: true
           exclude-workload-identity-credential: true
           exclude-managed-identity-credential: true
@@ -333,9 +325,9 @@ jobs:
         shell: pwsh
         run: |
           $files = @(
-            "${{ github.workspace }}\packages\opencode\dist\opencode-windows-arm64\bin\opencode.exe",
-            "${{ github.workspace }}\packages\opencode\dist\opencode-windows-x64\bin\opencode.exe",
-            "${{ github.workspace }}\packages\opencode\dist\opencode-windows-x64-baseline\bin\opencode.exe"
+            "${{ github.workspace }}\packages\cli\dist\cli-windows-arm64\bin\opencode.exe",
+            "${{ github.workspace }}\packages\cli\dist\cli-windows-x64\bin\opencode.exe",
+            "${{ github.workspace }}\packages\cli\dist\cli-windows-x64-baseline\bin\opencode.exe"
           )
 
           foreach ($file in $files) {
@@ -345,40 +337,17 @@ jobs:
             }
           }
 
-      - name: Repack Windows CLI archives
-        working-directory: packages/opencode/dist
-        shell: pwsh
-        run: |
-          Compress-Archive -Path "opencode-windows-arm64\bin\*" -DestinationPath "opencode-windows-arm64.zip" -Force
-          Compress-Archive -Path "opencode-windows-x64\bin\*" -DestinationPath "opencode-windows-x64.zip" -Force
-          Compress-Archive -Path "opencode-windows-x64-baseline\bin\*" -DestinationPath "opencode-windows-x64-baseline.zip" -Force
-
-      - name: Upload signed Windows CLI release assets
-        if: needs.version.outputs.release != ''
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ steps.committer.outputs.token }}
-        run: |
-          gh release upload "v${{ needs.version.outputs.version }}" `
-            "${{ github.workspace }}\packages\opencode\dist\opencode-windows-arm64.zip" `
-            "${{ github.workspace }}\packages\opencode\dist\opencode-windows-x64.zip" `
-            "${{ github.workspace }}\packages\opencode\dist\opencode-windows-x64-baseline.zip" `
-            --clobber `
-            --repo "${{ needs.version.outputs.repo }}"
-
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: opencode-cli-signed-windows
-          path: |
-            packages/opencode/dist/opencode-windows-arm64
-            packages/opencode/dist/opencode-windows-x64
-            packages/opencode/dist/opencode-windows-x64-baseline
+          name: opencode-preview-cli
+          path: packages/cli/dist/cli-*
+          if-no-files-found: error
 
   build-electron:
     needs:
       - version
-      - sign-cli-macos
-    if: github.repository == 'anomalyco/opencode' && github.ref_name != 'v2'
+      - sign-cli-windows
+    if: github.repository == 'anomalyco/opencode' && (github.ref_name != 'v2' || needs.version.outputs.release != '')
     continue-on-error: false
     env:
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}

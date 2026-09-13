@@ -16,6 +16,19 @@ function sessionTab(sessionId: string): SessionTab {
 }
 
 describe("tab migration", () => {
+  test("round trips draft MCP choices without changing older drafts", () => {
+    const legacy: Tab = { type: "draft", draftID: "legacy-draft", server, directory: "/project" }
+    const draft: Tab = {
+      ...legacy,
+      draftID: "mcp-draft",
+      worktree: "create",
+      mcp: { target: "new-worktree", states: { first: true, second: false } },
+    }
+    const restored = decodeTabs([legacy, draft])
+    expect(restored).toEqual([legacy, draft])
+    expect(decodeTabs(Schema.encodeSync(TabStorage.Tabs)(restored))).toEqual([legacy, draft])
+  })
+
   test("drops null and malformed persisted tabs", () => {
     expect(
       decodeTabs([null, sessionTab("a"), { type: "session", server }, { type: "unknown", server }, "invalid"]),

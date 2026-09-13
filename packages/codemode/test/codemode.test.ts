@@ -528,7 +528,7 @@ describe("CodeMode schema flexibility", () => {
     })
     const runtime = CodeMode.make({ tools: { adapter: { call } } })
 
-    expect(runtime.catalog()).toStrictEqual([
+    expect(runtime.catalog).toStrictEqual([
       {
         path: "adapter.call",
         description: "Call an adapter-described tool",
@@ -611,7 +611,7 @@ describe("CodeMode schema flexibility", () => {
     })
     const runtime = CodeMode.make({ tools: { users: { lookup } } })
 
-    expect(runtime.catalog()).toStrictEqual([
+    expect(runtime.catalog).toStrictEqual([
       {
         path: "users.lookup",
         description: "Look up a user",
@@ -631,7 +631,7 @@ describe("CodeMode schema flexibility", () => {
       execute: () => Effect.succeed("pong"),
     })
     const runtime = CodeMode.make({ tools: { net: { ping } } })
-    expect(runtime.catalog()[0]?.signature).toBe("tools.net.ping(input: {\n  host: string,\n}): Promise<void>")
+    expect(runtime.catalog[0]?.signature).toBe("tools.net.ping(input: {\n  host: string,\n}): Promise<void>")
 
     const result = await Effect.runPromise(runtime.execute(`return await tools.net.ping({ host: "example.test" })`))
     expect(result.ok).toBe(true)
@@ -684,7 +684,7 @@ describe("CodeMode public contract", () => {
 
   test("describes the catalog and keeps the search built-in registered", async () => {
     const runtime = CodeMode.make({ tools })
-    expect(runtime.catalog()).toStrictEqual([
+    expect(runtime.catalog).toStrictEqual([
       {
         path: "orders.lookup",
         description: "Look up an order by ID",
@@ -726,8 +726,8 @@ describe("CodeMode public contract", () => {
     const first = CodeMode.make({ tools: { zeta: { zeta, alpha }, alpha: { zeta, alpha } } })
     const second = CodeMode.make({ tools: { alpha: { alpha, zeta }, zeta: { alpha, zeta } } })
 
-    expect(first.catalog()).toStrictEqual(second.catalog())
-    expect(first.catalog().map((tool) => tool.path)).toEqual(["alpha.alpha", "alpha.zeta", "zeta.alpha", "zeta.zeta"])
+    expect(first.catalog).toStrictEqual(second.catalog)
+    expect(first.catalog.map((tool) => tool.path)).toEqual(["alpha.alpha", "alpha.zeta", "zeta.alpha", "zeta.zeta"])
   })
 
   test("renders bracket notation for tool names that are not JavaScript identifiers", async () => {
@@ -739,7 +739,7 @@ describe("CodeMode public contract", () => {
     })
     const runtime = CodeMode.make({ tools: { context7: { "resolve-library-id": resolveLibrary } } })
 
-    expect(runtime.catalog()).toStrictEqual([
+    expect(runtime.catalog).toStrictEqual([
       {
         path: "context7.resolve-library-id",
         description: "Resolve a library ID",

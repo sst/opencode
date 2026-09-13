@@ -17,7 +17,7 @@ import { GlobTool } from "@opencode/core/tool/plugin/glob"
 import { GrepTool } from "@opencode/core/tool/plugin/grep"
 import { Tool } from "@opencode/core/tool"
 import { location } from "./fixture/location"
-import { tmpdir } from "./fixture/tmpdir"
+import { tmpdir, tmpdirScoped } from "./fixture/tmpdir"
 import { it } from "./lib/effect"
 import { permissionLayer } from "./lib/permission"
 import { executeTool, registerToolPlugin, toolIdentity } from "./lib/tool"
@@ -67,6 +67,45 @@ const call = (name: "glob" | "grep", input: unknown) => ({
 })
 
 describe("search tools", () => {
+  for (const hidden of [undefined, false, true]) {
+    for (const limit of hidden ? [10] : [1, 10]) {
+      it.live(`glob honors hidden=${hidden} before limit=${limit}`, () =>
+        Effect.gen(function* () {
+          const tmp = yield* tmpdirScoped()
+          yield* Effect.promise(() =>
+            Promise.all(
+              ["src/visible.ts", ".hidden.ts", "src/.hidden.ts", ".hidden/nested.ts", ".git/config.ts"].map((file) =>
+                Bun.write(path.join(tmp.path, file), "needle\n"),
+              ),
+            ),
+          )
+          yield* withTools(tmp.path, (registry) =>
+            Effect.gen(function* () {
+              const result = yield* executeTool(
+                registry,
+                call("glob", { pattern: "**/*.ts", limit, ...(hidden === undefined ? {} : { hidden }) }),
+              )
+              const expected = hidden
+                ? [".hidden.ts", ".hidden/nested.ts", "src/.hidden.ts", "src/visible.ts"]
+                : ["src/visible.ts"]
+
+              expect(result.status).toBe("completed")
+              expect(result.output).toHaveLength(expected.length)
+              expect(result.output).toEqual(
+                expect.arrayContaining(expected.map((file) => ({ path: path.normalize(file), type: "file" }))),
+              )
+              expect(result.metadata).toEqual({ count: expected.length, truncated: false })
+              expect(result.content).toHaveLength(1)
+              expect(result.content?.[0]?.type === "text" ? result.content[0].text.split("\n").sort() : []).toEqual(
+                expected.map((file) => path.join(tmp.path, file)).sort(),
+              )
+            }),
+          )
+        }),
+      )
+    }
+  }
+
   it.live("bounds omitted glob and grep limits", () =>
     Effect.acquireUseRelease(
       Effect.promise(() => tmpdir()),

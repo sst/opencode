@@ -226,6 +226,7 @@ function toLLMMessage(message: SessionMessage.Info, model: Model.Ref, providerMe
   switch (message.type) {
     case "agent-switched":
     case "model-switched":
+    case "idle":
       return []
     case "location-switched":
       return [

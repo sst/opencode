@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "metadata": {
+    "tags": [
+      "prefix:alibaba-responses",
+      "provider:alibaba",
+      "protocol:alibaba-responses",
+      "region:ap-southeast-1",
+      "tool",
+      "tool-choice"
+    ],
+    "name": "alibaba-responses/qwen-3-8-max-obeys-named-tool-choice",
+    "recordedAt": "2026-09-08T03:11:28.654Z"
+  },
+  "interactions": [
+    {
+      "transport": "http",
+      "request": {
+        "method": "POST",
+        "url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/responses",
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"model\":\"qwen3.8-max\",\"input\":[{\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"Find the current weather in Paris.\"}]}],\"tools\":[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Get weather in a city\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\",\"enum\":[\"Paris\"]}},\"required\":[\"city\"]},\"strict\":false}],\"tool_choice\":{\"type\":\"allowed_tools\",\"mode\":\"required\",\"tools\":[{\"type\":\"function\",\"name\":\"get_weather\"}]},\"reasoning\":{\"effort\":\"none\"},\"max_output_tokens\":4096,\"stream\":true}"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/event-stream;charset=UTF-8"
+        },
+        "body": "id:1\nevent:response.created\n:HTTP_STATUS/200\ndata:{\"sequence_number\":0,\"type\":\"response.created\",\"response\":{\"top_logprobs\":0,\"metadata\":{},\"presence_penalty\":0.0,\"reasoning\":{\"effort\":\"none\"},\"created_at\":1788837088,\"store\":true,\"tools\":[{\"name\":\"get_weather\",\"description\":\"Get weather in a city\",\"strict\":false,\"type\":\"function\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\",\"enum\":[\"Paris\"]}},\"required\":[\"city\"]}}],\"output\":[],\"top_p\":1.0,\"completed_at\":1788837088,\"frequency_penalty\":0.0,\"parallel_tool_calls\":true,\"background\":false,\"temperature\":1.0,\"tool_choice\":{\"mode\":\"required\",\"type\":\"allowed_tools\",\"tools\":[{\"name\":\"get_weather\",\"type\":\"function\"}]},\"model\":\"qwen3.8-max\",\"service_tier\":\"default\",\"id\":\"resp_ff825f54-b21b-92dc-90e8-13d593803aff\",\"max_output_tokens\":4096,\"object\":\"response\",\"status\":\"queued\"}}\n\nid:2\nevent:response.in_progress\n:HTTP_STATUS/200\ndata:{\"sequence_number\":1,\"type\":\"response.in_progress\",\"response\":{\"top_logprobs\":0,\"metadata\":{},\"presence_penalty\":0.0,\"reasoning\":{\"effort\":\"none\"},\"created_at\":1788837088,\"store\":true,\"tools\":[{\"name\":\"get_weather\",\"description\":\"Get weather in a city\",\"strict\":false,\"type\":\"function\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\",\"enum\":[\"Paris\"]}},\"required\":[\"city\"]}}],\"output\":[],\"top_p\":1.0,\"completed_at\":1788837088,\"frequency_penalty\":0.0,\"parallel_tool_calls\":true,\"background\":false,\"temperature\":1.0,\"tool_choice\":{\"mode\":\"required\",\"type\":\"allowed_tools\",\"tools\":[{\"name\":\"get_weather\",\"type\":\"function\"}]},\"model\":\"qwen3.8-max\",\"service_tier\":\"default\",\"id\":\"resp_ff825f54-b21b-92dc-90e8-13d593803aff\",\"max_output_tokens\":4096,\"object\":\"response\",\"status\":\"in_progress\"}}\n\nid:3\nevent:response.output_item.added\n:HTTP_STATUS/200\ndata:{\"sequence_number\":2,\"item\":{\"name\":\"get_weather\",\"arguments\":\"\",\"id\":\"msg_733655cc-a34f-421a-a39a-6817ecf52e27\",\"type\":\"function_call\",\"call_id\":\"call_04b382d76da94ba3b695a111\",\"status\":\"in_progress\"},\"output_index\":0,\"type\":\"response.output_item.added\"}\n\nid:4\nevent:response.function_call_arguments.delta\n:HTTP_STATUS/200\ndata:{\"delta\":\"\",\"sequence_number\":3,\"output_index\":0,\"type\":\"response.function_call_arguments.delta\",\"item_id\":\"msg_733655cc-a34f-421a-a39a-6817ecf52e27\"}\n\nid:5\nevent:response.function_call_arguments.delta\n:HTTP_STATUS/200\ndata:{\"delta\":\"{\\\"city\\\": \\\"Paris\",\"sequence_number\":4,\"output_index\":0,\"type\":\"response.function_call_arguments.delta\",\"item_id\":\"msg_733655cc-a34f-421a-a39a-6817ecf52e27\"}\n\nid:6\nevent:response.function_call_arguments.delta\n:HTTP_STATUS/200\ndata:{\"delta\":\"\\\"\",\"sequence_number\":5,\"output_index\":0,\"type\":\"response.function_call_arguments.delta\",\"item_id\":\"msg_733655cc-a34f-421a-a39a-6817ecf52e27\"}\n\nid:7\nevent:response.function_call_arguments.delta\n:HTTP_STATUS/200\ndata:{\"delta\":\"}\",\"sequence_number\":6,\"output_index\":0,\"type\":\"response.function_call_arguments.delta\",\"item_id\":\"msg_733655cc-a34f-421a-a39a-6817ecf52e27\"}\n\nid:8\nevent:response.function_call_arguments.done\n:HTTP_STATUS/200\ndata:{\"name\":\"get_weather\",\"sequence_number\":7,\"arguments\":\"{\\\"city\\\": \\\"Paris\\\"}\",\"output_index\":0,\"type\":\"response.function_call_arguments.done\",\"item_id\":\"msg_733655cc-a34f-421a-a39a-6817ecf52e27\"}\n\nid:9\nevent:response.output_item.done\n:HTTP_STATUS/200\ndata:{\"sequence_number\":8,\"item\":{\"name\":\"get_weather\",\"arguments\":\"{\\\"city\\\": \\\"Paris\\\"}\",\"id\":\"msg_733655cc-a34f-421a-a39a-6817ecf52e27\",\"type\":\"function_call\",\"call_id\":\"call_04b382d76da94ba3b695a111\",\"status\":\"completed\"},\"output_index\":0,\"type\":\"response.output_item.done\"}\n\nid:10\nevent:response.completed\n:HTTP_STATUS/200\ndata:{\"sequence_number\":9,\"type\":\"response.completed\",\"response\":{\"top_logprobs\":0,\"metadata\":{},\"presence_penalty\":0.0,\"reasoning\":{\"effort\":\"none\"},\"usage\":{\"total_tokens\":339,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":19,\"input_tokens\":320,\"output_tokens_details\":{\"reasoning_tokens\":0},\"x_details\":[{\"total_tokens\":339,\"x_billing_type\":\"response_api\",\"output_tokens\":19,\"input_tokens\":320,\"prompt_tokens_details\":{\"cached_tokens\":0}}]},\"created_at\":1788837088,\"store\":true,\"tools\":[{\"name\":\"get_weather\",\"description\":\"Get weather in a city\",\"strict\":false,\"type\":\"function\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\",\"enum\":[\"Paris\"]}},\"required\":[\"city\"]}}],\"output\":[{\"name\":\"get_weather\",\"arguments\":\"{\\\"city\\\": \\\"Paris\\\"}\",\"id\":\"msg_733655cc-a34f-421a-a39a-6817ecf52e27\",\"type\":\"function_call\",\"call_id\":\"call_04b382d76da94ba3b695a111\",\"status\":\"completed\"}],\"top_p\":1.0,\"completed_at\":1788837088,\"frequency_penalty\":0.0,\"parallel_tool_calls\":true,\"background\":false,\"temperature\":1.0,\"tool_choice\":{\"mode\":\"required\",\"type\":\"allowed_tools\",\"tools\":[{\"name\":\"get_weather\",\"type\":\"function\"}]},\"model\":\"qwen3.8-max\",\"service_tier\":\"default\",\"id\":\"resp_ff825f54-b21b-92dc-90e8-13d593803aff\",\"max_output_tokens\":4096,\"object\":\"response\",\"status\":\"completed\"}}\n\n"
+      }
+    }
+  ]
+}

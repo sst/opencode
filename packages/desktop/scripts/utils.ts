@@ -76,7 +76,7 @@ export async function downloadCliToResources(version = CLI_VERSION, dest = windo
   try {
     await $`bun install --no-save --cwd ${directory} ${`${cli.package}@${version}`} ${`--os=${cli.os}`} ${`--cpu=${cli.cpu}`}`
     await copyCliToResources(
-      join(directory, "node_modules", cli.package, "bin", cli.os === "win32" ? "opencode2.exe" : "opencode2"),
+      join(directory, "node_modules", cli.package, "bin", cli.os === "win32" ? "opencode.exe" : "opencode"),
       dest,
     )
   } finally {
@@ -89,7 +89,7 @@ export async function downloadCliToResources(version = CLI_VERSION, dest = windo
 export async function copyBuiltCliToResources(root: string, dest = windowsify("resources/opencode-cli")) {
   const cli = getCurrentCli()
   const directory = cli.package.replace("@opencode/", "")
-  await copyCliToResources(join(root, directory, "bin", cli.os === "win32" ? "opencode2.exe" : "opencode2"), dest)
+  await copyCliToResources(join(root, directory, "bin", cli.os === "win32" ? "opencode.exe" : "opencode"), dest)
 }
 
 async function copyCliToResources(source: string, dest: string) {

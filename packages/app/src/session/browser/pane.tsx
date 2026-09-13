@@ -1,25 +1,26 @@
 import { Icon } from "@opencode/ui/icon"
 import { IconButton } from "@opencode/ui/icon-button"
 import { Loader } from "@opencode/ui/loader"
+import { Keybind } from "@opencode/ui/keybind"
+import { Tooltip } from "@opencode/ui/tooltip"
 import { useDialog } from "@opencode/ui/context/dialog"
 import { createEventListener } from "@solid-primitives/event-listener"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { createEffect, For, on, onCleanup, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/runtime/i18n/language"
-import type { BrowserPaneRegistration } from "@/runtime/platform/browser-pane"
 import { usePlatform } from "@/runtime/platform/platform"
+import { useCommand } from "@/shell/commands/command"
 import type { createSessionBrowser } from "./model"
 
-export function SessionBrowserPane(props: {
-  registration: BrowserPaneRegistration
-  browser: ReturnType<typeof createSessionBrowser>
-  visible: boolean
-}) {
+export function SessionBrowserPane(props: { browser: ReturnType<typeof createSessionBrowser>; visible: boolean }) {
   const platform = usePlatform()
   const language = useLanguage()
   const dialog = useDialog()
+  const command = useCommand()
   const state = props.browser.active
+  const address = () => (state()?.url === "about:blank" ? "" : (state()?.url ?? ""))
+  const registration = props.browser.registration
   const button = { variant: "ghost", size: "large" } as const
   const [store, setStore] = createStore({
     address: "",
@@ -27,12 +28,28 @@ export function SessionBrowserPane(props: {
     visible: typeof document === "undefined" || document.visibilityState === "visible",
   })
   let surface: HTMLDivElement | undefined
+  let addressDisplay: HTMLDivElement | undefined
   let frame: number | undefined
   let layout: string | undefined
   let until = 0
   const canvas = document.createElement("canvas")
   canvas.width = canvas.height = 1
   const paint = canvas.getContext("2d", { willReadFrequently: true })
+  const scheme = () => store.address.match(/^https?:\/\//i)?.[0] ?? ""
+
+  command.register("browser.navigation", () => [
+    {
+      id: "browser.reload",
+      title: language.t("command.browser.reload"),
+      category: language.t("command.category.view"),
+      keybind: "f5",
+      disabled: !props.visible || !state(),
+      onSelect: () => {
+        const tab = state()
+        if (tab) props.browser.command({ type: "reload", tabID: tab.id })
+      },
+    },
+  ])
 
   // The native page always paints above the DOM, so hide it while a floating
   // menu, select, or popover overlaps it. Tooltips are excluded.
@@ -45,7 +62,7 @@ export function SessionBrowserPane(props: {
     if (!surface) return
     const tab = state()
     if (!tab) {
-      props.registration.setLayout()
+      registration()?.setLayout()
       return
     }
     const rect = surface.getBoundingClientRect()
@@ -71,7 +88,7 @@ export function SessionBrowserPane(props: {
         paint.fillRect(0, 0, 1, 1)
       }
       const rgba = paint?.getImageData(0, 0, 1, 1).data
-      props.registration.setLayout({
+      registration()?.setLayout({
         tabID: tab.id,
         visible,
         bounds: { x: left, y: top, width: Math.max(0, right - left), height: Math.max(0, bottom - top) },
@@ -90,7 +107,14 @@ export function SessionBrowserPane(props: {
     if (frame === undefined) frame = requestAnimationFrame(tick)
   }
 
-  createEffect(() => !store.editing && setStore("address", state()?.url ?? ""))
+  createEffect(() => !store.editing && setStore("address", address()))
+  createEffect(
+    on(registration, (current) => {
+      // Session routes can change before this pane unmounts. Hide the registration
+      // that owned the native view, rather than reading the destination's handle.
+      onCleanup(() => current?.setLayout())
+    }),
+  )
   createEffect(
     on(
       [
@@ -99,8 +123,12 @@ export function SessionBrowserPane(props: {
         () => store.visible,
         () => props.visible,
         () => state()?.id,
+        registration,
       ],
-      () => schedule(300),
+      () => {
+        layout = undefined
+        schedule(300)
+      },
     ),
   )
   // ResizeObserver runs after layout in the same frame; measuring here instead of on the next
@@ -119,42 +147,62 @@ export function SessionBrowserPane(props: {
   createEventListener(document, "visibilitychange", () => setStore("visible", document.visibilityState === "visible"))
   onCleanup(() => {
     if (frame !== undefined) cancelAnimationFrame(frame)
-    props.registration.setLayout()
   })
 
   return (
     <aside id="browser-panel" class="relative size-full min-w-0 overflow-hidden bg-v2-background-bg-base flex flex-col">
-      <div class="h-10 shrink-0 flex items-center gap-1 px-2 border-b border-v2-border-border-muted bg-v2-background-bg-layer-02">
+      <div class="h-10 shrink-0 flex items-center gap-1 px-2 border-b border-v2-border-border-muted">
         <For each={["back", "forward"] as const}>
           {(direction) => (
-            <IconButton
-              {...button}
-              disabled={!state()?.[direction === "back" ? "canGoBack" : "canGoForward"]}
-              aria-label={language.t(direction === "back" ? "common.goBack" : "common.goForward")}
-              onClick={() => {
-                const tab = state()
-                if (tab) props.browser.command({ type: direction, tabID: tab.id })
-              }}
-              icon={<Icon name={direction === "back" ? "chevron-left" : "chevron-right"} size="small" />}
-            />
+            <Tooltip placement="top" value={language.t(direction === "back" ? "common.goBack" : "common.goForward")}>
+              <IconButton
+                {...button}
+                disabled={!state()?.[direction === "back" ? "canGoBack" : "canGoForward"]}
+                aria-label={language.t(direction === "back" ? "common.goBack" : "common.goForward")}
+                onClick={() => {
+                  const tab = state()
+                  if (tab) props.browser.command({ type: direction, tabID: tab.id })
+                }}
+                icon={
+                  <Icon
+                    name={direction === "back" ? "chevron-left" : "chevron-right"}
+                    size="small"
+                    class="rtl:rotate-180"
+                  />
+                }
+              />
+            </Tooltip>
           )}
         </For>
-        <IconButton
-          {...button}
-          disabled={!state()}
-          aria-label={language.t(state()?.loading ? "prompt.action.stop" : "error.page.action.reload")}
-          onClick={() => {
-            const tab = state()
-            if (tab) props.browser.command({ type: tab.loading ? "stop" : "reload", tabID: tab.id })
-          }}
-          icon={
-            <Show when={state()?.loading} fallback={<Icon name="reset" size="small" />}>
-              <Loader />
-            </Show>
+        <Tooltip
+          placement="top"
+          value={
+            <div class="flex items-center gap-2">
+              <span>{language.t(state()?.loading ? "prompt.action.stop" : "error.page.action.reload")}</span>
+              <Show when={!state()?.loading}>
+                <Keybind keys={command.keybindParts("browser.reload")} variant="neutral" />
+              </Show>
+            </div>
           }
-        />
+        >
+          <IconButton
+            {...button}
+            disabled={!state()}
+            aria-label={language.t(state()?.loading ? "prompt.action.stop" : "error.page.action.reload")}
+            onClick={() => {
+              const tab = state()
+              if (tab) props.browser.command({ type: tab.loading ? "stop" : "reload", tabID: tab.id })
+            }}
+            icon={
+              <Show when={state()?.loading} fallback={<Icon name="refresh" size="small" />}>
+                <Loader />
+              </Show>
+            }
+          />
+        </Tooltip>
         <form
-          class="min-w-0 flex-1"
+          dir="ltr"
+          class="relative min-w-0 flex-1 h-7 rounded-md hover:bg-v2-overlay-simple-overlay-hover focus-within:bg-v2-overlay-simple-overlay-hover text-12-regular"
           onSubmit={(event) => {
             event.preventDefault()
             const tab = state()
@@ -163,15 +211,30 @@ export function SessionBrowserPane(props: {
           }}
         >
           <input
-            class="w-full h-7 px-2 rounded-md border border-v2-border-border-muted bg-v2-background-bg-base text-12-regular text-v2-text-text-base outline-none focus:border-v2-border-border-focus"
+            class="w-full h-full px-2 rounded-md border border-transparent bg-transparent text-transparent caret-v2-text-text-base placeholder:text-v2-text-text-faint outline-none focus:border-v2-border-border-focus"
+            spellcheck={false}
+            autocomplete="off"
             value={store.address}
             disabled={!state()}
             placeholder={language.t("session.browser.address.placeholder")}
             aria-label={language.t("session.browser.address")}
             onFocus={() => setStore("editing", true)}
-            onBlur={() => setStore({ editing: false, address: state()?.url ?? "" })}
+            onBlur={() => setStore({ editing: false, address: address() })}
             onInput={(event) => setStore("address", event.currentTarget.value)}
+            onScroll={(event) => {
+              if (addressDisplay) addressDisplay.scrollLeft = event.currentTarget.scrollLeft
+            }}
           />
+          {/* Keep native input editing and selection while coloring the scheme, including during editing. */}
+          <div
+            aria-hidden="true"
+            class="absolute inset-0 flex items-center px-2 border border-transparent pointer-events-none"
+          >
+            <div ref={addressDisplay} class="w-full overflow-hidden whitespace-pre text-v2-text-text-base">
+              <span class="text-v2-text-text-muted">{scheme()}</span>
+              {store.address.slice(scheme().length)}
+            </div>
+          </div>
         </form>
       </div>
       <Show when={props.browser.error()}>
@@ -179,7 +242,13 @@ export function SessionBrowserPane(props: {
           {props.browser.error()}
         </div>
       </Show>
-      <div ref={surface} class="min-h-0 flex-1 bg-v2-background-bg-base" />
+      <div ref={surface} class="min-h-0 flex-1 bg-v2-background-bg-base flex items-center justify-center">
+        <Show when={props.browser.suspended()}>
+          <p class="px-6 text-center text-13-regular text-v2-text-text-subtle" role="status">
+            {language.t("session.browser.suspended")}
+          </p>
+        </Show>
+      </div>
     </aside>
   )
 }

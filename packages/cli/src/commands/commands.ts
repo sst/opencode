@@ -36,7 +36,7 @@ const PermissionParams = {
 }
 
 const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME : "opencode", {
-  description: "OpenCode 2.0 preview command line interface",
+  description: "OpenCode command line interface",
   params: {
     ...ServerParams,
     ...PermissionParams,
@@ -72,6 +72,30 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
         ),
       },
     }),
+    Spec.make("uninstall", {
+      description: "Uninstall OpenCode and remove all related files",
+      params: {
+        keepConfig: Flag.boolean("keep-config").pipe(
+          Flag.withAlias("c"),
+          Flag.withDescription("Keep configuration files"),
+          Flag.withDefault(false),
+        ),
+        keepData: Flag.boolean("keep-data").pipe(
+          Flag.withAlias("d"),
+          Flag.withDescription("Keep session data and snapshots"),
+          Flag.withDefault(false),
+        ),
+        dryRun: Flag.boolean("dry-run").pipe(
+          Flag.withDescription("Show what would be removed without removing"),
+          Flag.withDefault(false),
+        ),
+        force: Flag.boolean("force").pipe(
+          Flag.withAlias("f"),
+          Flag.withDescription("Skip confirmation prompts"),
+          Flag.withDefault(false),
+        ),
+      },
+    }),
     Spec.make("acp", { description: "Start an Agent Client Protocol server" }),
     Spec.make("api", {
       description: "Make a request to the running server",
@@ -95,16 +119,24 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
       commands: [
         Spec.make("agents", { description: "List all agents" }),
         Spec.make("config", { description: "List configuration sources" }),
-        Spec.make("paths", { description: "Show global paths (data, config, cache, state)" }),
-      ],
-    }),
-    Spec.make("console", {
-      description: "Manage OpenCode Console access",
-      commands: [
-        Spec.make("login", {
-          description: "Log in to OpenCode Console",
+        Spec.make("paths", {
+          description: "Show global paths (data, config, cache, state)",
           params: {
-            url: Argument.string("url").pipe(Argument.withDescription("Console server URL"), Argument.optional),
+            name: Argument.choice("name", [
+              "db",
+              "home",
+              "data",
+              "config",
+              "cache",
+              "state",
+              "tmp",
+              "bin",
+              "log",
+              "repos",
+            ]).pipe(
+              Argument.withDescription("Print only one path: db, home, data, config, cache, state, tmp, bin, log, repos"),
+              Argument.optional,
+            ),
           },
         }),
       ],
@@ -134,11 +166,29 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
           },
         }),
         Spec.make("logout", {
-          description: "log out from a configured provider",
+          description: "log out of a saved account",
           params: {
             ...ServerParams,
             target: Argument.string("target").pipe(
               Argument.withDescription("Integration ID or name"),
+              Argument.optional,
+            ),
+            credential: Argument.string("credential").pipe(
+              Argument.withDescription("Credential ID or label (opens an account picker when omitted)"),
+              Argument.optional,
+            ),
+          },
+        }),
+        Spec.make("switch", {
+          description: "switch the active account for an integration",
+          params: {
+            ...ServerParams,
+            target: Argument.string("target").pipe(
+              Argument.withDescription("Integration ID or name"),
+              Argument.optional,
+            ),
+            credential: Argument.string("credential").pipe(
+              Argument.withDescription("Credential ID or label (opens an account picker when omitted)"),
               Argument.optional,
             ),
           },
@@ -261,28 +311,6 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
         json: Flag.boolean("json").pipe(Flag.withDescription("Output statistics as JSON"), Flag.withDefault(false)),
       },
     }),
-    Spec.make("export", {
-      description: "Export session data as JSON",
-      params: {
-        ...ServerParams,
-        session: Argument.string("session").pipe(Argument.withDescription("Session ID to export"), Argument.optional),
-        sanitize: Flag.boolean("sanitize").pipe(
-          Flag.withDescription("Redact sensitive transcript and file data"),
-          Flag.withDefault(false),
-        ),
-      },
-    }),
-    Spec.make("import", {
-      description: "Import session data from a JSON file or URL",
-      params: {
-        ...ServerParams,
-        file: Argument.string("file").pipe(Argument.withDescription("JSON file or URL to import")),
-        directory: Flag.string("directory").pipe(
-          Flag.withDescription("Directory in which to import the session"),
-          Flag.optional,
-        ),
-      },
-    }),
     Spec.make("mini", {
       description: "Start the minimal interactive interface",
       params: {
@@ -385,6 +413,31 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
           params: {
             ...ServerParams,
             sessionID: Argument.string("sessionID").pipe(Argument.withDescription("Session ID to delete")),
+          },
+        }),
+        Spec.make("export", {
+          description: "Export session data as JSON",
+          params: {
+            ...ServerParams,
+            session: Argument.string("session").pipe(
+              Argument.withDescription("Session ID to export"),
+              Argument.optional,
+            ),
+            sanitize: Flag.boolean("sanitize").pipe(
+              Flag.withDescription("Redact sensitive transcript and file data"),
+              Flag.withDefault(false),
+            ),
+          },
+        }),
+        Spec.make("import", {
+          description: "Import session data from a JSON file or URL",
+          params: {
+            ...ServerParams,
+            file: Argument.string("file").pipe(Argument.withDescription("JSON file or URL to import")),
+            directory: Flag.string("directory").pipe(
+              Flag.withDescription("Directory in which to import the session"),
+              Flag.optional,
+            ),
           },
         }),
       ],

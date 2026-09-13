@@ -6,14 +6,14 @@ for (const reasoningDefaultOpen of [false, true]) {
     async ({ mount }) => {
       const root = await mount("current-tool-group--mixed-reasoning", { args: { reasoningDefaultOpen } })
       const group = root.locator('[data-component="collapsed-tool-group"]')
-      const used = group.getByRole("button", { name: /^Used \d+ Read, 3 Skill$/ })
+      const used = group.getByRole("button", { name: /^Used \d+ Read, Skill$/ })
       const first = group.locator('[data-timeline-part-id="reasoning_first"]')
       const second = group.locator('[data-timeline-part-id="reasoning_second"]')
       await expect(used).toHaveAttribute("aria-expanded", "true")
-      await expect(used).toHaveAccessibleName("Used 1 Read, 3 Skill")
+      await expect(used).toHaveAccessibleName("Used 4 Read, Skill")
       await expect(
         group.locator('[data-component="context-tool-group-trigger"] [data-slot="basic-tool-tool-title"]'),
-      ).toHaveText("1 Read, 3 Skill")
+      ).toHaveText("Read, Skill")
       await expect(group.locator('[data-slot="context-tool-group-item"]')).toHaveText([
         /Read.*group\.ts/,
         /Thought/,
@@ -34,10 +34,10 @@ for (const reasoningDefaultOpen of [false, true]) {
       )
       await first.getByRole("button", { name: "Thought", exact: true }).click()
       await root.getByRole("button", { name: "Append follow-up read", exact: true }).click()
-      await expect(used).toHaveAccessibleName("Used 2 Read, 3 Skill")
+      await expect(used).toHaveAccessibleName("Used 5 Read, Skill")
       await expect(
         group.locator('[data-component="context-tool-group-trigger"] [data-slot="basic-tool-tool-title"]'),
-      ).toHaveText("2 Read, 3 Skill")
+      ).toHaveText("Read, Skill")
       await expect(group.locator('[data-slot="context-tool-group-item"]')).toHaveText([
         /Read.*group\.ts/,
         /Thought/,
@@ -70,10 +70,19 @@ for (const reasoningDefaultOpen of [false, true]) {
 story("summarizes subagents as Agent while retaining their card titles", async ({ mount }) => {
   const root = await mount("current-tool-group--mixed-tools")
   const group = root.locator('[data-component="collapsed-tool-group"]')
-  await expect(group.getByRole("button", { name: "Used 1 Shell, 1 Read, 2 Agent", exact: true })).toBeVisible()
-  await expect(
-    group.locator('[data-component="context-tool-group-trigger"] [data-slot="basic-tool-tool-title"]'),
-  ).toHaveText("1 Shell, 1 Read, 2 Agent")
+  await expect(group.getByRole("button", { name: "Used 4 Shell, Read, Agent", exact: true })).toBeVisible()
+  const header = group.locator('[data-component="context-tool-group-trigger"]')
+  const prefix = header.locator('[data-slot="context-tool-group-prefix"]')
+  const count = header.locator('[data-slot="context-tool-group-count"]')
+  const title = header.locator('[data-slot="basic-tool-tool-title"]')
+  await expect(prefix).toHaveText("Used")
+  await expect(count).toHaveText("4")
+  await expect(title).toHaveText("Shell, Read, Agent")
+  const colors = await Promise.all(
+    [prefix, count, title].map((part) => part.evaluate((node) => getComputedStyle(node).color)),
+  )
+  expect(colors[1]).toBe(colors[2])
+  expect(colors[0]).not.toBe(colors[1])
   const gap = await group.evaluate((element) => {
     const title = element.querySelector('[data-component="context-tool-group-trigger"]')!.getBoundingClientRect()
     const arrow = element.querySelector('[data-slot="collapsible-arrow-icon"]')!.getBoundingClientRect()
@@ -88,9 +97,9 @@ for (const width of [840, 390]) {
     await page.setViewportSize({ width, height: 600 })
     const root = await mount("current-tool-group--mixed-tools")
     const group = root.locator('[data-component="collapsed-tool-group"]')
-    const trigger = group.getByRole("button", { name: "Used 1 Shell, 1 Read, 2 Agent", exact: true })
+    const trigger = group.getByRole("button", { name: "Used 4 Shell, Read, Agent", exact: true })
     const header = group.locator('[data-component="context-tool-group-trigger"]')
-    await expect(header.locator('[data-slot="basic-tool-tool-title"]')).toHaveText("1 Shell, 1 Read, 2 Agent")
+    await expect(header.locator('[data-slot="basic-tool-tool-title"]')).toHaveText("Shell, Read, Agent")
     await expect(header.locator('[data-component="tag"]')).toHaveCount(0)
     await expect(trigger).toHaveAttribute("aria-expanded", "true")
     for (const action of ["click", "Enter", "Space"] as const) {

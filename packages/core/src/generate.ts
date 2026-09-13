@@ -41,6 +41,8 @@ export const layer = Layer.effect(
           [
             "SessionRunnerModel.VariantUnavailableError",
             "SessionRunnerModel.UnsupportedPackageError",
+            "SessionRunnerModel.ModelConfigurationError",
+            "SessionRunnerModel.ModelInitializationError",
             "SessionRunnerModel.UnresolvedProviderVariablesError",
             "SessionRunnerModel.UnsupportedCompactionError",
           ],

@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test"
+import { expect, spyOn, test } from "bun:test"
 import { RGBA, TextAttributes } from "@opentui/core"
 import { createTestRenderer } from "@opentui/core/testing"
 import { RunFooter } from "../../src/mini/footer"
@@ -143,6 +143,35 @@ test.each([false, true])(
     }
   },
 )
+
+test("ctrl+l clears the split-footer screen without wiping scrollback", async () => {
+  const app = await setup()
+  try {
+    const clear = spyOn(app.renderer, "resetSplitFooterForReplay").mockImplementation(() => {})
+    await app.settle()
+    app.mockInput.pressKey("l", { ctrl: true })
+    expect(clear).toHaveBeenCalledWith({ clearSavedLines: false })
+  } finally {
+    app.cleanup()
+  }
+})
+
+test("command palette can clear the screen", async () => {
+  const app = await setup()
+  try {
+    const clear = spyOn(app.renderer, "resetSplitFooterForReplay").mockImplementation(() => {})
+    await app.settle()
+    app.mockInput.pressKey("p", { ctrl: true })
+    await app.settle()
+    await app.mockInput.typeText("clear screen")
+    await app.settle()
+    expect(app.selected()).toContain("Clear screen")
+    app.mockInput.pressEnter()
+    expect(clear).toHaveBeenCalledWith({ clearSavedLines: false })
+  } finally {
+    app.cleanup()
+  }
+})
 
 test.each([false, true])("production command menu keeps navigation visible across resizes (mono=%s)", async (mono) => {
   const app = await setup(mono)

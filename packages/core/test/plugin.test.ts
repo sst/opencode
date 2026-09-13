@@ -449,6 +449,28 @@ it.live("retains Promise plugin groups for later registrations and ignores a dis
   }),
 )
 
+it.effect("normalizes Promise plugin API inputs through JSON", () =>
+  Effect.gen(function* () {
+    const plugins = yield* Plugin.Service
+    const created: boolean[] = []
+    yield* plugins.activate([
+      {
+        ...fromPromise({
+          id: "promise-input",
+          async setup(ctx) {
+            await ctx.session.create({ title: "Promise session", agent: undefined })
+            created.push(true)
+          },
+        }),
+        revision: "1",
+      },
+    ])
+    yield* plugins.awaitActivation
+
+    expect(created).toEqual([true])
+  }),
+)
+
 it.effect("reloading a plugin replaces its command implementation", () =>
   Effect.gen(function* () {
     const plugins = yield* Plugin.Service

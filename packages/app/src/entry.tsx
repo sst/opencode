@@ -1,5 +1,6 @@
 // @refresh reload
 
+import "@/runtime/polyfills"
 import { init } from "@sentry/solid"
 import { render } from "solid-js/web"
 import { AppBaseProviders, AppInterface } from "@/app"

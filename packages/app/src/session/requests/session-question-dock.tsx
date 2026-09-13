@@ -523,7 +523,7 @@ export const SessionQuestionDock: Component<{ request: FormInfo; onSubmit: () =>
                 </Button>
               </Show>
               <Button
-                variant={last() ? "contrast" : "neutral"}
+                variant={last() ? "submit" : "neutral"}
                 size="large"
                 disabled={sending()}
                 onClick={next}

@@ -50,11 +50,11 @@ for (const mode of ["hidden", "compact", "full"] as const) {
       if (following === "tool") {
         const group = timeline.locator('[data-component="collapsed-tool-group"]')
         const trigger = group.locator(':scope > [data-component="collapsible"] > [data-slot="collapsible-trigger"]')
-        await expect(trigger).toHaveText(/^Used\s*1 Skill$/)
+        await expect(trigger).toHaveText(/^Used\s*1\s*Skill$/)
         await expect(trigger).toHaveAttribute("aria-expanded", "false")
         await expect(
           group.locator('[data-component="context-tool-group-trigger"] [data-slot="basic-tool-tool-title"]'),
-        ).toHaveText("1 Skill")
+        ).toHaveText("Skill")
         await expect(timeline.getByText("Inspecting stability", { exact: true })).toBeHidden()
         await trigger.click()
         await expect(trigger).toHaveAttribute("aria-expanded", "true")

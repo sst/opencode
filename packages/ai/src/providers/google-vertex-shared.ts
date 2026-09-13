@@ -1,8 +1,10 @@
 import type { AnyAuthClient } from "google-auth-library"
 import { Effect, Redacted } from "effect"
 import { Auth, MissingCredentialError } from "../route/auth.js"
+import { ProviderConfigurationError, ProviderID } from "../schema/index.js"
 
 const SCOPE = "https://www.googleapis.com/auth/cloud-platform"
+const id = ProviderID.make("google-vertex")
 
 export type OAuthOptions =
   | { readonly accessToken?: string; readonly auth?: never }
@@ -35,12 +37,18 @@ export const host = (location: string) => {
 
 export const requireProject = (value: string | undefined) => {
   if (value) return value
-  throw new Error("Google Vertex requires a project when baseURL is not configured")
+  throw new ProviderConfigurationError({
+    provider: id,
+    message: "Google Vertex requires a project when baseURL is not configured",
+  })
 }
 
 export const apiKey = (input: ApiKeyOptions) => {
   if (input.apiKey !== undefined && (input.accessToken !== undefined || input.auth !== undefined))
-    throw new Error("Google Vertex apiKey cannot be combined with accessToken or auth")
+    throw new ProviderConfigurationError({
+      provider: id,
+      message: "Google Vertex apiKey cannot be combined with accessToken or auth",
+    })
   if (input.accessToken !== undefined || input.auth !== undefined) return undefined
   return input.apiKey ?? process.env.GOOGLE_VERTEX_API_KEY
 }
@@ -68,7 +76,10 @@ const adc = (project?: string) => {
 
 export const oauth = (input: OAuthOptions, project?: string) => {
   if (input.accessToken !== undefined && input.auth !== undefined)
-    throw new Error("Google Vertex accessToken cannot be combined with auth")
+    throw new ProviderConfigurationError({
+      provider: id,
+      message: "Google Vertex accessToken cannot be combined with auth",
+    })
   if (input.auth) return input.auth
   if (input.accessToken !== undefined) return Auth.bearer(input.accessToken)
   return adc(project)

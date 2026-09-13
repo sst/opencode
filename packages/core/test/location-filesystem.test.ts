@@ -70,6 +70,35 @@ describe("FileSystem", () => {
     ),
   )
 
+  it.live("returns a typed not-found error for missing local files", () =>
+    withTmp((directory) =>
+      Effect.gen(function* () {
+        const service = yield* FileSystem.Service
+        const missing = RelativePath.make("missing.txt")
+        expect(yield* service.read({ path: missing }).pipe(Effect.flip)).toEqual(
+          new FileSystem.NotFoundError({ path: missing }),
+        )
+      }).pipe(provide(directory)),
+    ),
+  )
+
+  it.live("returns a typed not-found error for missing workspace files and dangling symlinks", () => {
+    const memory = Environment.makeMemoryDriver()
+    return Effect.gen(function* () {
+      if (process.platform === "win32") return
+      const files = Environment.makeFiles(memory)
+      yield* files.mkdir("/workspace/project")
+      yield* memory.symlink("missing.txt", "/workspace/project/dangling-link")
+      const service = yield* FileSystem.Service
+      for (const input of ["missing.txt", "dangling-link"]) {
+        const missing = RelativePath.make(input)
+        expect(yield* service.read({ path: missing }).pipe(Effect.flip)).toEqual(
+          new FileSystem.NotFoundError({ path: missing }),
+        )
+      }
+    }).pipe(provideMemory("/workspace/project", memory))
+  })
+
   it.live("lists direct children", () =>
     withTmp((directory) =>
       Effect.gen(function* () {
@@ -197,7 +226,7 @@ describe("FileSystem", () => {
       expect(parent.map((entry) => entry.path)).toEqual(expect.arrayContaining(["./", "../sibling/"]))
       const sibling = yield* filesystem.list({ path: "../sibling" })
       expect(sibling.map((entry) => ({ path: entry.path, type: entry.type }))).toEqual([
-        { path: "../sibling/file.txt", type: "file" },
+        { path: RelativePath.make("../sibling/file.txt"), type: "file" },
       ])
       const absolute = yield* filesystem.list({ path: "/workspace/sibling" })
       expect(absolute).toEqual(sibling)

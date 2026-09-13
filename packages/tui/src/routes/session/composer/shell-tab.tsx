@@ -136,7 +136,7 @@ export function ShellTab(props: { sessionID: string }) {
                     attributes={active() ? TextAttributes.BOLD : undefined}
                     wrapMode="none"
                   >
-                    {shell.command}
+                    {shell.command.split("\n", 1)[0]}
                   </text>
                 </box>
               )

@@ -16,6 +16,10 @@ export const ReadInput = Schema.Struct({
 })
 export type ReadInput = typeof ReadInput.Type
 
+export class NotFoundError extends Schema.TaggedError<NotFoundError>()("FileSystem.NotFoundError", {
+  path: RelativePath,
+}) {}
+
 export const Content = Schema.Struct({
   uri: Schema.String,
   name: Schema.String.pipe(Schema.optional),
@@ -54,7 +58,9 @@ export class GrepInput extends Schema.Class<GrepInput>("FileSystem.GrepInput")({
 export const Event = FileSystem.Event
 
 export interface Interface {
-  readonly read: (input: ReadInput) => Effect.Effect<{ readonly content: Uint8Array; readonly mime: string }>
+  readonly read: (
+    input: ReadInput,
+  ) => Effect.Effect<{ readonly content: Uint8Array; readonly mime: string }, NotFoundError>
   readonly list: (input?: ListInput) => Effect.Effect<Entry[]>
   readonly find: (input: FindInput) => Effect.Effect<Entry[]>
 }
@@ -79,20 +85,28 @@ const baseLayer = Layer.effect(
       const absolute = path.resolve(location.directory, input ?? ".")
       if (!FSUtil.contains(location.directory, absolute))
         return yield* Effect.die(new Error("Path escapes the location"))
-      const canonicalRoot = root ?? (yield* environment.files.realpath(location.directory).pipe(Effect.orDie))
-      const real = yield* environment.files.realpath(absolute).pipe(Effect.orDie)
+      const canonicalRoot = root ?? (yield* environment.files.realpath(location.directory))
+      const real = yield* environment.files.realpath(absolute)
       if (!FSUtil.contains(canonicalRoot, real)) return yield* Effect.die(new Error("Path escapes the location"))
       return { absolute, real, directory: location.directory }
     })
     return Service.of({
       find: search.find,
       read: Effect.fn("FileSystem.read")(function* (input) {
-        const target = yield* resolve(input.path)
-        const result = yield* environment.files.read(target.real).pipe(Effect.orDie)
-        return {
-          content: result.bytes,
-          mime: FSUtil.mimeType(target.real),
-        }
+        return yield* Effect.gen(function* () {
+          const target = yield* resolve(input.path)
+          const result = yield* environment.files.read(target.real)
+          return {
+            content: result.bytes,
+            mime: FSUtil.mimeType(target.real),
+          }
+        }).pipe(
+          Effect.catchTags({
+            "Environment.NotFound": () => Effect.fail(new NotFoundError({ path: input.path })),
+            "Environment.WrongKind": (error) => Effect.die(error),
+            "Environment.Failed": (error) => Effect.die(error),
+          }),
+        )
       }),
       list: Effect.fn("FileSystem.list")(function* (input = {}) {
         // Navigation can leave the cwd without activating another Location.

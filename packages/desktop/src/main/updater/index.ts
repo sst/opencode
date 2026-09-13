@@ -8,7 +8,7 @@ import { emitIpcEvent } from "../ipc-events"
 
 export type Platform = {
   readonly checkForUpdate: Effect.Effect<string | undefined, unknown>
-  readonly stageUpdate: Effect.Effect<unknown, unknown>
+  readonly stageUpdate: (options: { readonly differential: boolean }) => Effect.Effect<unknown, unknown>
   readonly installAndRestart: Effect.Effect<never, unknown>
   readonly dispose: () => void
 }
@@ -55,6 +55,22 @@ export const make = Effect.fn("Updater.make")(function* (dependencies: Dependenc
     listeners.forEach((listener) => listener(state))
     return state
   }
+  // electron-updater builds NSIS deltas against the installer of the running version but reads the "old" blockmap from
+  // the last download. Once a release is staged without installing, the two no longer match and every later delta fails
+  // its checksum before falling back to a full download, so remember which release the cache holds and skip the attempt.
+  let downloaded: string | undefined
+  const stage = (platform: Platform, version: string) =>
+    Effect.gen(function* () {
+      if (downloaded)
+        yield* Effect.logInfo("skipping differential download, updater cache is stale", {
+          current: dependencies.currentVersion,
+          staged: downloaded,
+          version,
+        })
+      yield* platform.stageUpdate({ differential: !downloaded })
+      downloaded = version
+      yield* dependencies.persistence.set({ version })
+    })
   const findAndStage = (platform: Platform) =>
     Effect.gen(function* () {
       yield* Effect.sync(() => transition({ status: "checking" }))
@@ -64,8 +80,7 @@ export const make = Effect.fn("Updater.make")(function* (dependencies: Dependenc
         return transition({ status: "up-to-date" })
       }
       transition({ status: "downloading", version })
-      yield* platform.stageUpdate
-      yield* dependencies.persistence.set({ version })
+      yield* stage(platform, version)
       return transition({ status: "ready", version })
     }).pipe(
       Effect.catch((error) =>
@@ -78,8 +93,7 @@ export const make = Effect.fn("Updater.make")(function* (dependencies: Dependenc
     Effect.gen(function* () {
       const version = yield* platform.checkForUpdate
       if (!version || version === staged || version === dependencies.currentVersion) return state
-      yield* platform.stageUpdate
-      yield* dependencies.persistence.set({ version })
+      yield* stage(platform, version)
       return transition({ status: installing ? "installing" : "ready", version })
     }).pipe(
       Effect.catch((error) =>
@@ -137,6 +151,8 @@ export const make = Effect.fn("Updater.make")(function* (dependencies: Dependenc
   const start = Effect.gen(function* () {
     const ready = yield* dependencies.persistence.get
     if (ready?.version === dependencies.currentVersion) yield* dependencies.persistence.clear
+    // Any other persisted target was downloaded by an earlier launch and never installed, so its blockmap is cached.
+    if (ready && ready.version !== dependencies.currentVersion) downloaded = ready.version
     yield* check
   })
   const unsubscribe = (id: number) => {

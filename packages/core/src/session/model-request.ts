@@ -1,12 +1,28 @@
 export * as SessionModelRequest from "./model-request.js"
 
-import { HttpOptions, LanguageModel, LLM, LLMRequest, Message, SystemPart } from "@opencode/ai"
+import {
+  GenerationOptions,
+  type GenerationOptionsFields,
+  HttpOptions,
+  LanguageModel,
+  LLM,
+  LLMRequest,
+  Message,
+  SystemPart,
+} from "@opencode/ai"
 import type { StreamOptions } from "@opencode/ai/route"
-import type { SessionRequestKind } from "@opencode/plugin/effect/session"
+import type {
+  SessionCompaction,
+  SessionContext,
+  SessionGenerate,
+  SessionRequest,
+  SessionRequestKind,
+  SessionTitle,
+} from "@opencode/plugin/effect/session"
 import type { Agent } from "@opencode/schema/agent"
 import type { Model } from "@opencode/schema/model"
 import type { Content } from "@opencode/schema/tool"
-import { Cause, Config, Context, Effect, Layer, Result, Stream } from "effect"
+import { Cause, Context, Effect, Layer, Result, Stream } from "effect"
 import { HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
 import { makeLocationNode } from "@opencode/util/effect/app-node"
 import { App } from "../app.js"
@@ -26,63 +42,31 @@ const IMAGE_BYTES_TRIGGER = 25 * 1024 * 1024 // 25 MiB
 const IMAGE_BYTES_TARGET = 15 * 1024 * 1024 // 15 MiB
 const IMAGE_REMOVED =
   "[This image was removed to reduce the request size and is no longer visible. Do not make claims about its contents from memory. If needed, retrieve it again with an available tool or ask the user to attach it again.]"
+const GENERATION_KEYS = new Set(Object.keys(GenerationOptions.fields))
 
-const responsesWebSocketFlag = (providerID: string) =>
-  `OPENCODE_EXPERIMENTAL_${providerID.replace(/[^a-zA-Z0-9]+/g, "_").toUpperCase()}_RESPONSES_WEBSOCKET`
-
-/** Failures a prepared execution can surface: infrastructure errors plus user declines resurfaced from the defect tunnel. */
+/** Tool errors, plus the user declining a permission or dismissing a question. */
 export type ExecuteError = Tool.Error | Permission.DeclinedError | QuestionTool.CancelledError
 
-// User declines dive under the leaves' blanket `mapError` as defects (the deliberate
-// tunnel entered in Permission.assert and the question tool), so a user's "no" can
-// never become model-facing tool output. They resurface as typed failures exactly once,
-// here at the seam the runner executes through.
-const declineDefect = (cause: Cause.Cause<Tool.Error>) => {
-  const decline = cause.reasons.flatMap((reason) =>
-    Cause.isDieReason(reason) &&
-    (reason.defect instanceof Permission.DeclinedError || reason.defect instanceof QuestionTool.CancelledError)
-      ? [reason.defect]
-      : [],
-  )[0]
-  return decline ? Result.succeed(decline) : Result.fail(cause)
-}
-
-export interface Prepared {
+export interface Prepared<Event = SessionRequest> {
+  readonly event: Event
   readonly request: LLMRequest
   readonly options: StreamOptions
   readonly retry: (event: PluginHooks.Domains["session"]["retry"]) => Effect.Effect<void>
-  /**
-   * One request-scoped execution operation. Unknown and hook-removed calls
-   * fail individually through the same seam.
-   */
+  /** Runs a tool call against the tools this request advertised. */
   readonly executeTool: (
     input: Parameters<Tool.Snapshot["execute"]>[0],
   ) => Effect.Effect<Tool.NormalizedResult, ExecuteError>
 }
 
-interface PrepareInput {
-  /** Which Session flow issues this request; request hooks receive it alongside the Session identity. */
-  readonly kind: SessionRequestKind
-  readonly scope: {
-    readonly session: SessionSchema.Info
-    readonly agentID: Agent.ID
-    /** Agent whose context an auxiliary request reuses, without changing its request-hook identity. */
-    readonly contextAgentID?: Agent.ID
-    readonly model: SessionRunnerModel.Resolved
-    /** Omitted for requests that carry no tool definitions, such as titles. */
-    readonly tools?: Tool.Snapshot
-  }
-  readonly transcript: {
-    readonly system: Array<SystemPart>
-    readonly messages: Array<Message>
-  }
+export interface Input {
+  readonly session: SessionSchema.Info
+  readonly agent: Agent.ID
+  readonly model: SessionRunnerModel.Resolved
+  readonly tools?: Tool.Snapshot
+  readonly system: Array<SystemPart>
+  readonly messages: Array<Message>
   readonly toolChoice?: LLM.RequestInput["toolChoice"]
-  /**
-   * Session context hooks shape the agent conversation. Standalone requests
-   * such as titles opt out; compaction uses the selected Session context.
-   */
-  readonly contextHooks?: false
-  /** Stateful Session WebSocket channels require an explicit durable-runner opt-in. */
+  /** Only the durable runner may use a stateful WebSocket. */
   readonly webSocket?: "session"
 }
 
@@ -196,90 +180,16 @@ export const boundImages = (messages: LLMRequest["messages"]) => {
   )
 }
 
-/** The identity a plugin hook sees for one outbound request. */
-interface HookScope {
-  readonly sessionID: SessionSchema.ID
-  readonly agent: Agent.ID
-  readonly model: Model.Ref
-  readonly kind: SessionRequestKind
-}
+type Definitions = PluginHooks.Domains["session"]["context"]["tools"]
 
-const sessionHeaders = (session: Pick<SessionSchema.Info, "id" | "parentID" | "projectID">, app: App.Info) => ({
-  "x-session-affinity": session.id,
-  "X-Session-Id": session.id,
-  ...(session.parentID ? { "x-parent-session-id": session.parentID } : {}),
-  "User-Agent": App.useragent(app),
-  "x-opencode-project": session.projectID,
-  "x-opencode-session": session.id,
-  "x-opencode-client": app.name,
-})
-
-const promptCacheKey = (sessionID: SessionSchema.ID) =>
-  /^ses_[0-9a-f]{64}$/.test(sessionID) ? sessionID.slice(4) : sessionID
-
-// Lets session.model.request hooks rewrite the base URL and headers before dispatch.
-const applyModelHooks = (hooks: PluginHooks.Interface, scope: HookScope, request: LLMRequest) =>
-  Effect.gen(function* () {
-    const currentBaseURL = request.model.route.endpoint.baseURL
-    const event = yield* hooks.trigger("session", "model.request", {
-      ...scope,
-      baseURL: typeof currentBaseURL === "string" ? currentBaseURL : undefined,
-      headers: { ...request.http?.headers },
-    })
-    const route =
-      event.baseURL !== undefined && event.baseURL !== currentBaseURL
-        ? request.model.route.with({ endpoint: { baseURL: event.baseURL } })
-        : request.model.route
-    return LLMRequest.update(request, {
-      model: route === request.model.route ? request.model : LanguageModel.update(request.model, { route }),
-      http: new HttpOptions({
-        body: request.http?.body,
-        headers: Object.keys(event.headers).length === 0 ? undefined : event.headers,
-        query: request.http?.query,
-      }),
-    })
-  })
-
-// Exposes each outbound HTTP exchange to session.http.request/response hooks
-// through web-standard Request/Response values.
-const httpMiddleware =
-  (hooks: PluginHooks.Interface, scope: HookScope): NonNullable<StreamOptions["http"]> =>
-  (request, handler) =>
-    Effect.gen(function* () {
-      const before = yield* hooks.trigger("session", "http.request", {
-        ...scope,
-        request: yield* HttpClientRequest.toWeb(request),
-      })
-      let sent = HttpClientRequest.fromWeb(before.request)
-      if (before.request.body)
-        sent = HttpClientRequest.bodyUint8Array(
-          sent,
-          new Uint8Array(yield* Effect.promise(() => before.request.clone().arrayBuffer())),
-          before.request.headers.get("content-type") ?? undefined,
-        )
-      const response = yield* handler(sent)
-      const after = yield* hooks.trigger("session", "http.response", {
-        ...scope,
-        request: before.request,
-        response: new Response(
-          [204, 205, 304].includes(response.status) ? null : yield* Stream.toReadableStreamEffect(response.stream),
-          { status: response.status, headers: response.headers },
-        ),
-      })
-      return HttpClientResponse.fromWeb(sent, after.response)
-    }).pipe(Effect.mapError((cause) => (cause instanceof Error ? cause : new Error(String(cause)))))
-
-/**
- * Builds an outbound model request and captures the tool-call capability that
- * must remain paired with it. It does not execute the request or mutate
- * Session state.
- */
+/** Builds the model request for each session flow. Each entry runs its own plugin hook. */
 export interface Interface {
-  /** Builds one outbound model request and its matching tool-call capability. */
-  readonly prepare: (input: PrepareInput) => Effect.Effect<Prepared>
+  readonly primary: (input: Input) => Effect.Effect<Prepared<SessionContext>>
+  readonly compaction: (input: Input) => Effect.Effect<Prepared<SessionCompaction>>
+  readonly generate: (input: Input) => Effect.Effect<Prepared<SessionGenerate>>
+  readonly title: (input: Input) => Effect.Effect<Prepared<SessionTitle>>
 }
 
-/** Location-scoped outbound model-request preparation. */
 export class Service extends Context.Service<Service, Interface>()("@opencode/SessionModelRequest") {}
 
 export const layer = Layer.effect(
@@ -288,117 +198,167 @@ export const layer = Layer.effect(
     const hooks = yield* PluginHooks.Service
     const transport = yield* SessionModelTransport.Service
     const app = yield* App.Metadata
-    const prepare = Effect.fn("SessionModelRequest.prepare")(function* (input: PrepareInput) {
-      const session = input.scope.session
-      const resolved = input.scope.model
-      const model = resolved.model
-      const tools = input.scope.tools ?? {
+    const prepare = Effect.fn("SessionModelRequest.prepare")(function* <
+      S extends SessionRequest & { tools?: Definitions },
+    >(kind: SessionRequestKind, input: Input, shape: (draft: SessionRequest, tools: Definitions) => Effect.Effect<S>) {
+      const session = input.session
+      const model = input.model
+      const scope = { sessionID: session.id, agent: input.agent, model: model.ref, kind }
+      const tools = input.tools ?? {
         definitions: [],
         execute: () => new Tool.Error({ message: "Tools are not available for this request" }),
       }
-      const registry = new Map(tools.definitions.map((tool) => [tool.name, tool]))
-      // The definition objects we hand to hooks, mapped back to their tools. Hooks rename a
-      // tool by moving its definition to a new key; recognizing the object recovers the tool.
+      // Remember which tool each definition object came from. Hooks rename a tool by moving
+      // its definition to a new key, so after the hook we find the tool by object identity.
       const given = new Map(
-        tools.definitions.map(
-          (tool) => [{ description: tool.description, input: { ...tool.inputSchema } }, tool] as const,
-        ),
+        tools.definitions.map((t) => [{ description: t.description, input: { ...t.inputSchema } }, t] as const),
       )
-      // Hooks mutate this record in place: edit descriptions and schemas, rename, or remove.
-      const definitions = Object.fromEntries(Array.from(given, ([definition, tool]) => [tool.name, definition]))
-      const context: PluginHooks.Domains["session"]["context"] = {
-        sessionID: session.id,
-        agent: input.scope.contextAgentID ?? input.scope.agentID,
-        model: resolved.ref,
-        system: input.transcript.system,
-        messages: input.transcript.messages,
-        tools: definitions,
-        generation: {},
-        providerOptions: {},
-      }
-      if (input.contextHooks !== false) yield* hooks.trigger("session", "context", context)
-      // Match each surviving entry back to its tool, by recognizing a moved definition or
-      // by key. Identity wins so a definition moved onto another tool's name still executes
-      // the tool it describes. Entries matching neither were invented by a hook and dropped.
-      // `tool.name` stays canonical so execution can translate renamed calls back.
+      const shaped = yield* shape(
+        { sessionID: session.id, model: model.ref, system: input.system, messages: input.messages, options: {} },
+        Object.fromEntries(Array.from(given, ([d, t]) => [t.name, d])),
+      )
+      // Match by identity first, then by key. Entries matching neither were invented by a
+      // hook and are dropped. `t.name` stays the real name so execution can map renames back.
+      const byName = new Map(tools.definitions.map((t) => [t.name, t]))
       const hooked = new Map(
-        Object.entries(context.tools).flatMap(([name, definition]) => {
-          const tool = given.get(definition) ?? registry.get(name)
-          if (!tool) return []
-          return [[name, { ...tool, description: definition.description, inputSchema: definition.input }] as const]
+        Object.entries(shaped.tools ?? {}).flatMap(([name, d]) => {
+          const t = given.get(d) ?? byName.get(name)
+          return t ? [[name, { ...t, description: d.description, inputSchema: d.input }] as const] : []
         }),
       )
-      const request = yield* applyModelHooks(
-        hooks,
-        { sessionID: session.id, agent: input.scope.agentID, model: resolved.ref, kind: input.kind },
-        LLM.request({
-          model,
-          http: {
-            headers: sessionHeaders(session, app),
+      const entries = Object.entries(shaped.options)
+      const generation = Object.fromEntries(entries.filter(([k]) => GENERATION_KEYS.has(k))) as GenerationOptionsFields
+      const providerOptions = Object.fromEntries(entries.filter(([k]) => !GENERATION_KEYS.has(k)))
+      const root = session.fork?.sessionID ?? session.id
+      const base = LLM.request({
+        model: model.model,
+        http: {
+          headers: {
+            "x-session-affinity": session.id,
+            "X-Session-Id": session.id,
+            ...(session.parentID ? { "x-parent-session-id": session.parentID } : {}),
+            "User-Agent": App.useragent(app),
+            "x-opencode-project": session.projectID,
+            "x-opencode-session": session.id,
+            "x-opencode-client": app.name,
           },
-          // TODO: Persist cache lineage so nested forks reuse the root session's cache key.
-          promptCacheKey: promptCacheKey(session.fork?.sessionID ?? session.id),
-          system: context.system,
-          messages: boundImages(unsupportedParts(context.messages, resolved.capabilities)),
-          tools: Array.from(hooked, ([name, tool]) => ({ ...tool, name })),
-          toolChoice: input.toolChoice,
-          generation: Object.keys(context.generation).length === 0 ? undefined : context.generation,
-          providerOptions: Object.keys(context.providerOptions).length === 0 ? undefined : context.providerOptions,
+        },
+        // TODO: Persist cache lineage so nested forks reuse the root session's cache key.
+        promptCacheKey: /^ses_[0-9a-f]{64}$/.test(root) ? root.slice(4) : root,
+        system: shaped.system,
+        messages: boundImages(unsupportedParts(shaped.messages, model.capabilities)),
+        tools: Array.from(hooked, ([name, t]) => ({ ...t, name })),
+        toolChoice: input.toolChoice,
+        generation: Object.keys(generation).length === 0 ? undefined : generation,
+        providerOptions: Object.keys(providerOptions).length === 0 ? undefined : providerOptions,
+      })
+
+      const baseURL = base.model.route.endpoint.baseURL
+      const modelHook = yield* hooks.trigger("session", "model.request", {
+        ...scope,
+        baseURL: typeof baseURL === "string" ? baseURL : undefined,
+        headers: { ...base.http?.headers },
+      })
+      const route =
+        modelHook.baseURL !== undefined && modelHook.baseURL !== baseURL
+          ? base.model.route.with({ endpoint: { baseURL: modelHook.baseURL } })
+          : base.model.route
+      const request = LLMRequest.update(base, {
+        model: route === base.model.route ? base.model : LanguageModel.update(base.model, { route }),
+        http: new HttpOptions({
+          body: base.http?.body,
+          headers: Object.keys(modelHook.headers).length === 0 ? undefined : modelHook.headers,
+          query: base.http?.query,
         }),
-      )
+      })
       // History selects native windows against the catalog route before hooks run. A newly installed
       // routing hook must not send an existing opaque window to another deployment; `prepare` has no
       // error channel, so like hook failures this surfaces as a defect.
-      const selected = SessionProviderContext.provenance(resolved)
+      const selected = SessionProviderContext.provenance(model)
       if (
         selected &&
         !SessionProviderContext.compatible(
           selected,
-          SessionProviderContext.provenance({ model: request.model, ref: resolved.ref }),
+          SessionProviderContext.provenance({ model: request.model, ref: model.ref }),
         ) &&
         request.messages.some((message) => message.content.some((part) => part.type === "compaction"))
       )
         return yield* Effect.die(
           new Error("Provider context is incompatible with the route selected by model request hooks"),
         )
+
       const hasHttpHooks =
-        (yield* hooks.has("session", "http.request", resolved.ref.providerID)) ||
-        (yield* hooks.has("session", "http.response", resolved.ref.providerID))
-      const webSocket =
-        resolved.capabilities.responsesWebsockets === true
-          ? yield* Config.boolean(responsesWebSocketFlag(resolved.ref.providerID)).pipe(
-              Config.withDefault(false),
-              Effect.orDie,
-            )
-          : false
-      const http = hasHttpHooks
-        ? httpMiddleware(hooks, {
-            sessionID: session.id,
-            agent: input.scope.agentID,
-            model: resolved.ref,
-            kind: input.kind,
-          })
+        (yield* hooks.has("session", "http.request", model.ref.providerID)) ||
+        (yield* hooks.has("session", "http.response", model.ref.providerID))
+      const http: StreamOptions["http"] = hasHttpHooks
+        ? (req, handler) =>
+            Effect.gen(function* () {
+              const before = yield* hooks.trigger("session", "http.request", {
+                ...scope,
+                request: yield* HttpClientRequest.toWeb(req),
+              })
+              let sent = HttpClientRequest.fromWeb(before.request)
+              if (before.request.body)
+                sent = HttpClientRequest.bodyUint8Array(
+                  sent,
+                  new Uint8Array(yield* Effect.promise(() => before.request.clone().arrayBuffer())),
+                  before.request.headers.get("content-type") ?? undefined,
+                )
+              const res = yield* handler(sent)
+              const after = yield* hooks.trigger("session", "http.response", {
+                ...scope,
+                request: before.request,
+                response: new Response(
+                  [204, 205, 304].includes(res.status) ? null : yield* Stream.toReadableStreamEffect(res.stream),
+                  { status: res.status, headers: res.headers },
+                ),
+              })
+              return HttpClientResponse.fromWeb(sent, after.response)
+            }).pipe(Effect.mapError((cause) => (cause instanceof Error ? cause : new Error(String(cause)))))
         : undefined
-      const options: StreamOptions = {
-        ...(http ? { http } : {}),
-        ...(input.webSocket === "session" && webSocket && !hasHttpHooks
-          ? { webSocket: transport.bind(session.id) }
-          : {}),
-      }
-      const executeTool: Prepared["executeTool"] = (input) =>
-        tools
-          .execute({ ...input, definitions: hooked })
-          .pipe(Effect.catchCauseFilter(declineDefect, (decline) => Effect.fail(decline)))
-      const retry: Prepared["retry"] = (event) => hooks.trigger("session", "retry", event).pipe(Effect.asVoid)
+      // HTTP hooks must observe every request, so they keep the provider on HTTP.
+      const webSocket =
+        input.webSocket === "session" &&
+        !hasHttpHooks &&
+        model.capabilities.responsesWebsockets === true &&
+        model.websocket
+
       return {
+        event: shaped,
         request,
-        options,
-        retry,
-        executeTool,
+        options: { ...(http ? { http } : {}), ...(webSocket ? { webSocket: transport.bind(session.id) } : {}) },
+        retry: (event: Parameters<Prepared["retry"]>[0]) =>
+          hooks.trigger("session", "retry", event).pipe(Effect.asVoid),
+        // Permission.assert and the question tool throw declines as defects so tools cannot
+        // catch them and turn a "no" into model-visible output. Recover them here as failures.
+        executeTool: (call: Parameters<Prepared["executeTool"]>[0]) =>
+          tools.execute({ ...call, definitions: hooked }).pipe(
+            Effect.catchCauseFilter(
+              (cause) => {
+                const decline = cause.reasons.flatMap((r) =>
+                  Cause.isDieReason(r) &&
+                  (r.defect instanceof Permission.DeclinedError || r.defect instanceof QuestionTool.CancelledError)
+                    ? [r.defect]
+                    : [],
+                )[0]
+                return decline ? Result.succeed(decline) : Result.fail(cause)
+              },
+              (decline) => Effect.fail(decline),
+            ),
+          ),
       }
     })
 
-    return Service.of({ prepare })
+    const agentHook =
+      (name: "context" | "compaction" | "generate", agent: Agent.ID) => (draft: SessionRequest, tools: Definitions) =>
+        hooks.trigger("session", name, { ...draft, agent, tools })
+
+    return Service.of({
+      primary: (input) => prepare("primary", input, agentHook("context", input.agent)),
+      compaction: (input) => prepare("compaction", input, agentHook("compaction", input.agent)),
+      generate: (input) => prepare("generate", input, agentHook("generate", input.agent)),
+      title: (input) => prepare("title", input, (draft) => hooks.trigger("session", "title", draft)),
+    })
   }),
 )
 

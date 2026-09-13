@@ -69,7 +69,7 @@ export function SessionWebSearchDock(props: { model: WebSearchRequestModel; onSu
             </Button>
           </Show>
           <Button
-            variant="neutral"
+            variant="submit"
             size="small"
             onClick={() => {
               const selected = props.model.selected()

@@ -92,33 +92,6 @@ export const GoogleVertexPlugin = define({
           evt.options.fetch = authFetch(evt.options.fetch)
           return
         }
-        if (evt.package === "@ai-sdk/google-vertex/anthropic") {
-          const mod = yield* Effect.promise(() => import("@ai-sdk/google-vertex/anthropic"))
-          const project = resolveProject(evt.options)
-          const location = String(resolveLocation(evt.options))
-          const regionalBaseURL =
-            (location === "eu" || location === "us") && project && !evt.options.baseURL
-              ? `https://aiplatform.${location}.rep.googleapis.com/v1/projects/${project}/locations/${location}/publishers/anthropic/models`
-              : undefined
-          evt.sdk = mod.createVertexAnthropic({
-            ...evt.options,
-            project,
-            location,
-            ...(regionalBaseURL ? { baseURL: regionalBaseURL } : {}),
-          })
-          return
-        }
-        if (evt.package !== "@ai-sdk/google-vertex") return
-        const mod = yield* Effect.promise(() => import("@ai-sdk/google-vertex"))
-        const project = resolveProject(evt.options)
-        const location = resolveLocation(evt.options)
-        const options = { ...evt.options }
-        delete options.fetch
-        evt.sdk = mod.createVertex({
-          ...options,
-          project,
-          location,
-        })
       }),
     )
     yield* ctx.aisdk.hook(

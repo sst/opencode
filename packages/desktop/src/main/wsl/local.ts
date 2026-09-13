@@ -33,7 +33,7 @@ export const buildLocalWslCli = Effect.fn("Wsl.buildLocalCli")(function* (input:
         [
           packageManager,
           input.script,
-          `--target=opencode2-${target}`,
+          `--target=opencode-${target}`,
           "--skip-install",
           "--skip-web-ui",
           `--outdir=${directory}`,
@@ -41,7 +41,7 @@ export const buildLocalWslCli = Effect.fn("Wsl.buildLocalCli")(function* (input:
         { cwd: root, env: { ...process.env, OPENCODE_VERSION: input.version }, windowsHide: true },
       ),
     )
-    yield* fs.copyFile(path.join(directory, `cli-${target}`, "bin", "opencode2"), input.output)
+    yield* fs.copyFile(path.join(directory, `cli-${target}`, "bin", "opencode"), input.output)
     return input.output
   })
   return yield* build.pipe(Effect.ensuring(fs.remove(directory, { recursive: true, force: true }).pipe(Effect.orDie)))

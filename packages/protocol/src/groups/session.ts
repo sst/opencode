@@ -27,9 +27,11 @@ import {
 import { Agent } from "@opencode/schema/agent"
 import { Skill } from "@opencode/schema/skill"
 import { Model } from "@opencode/schema/model"
+import { Permission } from "@opencode/schema/permission"
 import { Location } from "@opencode/schema/location"
 import { SessionEvent } from "@opencode/schema/session-event"
 import { EventLog } from "@opencode/schema/event-log"
+import { FileDiff } from "@opencode/schema/file-diff"
 
 const ParentIDFilter = Schema.Union([
   Session.ID,
@@ -175,6 +177,7 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S>(sessionLo
           model: Model.Ref.pipe(Schema.optional),
           location: Location.Ref.pipe(Schema.optional),
           metadata: Session.Metadata.pipe(Schema.optional),
+          permissions: Permission.Ruleset.pipe(Schema.optional),
         }),
         success: Schema.Struct({ data: Session.Info }),
       }).annotateMerge(
@@ -522,6 +525,31 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S>(sessionLo
       ),
     )
     .add(
+      HttpApiEndpoint.get("session.diff", "/api/session/:sessionID/diff", {
+        params: { sessionID: Session.ID },
+        query: Schema.Struct({
+          from: Schema.optional(SessionMessage.ID).annotate({
+            description: "User message whose turn to diff. Defaults to the turn of the newest user message.",
+          }),
+          to: Schema.optional(SessionMessage.ID).annotate({
+            description: "Later user message whose turn ends the range. Defaults to the turn of `from` alone.",
+          }),
+          context: Schema.NumberFromString.pipe(Schema.decodeTo(NonNegativeInt), Schema.optional).annotate({
+            description: "Unchanged lines around each hunk. Omit for full-file patches.",
+          }),
+        }),
+        success: Schema.Struct({ data: Schema.Array(FileDiff.Info) }),
+        error: [InvalidRequestError, MessageNotFoundError, SessionNotFoundError, UnknownError],
+      }).annotateMerge(
+        OpenApi.annotations({
+          identifier: "v2.session.diff",
+          summary: "Diff session turns",
+          description:
+            "Structured per-file diffs of the files a turn changed. A turn runs from the first prompt after the session was last idle until its next idle marker, so prompts steered in while it was busy belong to the same turn; `to` extends the range through a later turn. Compares the range's first recorded snapshot with its last; a step still running in the active session compares against the working copy. Ranges that span a location change are rejected. In sessions without any idle marker, a prompt's turn spans until the next user message.",
+        }),
+      ),
+    )
+    .add(
       HttpApiEndpoint.get("session.inbox.list", "/api/session/:sessionID/inbox", {
         params: { sessionID: Session.ID },
         success: Schema.Struct({ data: Schema.Array(SessionInbox.Info) }),
@@ -707,20 +735,6 @@ export const makeSessionGroup = <I extends HttpApiMiddleware.AnyId, S>(sessionLo
           identifier: "v2.session.message",
           summary: "Get session message",
           description: "Retrieve one projected message owned by the Session.",
-        }),
-      ),
-    )
-    .add(
-      HttpApiEndpoint.patch("session.messageUpdate", "/api/session/:sessionID/message/:messageID", {
-        params: { sessionID: Session.ID, messageID: SessionMessage.ID },
-        payload: Schema.Struct({ content: Schema.Array(SessionMessage.AssistantContent) }),
-        success: Schema.Struct({ data: SessionMessage.Assistant }),
-        error: [SessionNotFoundError, MessageNotFoundError, InvalidRequestError, SessionBusyError, ConflictError],
-      }).annotateMerge(
-        OpenApi.annotations({
-          identifier: "v2.session.messageUpdate",
-          summary: "Update assistant message content",
-          description: "Replace the content of a completed assistant message in an idle session.",
         }),
       ),
     )

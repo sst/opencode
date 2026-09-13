@@ -55,7 +55,7 @@ test.describe("regression: session timeline context group resize", () => {
     await devtools.send("Emulation.setCPUThrottlingRate", { rate: 4 })
     const context = page.locator(`[data-timeline-part-ids="${contextIDs.join(",")}"]`).first()
     await expectAppVisible(context)
-    await expect(context.getByRole("button")).toHaveAccessibleName("Used 1 Read, 1 Glob, 1 Grep, 1 List")
+    await expect(context.getByRole("button")).toHaveAccessibleName("Used 4 Read, Glob, Grep, List")
 
     const contextSelector = `[data-timeline-part-ids="${contextIDs.join(",")}"]`
     const regions = defineVisualRegions({
@@ -88,7 +88,7 @@ test.describe("regression: session timeline context group resize", () => {
       await page.waitForTimeout(delay)
     }
 
-    await expect(context.getByRole("button")).toHaveAccessibleName("Used 1 Read, 1 Glob, 1 Grep, 1 List")
+    await expect(context.getByRole("button")).toHaveAccessibleName("Used 4 Read, Glob, Grep, List")
     await page.waitForTimeout(700)
     const trace = await stopVisualProbe<keyof typeof regions>(page)
     const labels = trace.samples
@@ -107,7 +107,7 @@ test.describe("regression: session timeline context group resize", () => {
       ]),
     )
 
-    expect(labels).toEqual(["Used 1 Read, 1 Glob, 1 Grep, 1 List"])
+    expect(labels).toEqual(["Used 4 Read, Glob, Grep, List"])
     expect(issues, JSON.stringify(trace.samples, null, 2)).toEqual([])
   })
 })

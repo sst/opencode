@@ -71,7 +71,7 @@ export const SettingsNotifications: Component = () => {
         </div>
       </div>
 
-      <div class="settings-tab-body">
+      <div class="settings-tab-body settings-tab-body--sectioned">
         <div class="settings-section">
           <h3 class="settings-section-title">{language.t("settings.general.section.notifications")}</h3>
           <SettingsList>

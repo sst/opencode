@@ -222,7 +222,7 @@ describe("acp service directory behavior", () => {
     await fixture.service.setSessionMode({ sessionId: session.sessionId, modeId: "build" })
 
     expect(currentValue(selectedModel, "model")).toBe("test/second-model")
-    expect(currentValue(selectedModel, "effort")).toBe("low")
+    expect(currentValue(selectedModel, "effort")).toBe("default")
     expect(currentValue(selectedEffort, "effort")).toBe("medium")
     expect(currentValue(selectedMode, "mode")).toBe("plan")
     expect(

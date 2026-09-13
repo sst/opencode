@@ -69,9 +69,10 @@ export const UserCommandCompleted = {
 }
 
 export const LiveUserCommand = {
-  args: { outcome: "exited", output: true },
+  args: { outcome: "exited", output: true, expanded: true },
   argTypes: { outcome: { control: "select", options: ["exited", "nonzero", "timeout", "killed"] } },
-  render: (args: { outcome: "exited" | "nonzero" | "timeout" | "killed"; output: boolean }) => {
+  render: (args: { outcome: "exited" | "nonzero" | "timeout" | "killed"; output: boolean; expanded: boolean }) => {
+    const [stats, setStats] = createStore({ reads: 0 })
     const [message, setMessage] = createSignal<SessionMessageShell>({
       id: "msg_shell_live",
       type: "shell",
@@ -83,6 +84,7 @@ export const LiveUserCommand = {
     let output = args.output ? "ready\n" : ""
     return (
       <section class="mx-auto flex w-full max-w-[720px] flex-col gap-4 p-6">
+        <output aria-label="Output requests">{stats.reads}</output>
         <button type="button" onClick={() => (output += "next line\n")}>
           Update output
         </button>
@@ -105,6 +107,7 @@ export const LiveUserCommand = {
           directory="/workspace"
           data={{ session: [], session_status: {}, session_diff: {} }}
           shellOutput={async (input) => {
+            setStats("reads", (value) => value + 1)
             if (message().status !== "running") throw new Error("Shell output unavailable")
             if (input.id !== "shell_live" || input.location?.directory !== "/workspace") {
               throw new Error("Unexpected shell output request")
@@ -123,7 +126,7 @@ export const LiveUserCommand = {
             }
           }}
         >
-          <SessionShellMessage message={message()} defaultOpen />
+          <SessionShellMessage message={message()} defaultOpen={args.expanded} />
         </DataProvider>
       </section>
     )

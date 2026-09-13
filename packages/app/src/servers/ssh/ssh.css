@@ -1,0 +1,10 @@
+.ssh-prompt {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-family-mono);
+  font-size: 12px;
+  line-height: var(--line-height-compact);
+  max-height: 200px;
+  overflow: auto;
+  user-select: text;
+}

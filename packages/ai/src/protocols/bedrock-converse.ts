@@ -106,7 +106,7 @@ type BedrockSystemBlock = Schema.Schema.Type<typeof BedrockSystemBlock>
 const BedrockToolSpec = Schema.Struct({
   toolSpec: Schema.Struct({
     name: Schema.String,
-    description: Schema.String,
+    description: Schema.optional(Schema.String),
     inputSchema: Schema.Struct({
       json: JsonObject,
     }),
@@ -222,7 +222,7 @@ type BedrockEvent = Schema.Schema.Type<typeof BedrockEvent>
 const lowerToolSpec = (tool: ToolDefinition, inputSchema: JsonSchema): BedrockToolSpec => ({
   toolSpec: {
     name: tool.name,
-    description: tool.description,
+    ...(tool.description.trim().length > 0 ? { description: tool.description } : {}),
     inputSchema: { json: inputSchema },
   },
 })
@@ -282,7 +282,8 @@ const removeEmptyToolInputKeys = (input: unknown): unknown => {
 const lowerToolCall = (part: ToolCallPart): BedrockToolUseBlock => ({
   toolUse: {
     toolUseId: part.id,
-    name: part.name,
+    // Models can emit names that Converse rejects when replayed in history.
+    name: part.name.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64) || "_",
     input: removeEmptyToolInputKeys(part.input),
   },
 })

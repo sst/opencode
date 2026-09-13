@@ -396,6 +396,7 @@ export function createSessionReview(input: {
     deferRender: input.deferRender,
     details: {
       diffs: () => (detailsQuery.isFetched ? (detailsQuery.data ?? []) : undefined),
+      open: () => state.detailsOpen,
       setOpen: (open: boolean) => setState("detailsOpen", open),
     },
     diffVersion: () => vcsQuery.dataUpdatedAt,

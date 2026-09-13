@@ -841,8 +841,8 @@ export function ComposerEditorSubmitButton(props: {
         disabled={!props.stopping && props.disabled}
         tabIndex={props.mode === "normal" ? undefined : -1}
         icon={<Icon name={props.stopping ? "stop" : props.mode === "shell" ? "arrow-undo-down" : "arrow-up"} />}
-        variant="contrast"
-        class="size-7 rounded-md p-[6px] disabled:opacity-50"
+        variant="submit"
+        class="size-7 rounded-md p-[6px]"
         aria-label={props.stopping ? props.stopLabel : props.sendLabel}
         onClick={(event) => {
           event.preventDefault()

@@ -26,7 +26,7 @@ export const Plugin = define({
           directory: AbsolutePath.make(
             directory.startsWith("~/")
               ? path.join(global.home, directory.slice(2))
-              : path.resolve(entry.path ? path.dirname(entry.path) : location.directory, directory),
+              : path.resolve(location.project.canonical, directory),
           ),
         })
       }

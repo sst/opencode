@@ -3,7 +3,7 @@ import * as pty from "@lydell/node-pty"
 import type { WslDistroProbe, WslInstalledDistro, WslOnlineDistro, WslRuntimeCheck } from "@opencode/app/wsl/types"
 import { Effect, FileSystem, Path } from "effect"
 import { nativeT } from "../native/translations"
-import { parseCliVersion } from "../service/cli-version"
+import { RemoteCli } from "../remote/cli"
 
 export type WslCommandLine = {
   stream: "stdout" | "stderr"
@@ -291,9 +291,10 @@ export const installWslCli = Effect.fn("Wsl.installCli")(function* (
 })
 
 export function wslCliInstallCommand(cli: WslCliBuild) {
-  const installer = "curl -fsSL https://raw.githubusercontent.com/anomalyco/opencode/v2/install | bash -s --"
-  if (!cli.binary) return `${installer} --version ${shellEscape(cli.version)}`
-  return `${installer} --binary "$(wslpath -a ${shellEscape(cli.binary)})"`
+  return RemoteCli.installScript({
+    version: cli.version,
+    source: { type: "installer", binary: cli.binary ? `"$(wslpath -a ${shellEscape(cli.binary)})"` : undefined },
+  })
 }
 
 export async function probeWslDistro(name: string, opts?: RunWslOptions): Promise<WslDistroProbe> {
@@ -328,21 +329,12 @@ export async function probeWslDistro(name: string, opts?: RunWslOptions): Promis
 }
 
 export async function resolveWslCli(distro: string, opts?: RunWslOptions) {
-  return firstLine(
-    (
-      await runWslSh(
-        'if [ -x "$HOME/.opencode/bin/opencode2" ]; then printf "%s\\n" "$HOME/.opencode/bin/opencode2"; fi',
-        distro,
-        opts,
-      )
-    ).stdout,
-  )
+  return firstLine((await runWslSh(RemoteCli.discoverScript(), distro, opts)).stdout)
 }
 
 export async function readWslCliVersion(command: string, distro: string, opts?: RunWslOptions) {
-  const result = await runWslSh(`${shellEscape(command)} --version 2>/dev/null || true`, distro, opts)
-  const output = firstLine(result.stdout)
-  return output ? parseCliVersion(output) : null
+  const result = await runWslSh(RemoteCli.versionScript(shellEscape(command)), distro, opts)
+  return RemoteCli.parseVersion(result.stdout)
 }
 
 export function openWslTerminal(distro?: string | null) {

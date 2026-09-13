@@ -169,19 +169,19 @@ describe("ModelResolver", () => {
     ),
   )
 
-  it.effect("maps Bedrock Mantle models to native Responses and safeguards to Chat", () =>
+  it.effect("maps Bedrock Mantle GPT-OSS models to Chat and other models to Responses", () =>
     Effect.gen(function* () {
       const credential = Credential.Key.make({ type: "key", key: "secret" })
       const responses = yield* ModelResolver.fromCatalogModel(
         model(Provider.aisdk("@ai-sdk/amazon-bedrock/mantle"), {
-          modelID: "openai.gpt-oss-120b",
+          modelID: "openai.gpt-5.5",
           settings: { region: "us-east-2" },
         }),
         credential,
       )
       const chat = yield* ModelResolver.fromCatalogModel(
         model(Provider.aisdk("@ai-sdk/amazon-bedrock/mantle"), {
-          modelID: "openai.gpt-oss-safeguard-20b",
+          modelID: "openai.gpt-oss-20b",
           settings: { region: "us-east-2" },
         }),
         credential,
@@ -1021,7 +1021,7 @@ describe("ModelResolver", () => {
                     baseURL: "https://provider.example/v1",
                     headers: { "x-provider": "header" },
                     body: { custom: true },
-                    providerOptions,
+                    ...providerOptions,
                   })
                   return LanguageModel.make({ id: modelID, provider: "native-provider", route: native.route })
                 },
@@ -1039,11 +1039,7 @@ describe("ModelResolver", () => {
       const packages = [
         ["@ai-sdk/anthropic", "@opencode/ai/providers/anthropic", "api-model"],
         ["@ai-sdk/amazon-bedrock", "@opencode/ai/providers/amazon-bedrock", "api-model"],
-        [
-          "@ai-sdk/amazon-bedrock/mantle",
-          "@opencode/ai/providers/amazon-bedrock/mantle/responses",
-          "openai.gpt-oss-120b",
-        ],
+        ["@ai-sdk/amazon-bedrock/mantle", "@opencode/ai/providers/amazon-bedrock/mantle/chat", "openai.gpt-oss-120b"],
         ["@ai-sdk/azure", "@opencode/ai/providers/azure/responses", "api-model"],
         ["@ai-sdk/cerebras", "@opencode/ai/providers/cerebras", "api-model"],
         ["@ai-sdk/deepinfra", "@opencode/ai/providers/deepinfra", "api-model"],
@@ -1112,10 +1108,8 @@ describe("ModelResolver", () => {
                   accessToken: "vertex-token",
                   location: "eu",
                   project: "vertex-project",
-                  providerOptions: {
-                    thinking: { type: "adaptive", display: "summarized" },
-                    effort: "high",
-                  },
+                  thinking: { type: "adaptive", display: "summarized" },
+                  effort: "high",
                 })
                 return LanguageModel.make({ id: modelID, provider: "native-provider", route: native.route })
               },
@@ -1271,7 +1265,7 @@ describe("ModelResolver", () => {
       expect(bedrock.route.id).toBe("bedrock-converse")
       expect(bedrock.route.defaults.generation).toEqual({ topP: 0.8 })
       expect(bedrock.route.defaults.http?.body).toEqual({ serviceTier: { type: "priority" } })
-      expect(mantle.route.id).toBe("bedrock-mantle-responses")
+      expect(mantle.route.id).toBe("bedrock-mantle-chat")
       expect(mantle.route.defaults.generation).toEqual({ topP: 0.6 })
     }),
   )
@@ -1392,6 +1386,81 @@ describe("ModelResolver", () => {
         package: "aisdk:@ai-sdk/cohere",
       })
       expect(failure.message).toBe("Unsupported package for test-provider/test-model: aisdk:@ai-sdk/cohere")
+    }),
+  )
+
+  it.effect("reports provider configuration errors from supported packages", () =>
+    Effect.gen(function* () {
+      const failure = yield* ModelResolver.fromCatalogModel(
+        model(Provider.aisdk("@ai-sdk/azure"), {
+          providerID: Provider.ID.azure,
+          modelID: "gpt-5.4-nano",
+        }),
+        Credential.OAuth.make({
+          type: "oauth",
+          methodID: Integration.MethodID.make("oauth"),
+          access: "oauth-token",
+          refresh: "refresh",
+          expires: Date.now() + 60_000,
+        }),
+      ).pipe(Effect.flip)
+
+      expect(failure).toMatchObject({
+        _tag: "SessionRunnerModel.ModelConfigurationError",
+        providerID: "azure",
+        modelID: "test-model",
+        package: "aisdk:@ai-sdk/azure",
+        detail: "Azure requires resourceName or baseURL",
+      })
+      expect(failure.message).toBe("Cannot initialize azure/test-model: Azure requires resourceName or baseURL")
+    }),
+  )
+
+  it.effect("distinguishes unexpected constructor failures from configuration errors", () =>
+    Effect.gen(function* () {
+      const failure = yield* ModelResolver.fromCatalogModel(model("@opencode/ai/providers/custom"), undefined, {
+        loadPackage: () =>
+          Effect.succeed({
+            model: () => {
+              throw new Error("custom provider crashed")
+            },
+          }),
+      }).pipe(Effect.flip)
+
+      expect(failure).toMatchObject({
+        _tag: "SessionRunnerModel.ModelInitializationError",
+        phase: "construct",
+        detail: "custom provider crashed",
+      })
+    }),
+  )
+
+  it.effect("reports package load and AISDK initialization failures with their causes", () =>
+    Effect.gen(function* () {
+      const load = yield* ModelResolver.fromCatalogModel(model("@opencode/ai/providers/custom"), undefined, {
+        loadPackage: (specifier) =>
+          Effect.fail(
+            new Provider.LoadError({ package: specifier, cause: new Error(`Provider package ${specifier} is broken`) }),
+          ),
+      }).pipe(Effect.flip)
+      expect(load).toMatchObject({
+        _tag: "SessionRunnerModel.ModelInitializationError",
+        phase: "load",
+        detail: "Provider package @opencode/ai/providers/custom is broken",
+      })
+
+      const init = yield* ModelResolver.fromCatalogModel(model(Provider.aisdk("@ai-sdk/cohere")), undefined, {
+        loadAISDK: (runtime) =>
+          Effect.fail(
+            new AISDK.InitError({ providerID: runtime.providerID, cause: new Error("Cohere plugin failed") }),
+          ),
+      }).pipe(Effect.flip)
+      expect(init).toMatchObject({
+        _tag: "SessionRunnerModel.ModelInitializationError",
+        phase: "init",
+        detail: "Cohere plugin failed",
+      })
+      expect(init.message).toBe("Cannot initialize test-provider/test-model: Cohere plugin failed")
     }),
   )
 

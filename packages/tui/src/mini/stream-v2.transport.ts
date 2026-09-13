@@ -47,6 +47,7 @@ type StreamInput = {
   location?: LocationRef
   sessionID: string
   thinking: boolean
+  tools?: boolean
   replay?: boolean
   replayLimit?: number
   footer: FooterApi
@@ -141,6 +142,8 @@ type State = {
   tools: Map<string, ToolState>
   toolSources: Map<string, SessionMessageAssistantTool>
   finishedTools: Set<string>
+  toolMessages: Set<string>
+  quietText: Map<string, Array<{ partID: string; text: string }>>
   skillMessages: Set<string>
   shellCommands: Map<string, string>
   shellStarted: Set<string>
@@ -488,6 +491,8 @@ export async function createSessionTransport(input: StreamInput): Promise<Sessio
     tools: new Map(),
     toolSources: new Map(),
     finishedTools: new Set(),
+    toolMessages: new Set(),
+    quietText: new Map(),
     skillMessages: new Set(),
     shellCommands: new Map(),
     shellStarted: new Set(),
@@ -592,7 +597,7 @@ export async function createSessionTransport(input: StreamInput): Promise<Sessio
     const images = freshImages(userImageCommits(messageID, files), render)
     if (!render) return
     write([
-      ...(!visible ? skillCommits(messageID, skills) : []),
+      ...(!visible && showTools() ? skillCommits(messageID, skills) : []),
       ...(!visible && text.trim()
         ? [{ kind: "user", source: "system", text, phase: "start", messageID } as const]
         : []),
@@ -662,7 +667,48 @@ export async function createSessionTransport(input: StreamInput): Promise<Sessio
     }
   }
 
+  const showTools = () => input.tools !== false
+
+  const rememberToolMessage = (messageID: string) => {
+    state.toolMessages.add(messageID)
+    state.quietText.delete(messageID)
+  }
+
+  const bufferQuietText = (messageID: string, partID: string, text: string, replace: boolean) => {
+    if (!text || state.toolMessages.has(messageID)) return
+    const parts = state.quietText.get(messageID) ?? []
+    const current = parts.find((part) => part.partID === partID)
+    if (current) {
+      current.text = replace ? text : current.text + text
+      return
+    }
+    parts.push({ partID, text })
+    state.quietText.set(messageID, parts)
+  }
+
+  const flushQuietText = (messageID: string) => {
+    const parts = state.quietText.get(messageID)
+    state.quietText.delete(messageID)
+    if (!parts || state.toolMessages.has(messageID)) return
+    write(
+      parts
+        .filter((part) => part.text)
+        .map((part) => ({
+          kind: "assistant" as const,
+          source: "assistant" as const,
+          text: part.text,
+          phase: "progress" as const,
+          messageID,
+          partID: part.partID,
+        })),
+    )
+  }
+
   const renderTool = (messageID: string, item: SessionMessageAssistantTool, render = true) => {
+    if (!showTools()) {
+      rememberToolMessage(messageID)
+      render = false
+    }
     const part = normalizeTool(item)
     const key = permissionSourceKey(messageID, part.id)
     if (state.finishedTools.has(key)) {
@@ -721,7 +767,7 @@ export async function createSessionTransport(input: StreamInput): Promise<Sessio
     }
     if (message.type === "skill") {
       if (state.wait?.messageID === message.id) promoteWait(state.wait, false)
-      if (!render || state.skillMessages.has(message.id)) {
+      if (!render || !showTools() || state.skillMessages.has(message.id)) {
         state.skillMessages.add(message.id)
         return
       }
@@ -784,13 +830,16 @@ export async function createSessionTransport(input: StreamInput): Promise<Sessio
     }
     if (message.type !== "assistant") return
     state.messageIDs.add(message.id)
+    const hasTools = message.content.some((item) => item.type === "tool")
+    if (hasTools) rememberToolMessage(message.id)
     let textOrdinal = 0
     let reasoningOrdinal = 0
     for (const item of message.content) {
       if (item.type === "text") {
         const fragment = fragmentRef(message.id, "text", textOrdinal++)
-        const update = state.fragments.project(fragment, item.text, render)
-        if (render && item.text.length > update.previous.length)
+        const visible = render && (showTools() || !hasTools)
+        const update = state.fragments.project(fragment, item.text, visible)
+        if (visible && item.text.length > update.previous.length)
           write([
             {
               kind: "assistant",
@@ -1024,7 +1073,7 @@ export async function createSessionTransport(input: StreamInput): Promise<Sessio
       if (state.wait?.messageID === messageID) promoteWait(state.wait, true)
       if (state.skillMessages.has(messageID)) return
       state.skillMessages.add(messageID)
-      write([skillCommit(messageID, event.data.name)])
+      if (showTools()) write([skillCommit(messageID, event.data.name)])
       return
     }
     if (event.type === "session.compaction.started") {
@@ -1113,6 +1162,10 @@ export async function createSessionTransport(input: StreamInput): Promise<Sessio
     if (event.type === "session.text.delta") {
       const fragment = fragmentRef(event.data.assistantMessageID, "text", event.data.ordinal)
       if (!state.fragments.delta(fragment, event.data.delta)) return
+      if (!showTools()) {
+        bufferQuietText(event.data.assistantMessageID, fragment.partID, event.data.delta, false)
+        return
+      }
       write([
         {
           kind: "assistant",
@@ -1130,6 +1183,10 @@ export async function createSessionTransport(input: StreamInput): Promise<Sessio
         fragmentRef(event.data.assistantMessageID, "text", event.data.ordinal),
         event.data.text,
       )
+      if (!showTools()) {
+        bufferQuietText(event.data.assistantMessageID, update.partID, event.data.text, true)
+        return
+      }
       if (event.data.text.length > update.previous.length)
         write([
           {
@@ -1303,6 +1360,7 @@ export async function createSessionTransport(input: StreamInput): Promise<Sessio
         event.data.tokens.cache.write
       const limit = state.stepModel ? input.contextLimit?.(state.stepModel) : undefined
       state.stepModel = undefined
+      if (!showTools()) flushQuietText(event.data.assistantMessageID)
       write([], {
         usage:
           total > 0 || event.data.cost
@@ -1317,6 +1375,7 @@ export async function createSessionTransport(input: StreamInput): Promise<Sessio
     }
     if (event.type === "session.step.failed") {
       state.stepModel = undefined
+      if (!showTools()) flushQuietText(event.data.assistantMessageID)
       const rendered = state.errors.has(event.data.assistantMessageID)
       state.errors.add(event.data.assistantMessageID)
       if (state.wait) state.wait.failureRendered = true
@@ -1344,6 +1403,7 @@ export async function createSessionTransport(input: StreamInput): Promise<Sessio
       event.type === "session.execution.interrupted"
     ) {
       state.executionEpoch++
+      if (!showTools()) for (const messageID of [...state.quietText.keys()]) flushQuietText(messageID)
       paintIdle("")
       const current = state.wait
       if (!current) return
@@ -1605,6 +1665,8 @@ export async function createSessionTransport(input: StreamInput): Promise<Sessio
       state.tools.clear()
       state.toolSources.clear()
       state.finishedTools.clear()
+      state.toolMessages.clear()
+      state.quietText.clear()
       state.skillMessages.clear()
       state.shellCommands.clear()
       state.shellStarted.clear()

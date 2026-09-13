@@ -47,6 +47,7 @@ export type ResolveInput = {
 
 export interface Interface extends State.Transformable<Editor> {
   readonly resolve: (input: ResolveInput) => Effect.Effect<string>
+  readonly list?: () => Effect.Effect<Item[]>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/ShellSelect") {}
@@ -214,6 +215,7 @@ const layer = (options?: Options) =>
         transform: state.transform,
         reload: state.reload,
         resolve: (input) => Effect.sync(() => resolve(input, state.get().shell, options, global.bin)),
+        list: () => Effect.promise(() => list(options, global.bin)),
       })
     }),
   )

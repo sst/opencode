@@ -509,11 +509,7 @@ test.each(["", "search-ui"])("creates a worktree named '%s' and opens it in the 
     fixture.app.mockInput.pressEnter()
     await fixture.app.waitFor(() => fixture.route.data.type === "home")
 
-    expect(payload).toEqual({
-      strategy: "git",
-      directory: path.join("/tmp/opencode", projectID.slice(0, 6)),
-      ...(name ? { name } : {}),
-    })
+    expect(payload).toEqual(name ? { name } : {})
     expect(fixture.route.data).toEqual({ type: "home", location: { directory: created, workspaceID } })
     expect(fixture.location.ref).toEqual({ directory: created, workspaceID })
   } finally {

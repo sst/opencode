@@ -24,6 +24,7 @@ import { RunEntryContent } from "../../src/mini/scrollback.writer"
 import { RUN_THEME_FALLBACK, RUN_THEME_FALLBACK_LIGHT, resolveRunTheme, type RunTheme } from "../../src/mini/theme"
 import { BLOCK_SOFT_SLIDE, SEED_MONO, WORK_SPINNERS } from "../../src/ui/one-cell-motion"
 import { resolveMiniSettings } from "../../src/mini/runtime.boot"
+import { applyMiniSettingChange } from "../../src/mini/verbosity"
 import type {
   FooterQueuedPrompt,
   FooterState,
@@ -936,7 +937,7 @@ test.each([false, true])("settings change preferences and preview the work spinn
           settings={settings}
           onClose={() => {}}
           onChange={(change) => {
-            setSettings((current) => ({ ...current, [change.key]: change.value }))
+            setSettings((current) => applyMiniSettingChange(current, change))
           }}
           mono={mono}
           animations={animations()}
@@ -951,7 +952,9 @@ test.each([false, true])("settings change preferences and preview the work spinn
     const frame = app.captureCharFrame()
     expect(frame).toContain("Settings")
     expect(frame).toMatch(/^ +Settings/m)
+    expect(frame).toContain("Verbosity")
     expect(frame).toContain("Thinking")
+    expect(frame).toContain("Tools")
     expect(frame).toContain("Shell")
     expect(frame).toContain("Turn summary")
     expect(frame).toContain("Footer details")
@@ -962,12 +965,35 @@ test.each([false, true])("settings change preferences and preview the work spinn
 
     app.mockInput.pressKey("ARROW_RIGHT")
     await app.renderOnce()
+    expect(settings()).toEqual(applyMiniSettingChange(resolveMiniSettings(), { key: "verbosity", value: "everything" }))
+
+    app.mockInput.pressKey("ARROW_LEFT")
+    await app.renderOnce()
+    expect(settings()).toEqual(resolveMiniSettings())
+
+    app.mockInput.pressKey("ARROW_LEFT")
+    await app.renderOnce()
+    expect(settings()).toEqual(applyMiniSettingChange(resolveMiniSettings(), { key: "verbosity", value: "quiet" }))
+
+    app.mockInput.pressKey("ARROW_LEFT")
+    await app.renderOnce()
+    expect(settings()).toEqual(applyMiniSettingChange(resolveMiniSettings(), { key: "verbosity", value: "quiet" }))
+
+    app.mockInput.pressKey("ARROW_RIGHT")
+    await app.renderOnce()
+    expect(settings()).toEqual(resolveMiniSettings())
+
+    app.mockInput.pressKey("ARROW_DOWN")
+    app.mockInput.pressKey("ARROW_RIGHT")
+    await app.renderOnce()
 
     expect(settings()).toEqual({
       ...resolveMiniSettings(),
-      thinking: "show",
+      thinking: "hide",
     })
+    expect(app.captureCharFrame()).toContain("Custom")
 
+    app.mockInput.pressKey("ARROW_DOWN")
     app.mockInput.pressKey("ARROW_DOWN")
     app.mockInput.pressKey("ARROW_DOWN")
     app.mockInput.pressKey("ARROW_RIGHT")
@@ -975,7 +1001,7 @@ test.each([false, true])("settings change preferences and preview the work spinn
 
     expect(settings()).toEqual({
       ...resolveMiniSettings(),
-      thinking: "show",
+      thinking: "hide",
       turn_summary: "hide",
     })
 
@@ -1987,6 +2013,7 @@ test.each([8, 12])("production footer grows for wrapped instructions in %i rows"
     miniSettings: {
       current: {
         thinking: "hide",
+        tools: "show",
         shell_output: "hide",
         turn_summary: "show",
         footer: "show",
@@ -2054,6 +2081,7 @@ test.each(["ctrl+i", "none"])("takeovers preserve configured shortcuts with hidd
     state: { phase: "running", interrupt: 1 },
     miniSettings: {
       thinking: "hide",
+      tools: "show",
       shell_output: "hide",
       turn_summary: "show",
       footer: "hide",
@@ -2371,6 +2399,7 @@ test("direct footer hides routine activity and shows explicit notices", async ()
     currentAgent: "Plan",
     miniSettings: {
       thinking: "hide",
+      tools: "show",
       shell_output: "hide",
       turn_summary: "show",
       footer: "hide",

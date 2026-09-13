@@ -20,7 +20,7 @@
     display: inline;
   }
 
-  [data-markdown-word][data-markdown-enter] {
+  :is([data-markdown-word], code)[data-markdown-enter] {
     animation: markdown-word-enter 180ms ease-out both;
   }
 
@@ -347,7 +347,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-component="markdown"] [data-markdown-word][data-markdown-enter] {
+  [data-component="markdown"] :is([data-markdown-word], code)[data-markdown-enter] {
     animation: none;
   }
 }

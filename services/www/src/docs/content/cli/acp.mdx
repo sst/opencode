@@ -1,0 +1,98 @@
+---
+title: "ACP"
+description: "Use OpenCode with an Agent Client Protocol client."
+---
+
+Configure your ACP client to launch `opencode acp`. For example, add OpenCode to Zed's
+`~/.config/zed/settings.json`:
+
+```json
+{
+  "agent_servers": {
+    "OpenCode": {
+      "command": "opencode",
+      "args": ["acp"]
+    }
+  }
+}
+```
+
+Other ACP clients use the same executable and `acp` argument, but their configuration file and field names may differ.
+If a graphical client cannot find `opencode`, set `command` to the absolute path reported by `which opencode`.
+
+## Transport
+
+`opencode acp` is an [Agent Client Protocol](https://agentclientprotocol.com) agent. The client starts it as a child
+process and exchanges newline-delimited JSON-RPC messages over stdin and stdout using ACP protocol version 1.
+
+The command starts a private OpenCode server for that ACP process. It does not connect to the shared background service,
+and it does not expose an ACP network port.
+
+The process can serve multiple ACP sessions. It runs until the client closes stdin, then exits and stops its private
+server.
+
+## Sessions
+
+When the client creates a session, it supplies the working directory. OpenCode loads that directory's configuration,
+plugins, models, agents, commands, skills, instructions, and MCP configuration before creating the session.
+
+The ACP session lifecycle supports:
+
+- Creating, listing, loading, resuming, forking, closing, and deleting sessions
+- Replaying saved messages when a client loads or forks a session
+- Cancelling an active prompt without closing the session
+- Streaming text, reasoning, tool calls, permission requests, and usage updates
+
+The directory stored on an existing OpenCode session is authoritative. Loading, resuming, or forking that session uses
+its stored directory rather than a different directory supplied by the client.
+
+Closing a session interrupts active work and detaches it from the ACP process, but keeps the saved session. Deleting a
+session removes it from OpenCode storage.
+
+## Models
+
+New sessions use the configured default model and primary agent for their directory. The client receives session options
+for all enabled models and all visible agents that are not subagents.
+
+ACP clients can change these options during a session:
+
+- **Model** selects an enabled model as `provider/model`.
+- **Effort** appears when the selected model provides variants.
+- **Mode** selects a visible agent that is not a subagent.
+
+Model, effort, and mode changes are applied to the OpenCode session, so later prompts use the new selection.
+
+## Content
+
+Prompts can contain text, images, embedded resources, and file resource links. OpenCode also advertises available slash
+commands and skills to the client; `/compact` runs session compaction.
+
+Clients may pass local or HTTP MCP servers when they create, load, resume, or fork a session. MCP over SSE and MCP over
+ACP are not supported by this command.
+
+## Authentication
+
+ACP authentication uses the provider credentials already available to OpenCode. Sign in from a terminal before starting
+the ACP client:
+
+```bash
+opencode auth login
+```
+
+Clients that support ACP terminal authentication can offer the OpenCode login command reported during initialization.
+The ACP `authenticate` request does not collect credentials itself.
+
+## Troubleshooting
+
+Running `opencode acp` directly appears to wait because it expects ACP messages on stdin. Start it through an ACP client
+for normal use.
+
+If the client reports that the process exited or returned invalid protocol output, enable ACP and private-server logs on
+stderr:
+
+```bash
+opencode --print-logs acp
+```
+
+Add `--print-logs` before `acp` in the client's argument list while diagnosing the problem. Stdout remains reserved for
+ACP messages.

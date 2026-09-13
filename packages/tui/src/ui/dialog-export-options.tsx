@@ -13,12 +13,13 @@ export type DialogExportOptionsProps = {
     action: "copy" | "export"
     format: ExportFormat
     thinking: boolean
+    tools: boolean
     sanitize: boolean
   }) => void
   onCancel?: () => void
 }
 
-type Active = ExportFormat | "thinking" | "sanitize" | "copy" | "export"
+type Active = ExportFormat | "thinking" | "tools" | "sanitize" | "copy" | "export"
 
 export function DialogExportOptions(props: DialogExportOptionsProps) {
   const dialog = useDialog()
@@ -27,6 +28,7 @@ export function DialogExportOptions(props: DialogExportOptionsProps) {
   const [store, setStore] = createStore({
     format: "markdown" as ExportFormat,
     thinking: props.defaultThinking,
+    tools: true,
     sanitize: false,
     active: "markdown" as Active,
   })
@@ -36,6 +38,7 @@ export function DialogExportOptions(props: DialogExportOptionsProps) {
       action,
       format: store.format,
       thinking: store.thinking,
+      tools: store.tools,
       sanitize: store.sanitize,
     })
 
@@ -45,6 +48,7 @@ export function DialogExportOptions(props: DialogExportOptionsProps) {
       return
     }
     if (store.active === "thinking") setStore("thinking", !store.thinking)
+    if (store.active === "tools") setStore("tools", !store.tools)
     if (store.active === "sanitize") setStore("sanitize", !store.sanitize)
     if (store.active === "copy" || store.active === "export") confirm(store.active)
   }
@@ -59,7 +63,7 @@ export function DialogExportOptions(props: DialogExportOptionsProps) {
         run: () => {
           const order: Active[] =
             store.format === "markdown"
-              ? ["markdown", "json", "thinking", "copy", "export"]
+              ? ["markdown", "json", "thinking", "tools", "copy", "export"]
               : ["markdown", "json", "sanitize", "copy", "export"]
           setStore("active", order[(order.indexOf(store.active) + 1) % order.length])
         },
@@ -160,6 +164,44 @@ export function DialogExportOptions(props: DialogExportOptionsProps) {
             Include thinking
           </text>
         </box>
+        <box
+          flexDirection="row"
+          gap={1}
+          backgroundColor={
+            store.active === "tools"
+              ? theme.background.formfield.focused
+              : store.tools
+                ? theme.background.formfield.selected
+                : theme.background.formfield.default
+          }
+          onMouseUp={() => {
+            setStore("active", "tools")
+            setStore("tools", !store.tools)
+          }}
+        >
+          <text
+            fg={
+              store.active === "tools"
+                ? theme.text.formfield.focused
+                : store.tools
+                  ? theme.text.formfield.selected
+                  : theme.text.formfield.default
+            }
+          >
+            {store.tools ? "[x]" : "[ ]"}
+          </text>
+          <text
+            fg={
+              store.active === "tools"
+                ? theme.text.formfield.focused
+                : store.tools
+                  ? theme.text.formfield.selected
+                  : theme.text.formfield.default
+            }
+          >
+            Include tools
+          </text>
+        </box>
       </Show>
       <Show when={store.format === "json"}>
         <box
@@ -234,6 +276,7 @@ DialogExportOptions.show = (dialog: DialogContext, defaultThinking: boolean) => 
     action: "copy" | "export"
     format: ExportFormat
     thinking: boolean
+    tools: boolean
     sanitize: boolean
   } | null>((resolve) => {
     dialog.replace(

@@ -4,7 +4,7 @@ import { installStressSessionTabs, stressSessionHref } from "../performance/time
 import { mockOpenCodeServer } from "../utils/mock-server"
 
 for (const direction of ["ltr", "rtl"] as const) {
-  test(`session header groups controls and exposes server status in ${direction}`, async ({ page }) => {
+  test(`session header groups controls and exposes session details in ${direction}`, async ({ page }) => {
     await mockOpenCodeServer(page, {
       directory: fixture.directory,
       project: fixture.project,
@@ -31,7 +31,7 @@ for (const direction of ["ltr", "rtl"] as const) {
     await expect(review).toBeVisible()
     await expect(details).toBeVisible()
     const status = page.locator('[data-slot="titlebar-v2"]').getByRole("button", { name: "Status" })
-    await expect(status).toBeVisible()
+    await expect(status).toHaveCount(0)
     const titleBounds = await header.getByRole("heading").boundingBox()
     expect(titleBounds).not.toBeNull()
     for (const editing of [false, true]) {
@@ -122,12 +122,11 @@ for (const direction of ["ltr", "rtl"] as const) {
       .toBe(true)
     await expect(page.getByRole("menuitem", { name: "Server status", exact: true })).toHaveCount(0)
     await page.keyboard.press("Escape")
-    await status.click()
-    const mcp = page.getByRole("tab", { name: "MCP", exact: true })
-    const plugins = page.getByRole("tab", { name: "Plugins", exact: true })
-    await expect(mcp).toHaveAttribute("aria-selected", "true")
-    await plugins.click()
-    await expect(plugins).toHaveAttribute("aria-selected", "true")
+    await details.click()
+    const summary = page.getByRole("dialog", { name: "Session details", exact: true })
+    const mcp = summary.getByRole("button", { name: "MCP", exact: true })
+    await expect(mcp).toBeVisible()
+    await expect(summary.getByRole("button", { name: "Plugins", exact: true })).toBeVisible()
     await page.keyboard.press("Escape")
     await expect(mcp).toBeHidden()
   })

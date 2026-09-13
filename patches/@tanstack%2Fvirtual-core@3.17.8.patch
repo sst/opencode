@@ -1,5 +1,5 @@
 diff --git a/dist/cjs/index.cjs b/dist/cjs/index.cjs
-index e470032a9572b3ced764ca02238a8c6be435a9d4..84a7bfca638f70e32a9567bc732a84b83578af4e 100644
+index e470032a9572b3ced764ca02238a8c6be435a9d4..4c25e03b5db221a78793083d97970b2d90e28efa 100644
 --- a/dist/cjs/index.cjs
 +++ b/dist/cjs/index.cjs
 @@ -289,7 +289,7 @@ class Virtualizer {
@@ -82,7 +82,50 @@ index e470032a9572b3ced764ca02238a8c6be435a9d4..84a7bfca638f70e32a9567bc732a84b8
            followOnAppend,
            anchorDelta
          ];
-@@ -725,17 +735,20 @@ class Virtualizer {
+@@ -440,7 +450,17 @@ class Virtualizer {
+         );
+         if ("addEventListener" in this.scrollElement) {
+           const scrollEl = this.scrollElement;
+-          const onTouchStart = () => {
++          let touchTarget = null;
++          const clearTouchTarget = () => {
++            touchTarget?.removeEventListener("touchend", onTouchEnd);
++            touchTarget?.removeEventListener("touchcancel", onTouchEnd);
++            touchTarget = null;
++          };
++          const onTouchStart = (event) => {
++            clearTouchTarget();
++            touchTarget = event.target ?? scrollEl;
++            touchTarget.addEventListener("touchend", onTouchEnd, addEventListenerOptions);
++            touchTarget.addEventListener("touchcancel", onTouchEnd, addEventListenerOptions);
+             this._iosTouching = true;
+             this._iosJustTouchEnded = false;
+             if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
+@@ -449,6 +469,7 @@ class Virtualizer {
+             }
+           };
+           const onTouchEnd = () => {
++            clearTouchTarget();
+             this._iosTouching = false;
+             if (!isIOSWebKit() || this.targetWindow == null) {
+               return;
+@@ -465,14 +486,9 @@ class Virtualizer {
+             onTouchStart,
+             addEventListenerOptions
+           );
+-          scrollEl.addEventListener(
+-            "touchend",
+-            onTouchEnd,
+-            addEventListenerOptions
+-          );
+           this.unsubs.push(() => {
+             scrollEl.removeEventListener("touchstart", onTouchStart);
+-            scrollEl.removeEventListener("touchend", onTouchEnd);
++            clearTouchTarget();
+             if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
+               this.targetWindow.clearTimeout(this._iosTouchEndTimerId);
+               this._iosTouchEndTimerId = null;
+@@ -725,17 +741,20 @@ class Virtualizer {
          this.getMeasurements(),
          this.getSize(),
          this.getScrollOffset(),
@@ -106,7 +149,7 @@ index e470032a9572b3ced764ca02238a8c6be435a9d4..84a7bfca638f70e32a9567bc732a84b8
            lanes,
            // Pass the typed array so binary search + forward-walk can read
            // start/end directly from Float64Array, skipping the Proxy traps.
-@@ -1095,8 +1108,10 @@ class Virtualizer {
+@@ -1095,8 +1114,10 @@ class Virtualizer {
        const snapshot = [];
        if (this.itemSizeCache.size === 0) return snapshot;
        const m = this.getMeasurements();
@@ -146,7 +189,7 @@ index 6b43c0aea7ed9eeef75cbfb1351fcbd243913bdd..7be2680967934ddfbc4583a210a3d11e
      getVirtualIndexes: {
          (): number[];
 diff --git a/dist/esm/index.js b/dist/esm/index.js
-index 2495b26cf2c3589213546b3958eaadf2eb6b751d..accd38a89bee766fd568aa8cec9bb90c6789277a 100644
+index 2495b26cf2c3589213546b3958eaadf2eb6b751d..1398bc7dd33690a8fe3280343b6aabdeaea6435a 100644
 --- a/dist/esm/index.js
 +++ b/dist/esm/index.js
 @@ -287,7 +287,7 @@ class Virtualizer {
@@ -229,7 +272,50 @@ index 2495b26cf2c3589213546b3958eaadf2eb6b751d..accd38a89bee766fd568aa8cec9bb90c
            followOnAppend,
            anchorDelta
          ];
-@@ -723,17 +733,20 @@ class Virtualizer {
+@@ -438,7 +448,17 @@ class Virtualizer {
+         );
+         if ("addEventListener" in this.scrollElement) {
+           const scrollEl = this.scrollElement;
+-          const onTouchStart = () => {
++          let touchTarget = null;
++          const clearTouchTarget = () => {
++            touchTarget?.removeEventListener("touchend", onTouchEnd);
++            touchTarget?.removeEventListener("touchcancel", onTouchEnd);
++            touchTarget = null;
++          };
++          const onTouchStart = (event) => {
++            clearTouchTarget();
++            touchTarget = event.target ?? scrollEl;
++            touchTarget.addEventListener("touchend", onTouchEnd, addEventListenerOptions);
++            touchTarget.addEventListener("touchcancel", onTouchEnd, addEventListenerOptions);
+             this._iosTouching = true;
+             this._iosJustTouchEnded = false;
+             if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
+@@ -447,6 +467,7 @@ class Virtualizer {
+             }
+           };
+           const onTouchEnd = () => {
++            clearTouchTarget();
+             this._iosTouching = false;
+             if (!isIOSWebKit() || this.targetWindow == null) {
+               return;
+@@ -463,14 +484,9 @@ class Virtualizer {
+             onTouchStart,
+             addEventListenerOptions
+           );
+-          scrollEl.addEventListener(
+-            "touchend",
+-            onTouchEnd,
+-            addEventListenerOptions
+-          );
+           this.unsubs.push(() => {
+             scrollEl.removeEventListener("touchstart", onTouchStart);
+-            scrollEl.removeEventListener("touchend", onTouchEnd);
++            clearTouchTarget();
+             if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
+               this.targetWindow.clearTimeout(this._iosTouchEndTimerId);
+               this._iosTouchEndTimerId = null;
+@@ -723,17 +739,20 @@ class Virtualizer {
          this.getMeasurements(),
          this.getSize(),
          this.getScrollOffset(),
@@ -253,7 +339,7 @@ index 2495b26cf2c3589213546b3958eaadf2eb6b751d..accd38a89bee766fd568aa8cec9bb90c
            lanes,
            // Pass the typed array so binary search + forward-walk can read
            // start/end directly from Float64Array, skipping the Proxy traps.
-@@ -1093,8 +1106,10 @@ class Virtualizer {
+@@ -1093,8 +1112,10 @@ class Virtualizer {
        const snapshot = [];
        if (this.itemSizeCache.size === 0) return snapshot;
        const m = this.getMeasurements();
@@ -267,7 +353,7 @@ index 2495b26cf2c3589213546b3958eaadf2eb6b751d..accd38a89bee766fd568aa8cec9bb90c
              index: item.index,
              key: item.key,
 diff --git a/src/index.ts b/src/index.ts
-index dc6f1010c4d4758de9c46fb8d69209e582e47171..2578338abb5d9237624dd6d96bb50546c6dc3e68 100644
+index dc6f1010c4d4758de9c46fb8d69209e582e47171..9299287d72ce79d5a597cdc3440339ee148e6385 100644
 --- a/src/index.ts
 +++ b/src/index.ts
 @@ -567,7 +567,7 @@ export class Virtualizer<
@@ -380,7 +466,51 @@ index dc6f1010c4d4758de9c46fb8d69209e582e47171..2578338abb5d9237624dd6d96bb50546
          followOnAppend,
          anchorDelta,
        ]
-@@ -1410,16 +1421,25 @@ export class Virtualizer<
+@@ -895,7 +906,18 @@ export class Virtualizer<
+       // and _flushIosDeferredIfReady so we only burn the path on iOS.
+       if ('addEventListener' in this.scrollElement) {
+         const scrollEl = this.scrollElement as unknown as EventTarget
+-        const onTouchStart = () => {
++        let touchTarget: EventTarget | null = null
++        const clearTouchTarget = () => {
++          touchTarget?.removeEventListener('touchend', onTouchEnd)
++          touchTarget?.removeEventListener('touchcancel', onTouchEnd)
++          touchTarget = null
++        }
++        const onTouchStart = (event: Event) => {
++          clearTouchTarget()
++          // The original target still receives release after its DOM removal.
++          touchTarget = event.target ?? scrollEl
++          touchTarget.addEventListener('touchend', onTouchEnd, addEventListenerOptions)
++          touchTarget.addEventListener('touchcancel', onTouchEnd, addEventListenerOptions)
+           this._iosTouching = true
+           this._iosJustTouchEnded = false
+           if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
+@@ -904,6 +926,7 @@ export class Virtualizer<
+           }
+         }
+         const onTouchEnd = () => {
++          clearTouchTarget()
+           this._iosTouching = false
+           if (!isIOSWebKit() || this.targetWindow == null) {
+             // Non-iOS: nothing more to track. Just clear the touching flag.
+@@ -924,14 +947,9 @@ export class Virtualizer<
+           onTouchStart,
+           addEventListenerOptions,
+         )
+-        scrollEl.addEventListener(
+-          'touchend',
+-          onTouchEnd,
+-          addEventListenerOptions,
+-        )
+         this.unsubs.push(() => {
+           scrollEl.removeEventListener('touchstart', onTouchStart)
+-          scrollEl.removeEventListener('touchend', onTouchEnd)
++          clearTouchTarget()
+           if (this._iosTouchEndTimerId !== null && this.targetWindow != null) {
+             this.targetWindow.clearTimeout(this._iosTouchEndTimerId)
+             this._iosTouchEndTimerId = null
+@@ -1410,16 +1428,25 @@ export class Virtualizer<
        this.getSize(),
        this.getScrollOffset(),
        this.options.lanes,
@@ -408,7 +538,7 @@ index dc6f1010c4d4758de9c46fb8d69209e582e47171..2578338abb5d9237624dd6d96bb50546
          lanes,
          // Pass the typed array so binary search + forward-walk can read
          // start/end directly from Float64Array, skipping the Proxy traps.
-@@ -1937,12 +1957,13 @@ export class Virtualizer<
+@@ -1937,12 +1964,13 @@ export class Virtualizer<
    takeSnapshot = (): Array<VirtualItem> => {
      const snapshot: Array<VirtualItem> = []
      if (this.itemSizeCache.size === 0) return snapshot

@@ -7,7 +7,7 @@ Effects or Streams, callbacks return Effects, and plugin lifetime is represented
 plugin package.
 
 ```sh
-bun add @opencode/plugin@beta effect
+bun add @opencode/plugin effect
 ```
 
 Export an Effect plugin from `.opencode/plugins/` to load it automatically.
@@ -1089,7 +1089,9 @@ effect: (ctx) =>
 
 ### Sessions
 
-Modify assembled system instructions, messages, or tools immediately before model dispatch.
+Modify assembled system instructions, messages, or tools immediately before model dispatch. `context` runs for the
+agent loop; `compaction`, `generate`, and `title` run for those auxiliary requests. `compaction` and `title` accept a
+`result` that skips the model call.
 
 ```ts
 effect: (ctx) =>
@@ -1097,8 +1099,13 @@ effect: (ctx) =>
     const session = ctx.session
     yield* session.hook("context", (event) =>
       Effect.sync(() => {
-        event.system.push({ text: "Keep the review focused on correctness." })
+        event.system.push({ type: "text", text: "Keep the review focused on correctness." })
         delete event.tools.write
+      }),
+    )
+    yield* session.hook("compaction", (event) =>
+      Effect.map(summarize(event.messages), (summary) => {
+        event.result = { summary }
       }),
     )
   }),
@@ -1178,6 +1185,9 @@ Context-overflow recovery remains separate because it compacts the conversation 
 ```ts
 interface SessionHooks {
   readonly context: SessionContext
+  readonly compaction: SessionCompaction
+  readonly generate: SessionGenerate
+  readonly title: SessionTitle
   readonly "model.request": SessionModelRequest
   readonly "http.request": SessionHttpRequest
   readonly "http.response": SessionHttpResponse
@@ -1316,7 +1326,7 @@ entrypoint and declare both runtime dependencies.
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@opencode/plugin": "beta",
+    "@opencode/plugin": "latest",
     "effect": "4.0.0-rc.111"
   }
 }

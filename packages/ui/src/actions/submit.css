@@ -1,0 +1,74 @@
+/* Shared by Composer submit actions and contrast icon buttons. */
+:is(
+  [data-component="button-v2"][data-variant="submit"],
+  [data-component="icon-button-v2"]:is([data-variant="submit"], [data-variant="contrast"])
+) {
+  --submit-highlight: var(--v2-alpha-light-20);
+  --submit-hover: var(--v2-overlay-simple-overlay-contrast-hover);
+
+  background-image:
+    linear-gradient(180deg, var(--submit-highlight) 0%, var(--v2-alpha-light-0) 100%),
+    linear-gradient(
+      90deg,
+      var(--v2-background-bg-icon-button-contrast) 0%,
+      var(--v2-background-bg-icon-button-contrast) 100%
+    );
+  color: var(--v2-text-text-contrast);
+  text-shadow: 0 0.5px 0.5px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--v2-elevation-button-contrast);
+}
+
+[data-color-scheme="dark"]
+  :is(
+    [data-component="button-v2"][data-variant="submit"],
+    [data-component="icon-button-v2"]:is([data-variant="submit"], [data-variant="contrast"])
+  ) {
+  --submit-highlight: var(--v2-alpha-light-60);
+  --submit-hover: var(--v2-alpha-dark-8);
+
+  color: var(--v2-text-text-inverse);
+}
+
+[data-color-scheme="dark"] [data-component="icon-button-v2"]:is([data-variant="submit"], [data-variant="contrast"]) {
+  color: var(--v2-icon-icon-inverse);
+}
+
+:is(
+    [data-component="button-v2"][data-variant="submit"],
+    [data-component="icon-button-v2"]:is([data-variant="submit"], [data-variant="contrast"])
+  ):is(:hover, [data-state="hover"]):not(:disabled) {
+  background-image:
+    linear-gradient(90deg, var(--submit-hover) 0%, var(--submit-hover) 100%),
+    linear-gradient(180deg, var(--submit-highlight) 0%, var(--v2-alpha-light-0) 100%),
+    linear-gradient(
+      90deg,
+      var(--v2-background-bg-icon-button-contrast) 0%,
+      var(--v2-background-bg-icon-button-contrast) 100%
+    );
+}
+
+:is(
+    [data-component="button-v2"][data-variant="submit"],
+    [data-component="icon-button-v2"]:is([data-variant="submit"], [data-variant="contrast"])
+  ):is(:active, [data-state="pressed"]):not(:disabled) {
+  background-image:
+    linear-gradient(
+      90deg,
+      var(--v2-overlay-simple-overlay-contrast-pressed) 0%,
+      var(--v2-overlay-simple-overlay-contrast-pressed) 100%
+    ),
+    linear-gradient(180deg, var(--submit-highlight) 0%, var(--v2-alpha-light-0) 100%),
+    linear-gradient(
+      90deg,
+      var(--v2-background-bg-icon-button-contrast) 0%,
+      var(--v2-background-bg-icon-button-contrast) 100%
+    );
+}
+
+:is(
+  [data-component="button-v2"][data-variant="submit"],
+  [data-component="icon-button-v2"]:is([data-variant="submit"], [data-variant="contrast"])
+):is(:disabled, [data-state="disabled"]) {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

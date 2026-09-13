@@ -201,7 +201,7 @@ export async function streamTurn(input: {
         if (!child) assistantMessageID = event.data.assistantMessageID
         await send({
           sessionUpdate: "agent_thought_chunk",
-          messageId: event.data.assistantMessageID,
+          messageId: `${event.data.assistantMessageID}:reasoning:${event.data.ordinal}`,
           content: { type: "text", text: event.data.delta },
         })
         continue
@@ -455,6 +455,8 @@ async function replayMessage(
     return
   }
   if (message.type !== "assistant") return
+  // Live reasoning ordinals count only reasoning parts, not the mixed content array.
+  let reasoningOrdinal = 0
   for (const part of message.content) {
     if (part.type === "text") {
       await connection.sessionUpdate({
@@ -472,7 +474,7 @@ async function replayMessage(
         sessionId: sessionID,
         update: {
           sessionUpdate: "agent_thought_chunk",
-          messageId: message.id,
+          messageId: `${message.id}:reasoning:${reasoningOrdinal++}`,
           content: { type: "text", text: part.text },
         },
       })

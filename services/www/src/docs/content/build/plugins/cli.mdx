@@ -375,13 +375,15 @@ context.ui.router.navigate({ type: "home" })
 return unregister
 ```
 
-Tabs can be listed, opened, focused, and closed when session tabs are enabled.
+Tabs can be listed, opened, focused, moved, and closed when session tabs are enabled. `open` leaves focus unchanged;
+`focus` opens the tab when needed.
 
 ```ts
 if (context.ui.tabs.enabled()) {
-  context.ui.tabs.open(sessionID)
-  const tabs = context.ui.tabs.list()
+  context.ui.tabs.open(backgroundSessionID)
   context.ui.tabs.focus(sessionID)
+  const tabs = context.ui.tabs.list()
+  context.ui.tabs.move(backgroundSessionID, tabs.length - 1)
   context.ui.tabs.close(sessionID)
   context.ui.tabs.close()
 }
@@ -508,7 +510,7 @@ Expose the CLI plugin through `./tui`; add OpenTUI peers when the plugin renders
     "./tui": "./src/tui.tsx"
   },
   "dependencies": {
-    "@opencode/plugin": "beta"
+    "@opencode/plugin": "latest"
   },
   "peerDependencies": {
     "@opentui/core": ">=0.5.8",

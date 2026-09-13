@@ -14,6 +14,44 @@ const session = (viewed: number): SessionInfo => ({
   location: { directory: "/project" },
 })
 
+test("uses the configured initial window and retains normal cursor page sizes", async () => {
+  const requests: { limit: string | null; cursor: string | null }[] = []
+  const api = OpenCode.make({
+    baseUrl: "http://opencode.local",
+    fetch: async (input, init) => {
+      const url = new URL((input instanceof Request ? input : new Request(input, init)).url)
+      const cursor = url.searchParams.get("cursor")
+      requests.push({ limit: url.searchParams.get("limit"), cursor })
+      return Response.json({
+        data: [{ id: cursor ? "msg_1" : "msg_2", type: "user", text: "History", time: { created: cursor ? 1 : 2 } }],
+        cursor: cursor ? {} : { next: "older" },
+      })
+    },
+  })
+  const setup = createRoot((dispose) => ({
+    data: createData({
+      api: () => api,
+      directory: "/project",
+      initialMessageLimit: () => 40,
+      event: { on: () => () => {}, listen: () => () => {} },
+    }),
+    dispose,
+  }))
+  try {
+    await setup.data.session.message.sync("ses_refresh")
+    await setup.data.session.message.sync("ses_refresh")
+    expect(requests).toEqual([{ limit: "40", cursor: null }])
+    await setup.data.session.message.loadMore("ses_refresh")
+    expect(requests).toEqual([
+      { limit: "40", cursor: null },
+      { limit: "20", cursor: "older" },
+    ])
+    expect(setup.data.session.message.list("ses_refresh").map((message) => message.id)).toEqual(["msg_1", "msg_2"])
+  } finally {
+    setup.dispose()
+  }
+})
+
 test("revalidates after an event overtakes an active session read", async () => {
   let release!: () => void
   const gate = new Promise<void>((resolve) => (release = resolve))
@@ -743,77 +781,6 @@ test.each(["success", "failure", "cancel", "cancel-retry", "cancel-page", "join-
     }
   },
 )
-
-test("preserves assistant content replacement events across an active message read", async () => {
-  const listeners = new Set<Parameters<CreateDataInput["event"]["listen"]>[0]>()
-  const release = Promise.withResolvers<void>()
-  let requests = 0
-  const content = [
-    { type: "text" as const, text: "replacement" },
-    { type: "reasoning" as const, text: "reasoning", time: { created: 3 } },
-  ]
-  const api = OpenCode.make({
-    baseUrl: "http://opencode.local",
-    fetch: async () => {
-      const current = ++requests
-      if (current === 2) await release.promise
-      return Response.json({
-        data: [
-          {
-            id: "msg_assistant",
-            type: "assistant",
-            agent: "build",
-            model: { id: "model", providerID: "provider" },
-            content: current === 3 ? content : [{ type: "text", text: "original" }],
-            time: { created: 1, completed: 2 },
-          },
-        ],
-        cursor: {},
-      })
-    },
-  })
-  const setup = createRoot((dispose) => ({
-    data: createData({
-      api: () => api,
-      directory: "/project",
-      event: {
-        on: () => () => {},
-        listen(handler) {
-          listeners.add(handler)
-          return () => listeners.delete(handler)
-        },
-      },
-    }),
-    dispose,
-  }))
-
-  try {
-    await setup.data.session.message.sync("ses_refresh")
-    setup.data.session.message.invalidate("ses_refresh")
-    const stale = setup.data.session.message.sync("ses_refresh")
-    await wait(() => requests === 2)
-    const updated: OpenCodeEvent = {
-      id: "evt_message_updated",
-      created: 3,
-      type: "session.message.content.updated",
-      durable: { aggregateID: "ses_refresh", seq: 3, version: 1 },
-      data: {
-        sessionID: "ses_refresh",
-        messageID: "msg_assistant",
-        content,
-      },
-    }
-    listeners.forEach((listener) => listener({ name: updated.type, details: updated }))
-
-    expect(setup.data.session.message.list("ses_refresh")[0]).toMatchObject({ content })
-    release.resolve()
-    await stale
-    await wait(() => requests === 3)
-    expect(setup.data.session.message.list("ses_refresh")[0]).toMatchObject({ content })
-  } finally {
-    setup.dispose()
-  }
-})
 
 test.each([
   "session.execution.succeeded",

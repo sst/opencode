@@ -41,6 +41,32 @@ test("keeps completed block text compact", () => {
   ])
 })
 
+test("marks streamed inline code for animation", () => {
+  expect(parseMarkdownNodes("<p><code>file.ts:29-43</code></p>", true, true)).toEqual([
+    {
+      key: "0",
+      type: "element",
+      tag: "p",
+      attributes: {},
+      children: [
+        {
+          key: "0.0",
+          type: "element",
+          tag: "code",
+          attributes: {},
+          children: Array.from("file.ts:29-43", (text, index) => ({
+            key: `0.0.0:${index}`,
+            type: "word",
+            text,
+            animate: true,
+          })),
+          animate: true,
+        },
+      ],
+    },
+  ])
+})
+
 test("marks words for animation only when requested", () => {
   expect(
     parseMarkdownNodes("<p>Hello</p>", true).flatMap((node) => (node.type === "element" ? node.children : [node]))[0],

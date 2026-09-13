@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "metadata": {
+    "tags": [
+      "prefix:alibaba-messages",
+      "provider:alibaba",
+      "protocol:alibaba-messages",
+      "region:ap-southeast-1",
+      "text",
+      "reasoning",
+      "usage"
+    ],
+    "name": "alibaba-messages/qwen-3-8-max-streams-high-effort",
+    "recordedAt": "2026-09-08T03:12:33.729Z"
+  },
+  "interactions": [
+    {
+      "transport": "http",
+      "request": {
+        "method": "POST",
+        "url": "https://dashscope-intl.aliyuncs.com/apps/anthropic/v1/messages",
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"model\":\"qwen3.8-max\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"What is 173 multiplied by 219? Reply with only the final integer.\"}]}],\"stream\":true,\"max_tokens\":4096,\"output_config\":{\"effort\":\"high\"}}"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/event-stream"
+        },
+        "body": "event:ping\ndata:{\"type\":\"ping\"}\n\nevent:message_start\ndata:{\"message\":{\"model\":\"qwen3.8-max\",\"id\":\"msg_76b8cb12-452d-996f-817b-c5886f318ecb\",\"role\":\"assistant\",\"type\":\"message\",\"content\":[],\"usage\":{\"input_tokens\":20,\"output_tokens\":0}},\"type\":\"message_start\"}\n\nevent:content_block_start\ndata:{\"type\":\"content_block_start\",\"content_block\":{\"type\":\"thinking\",\"signature\":\"\",\"thinking\":\"\"},\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"We\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\" need answer user\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\" asks\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\" simple\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\" multiplication, final integer\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\" only.\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\" Need compute 1\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"73*2\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"19. \"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"173*\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"200=\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"3460\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"0; *1\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"9=\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"3287\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"?\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\" 173\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"*20=\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"34\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"60 minus1\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"73=3\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"287.\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\" Sum 37\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"88\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"7. Final only\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\" integer.\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"signature_delta\",\"signature\":\"\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_stop\ndata:{\"type\":\"content_block_stop\",\"index\":0}\n\nevent:content_block_start\ndata:{\"type\":\"content_block_start\",\"content_block\":{\"type\":\"text\",\"text\":\"\"},\"index\":1}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"text_delta\",\"text\":\"37\"},\"type\":\"content_block_delta\",\"index\":1}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"text_delta\",\"text\":\"887\"},\"type\":\"content_block_delta\",\"index\":1}\n\nevent:content_block_stop\ndata:{\"type\":\"content_block_stop\",\"index\":1}\n\nevent:message_delta\ndata:{\"delta\":{\"stop_reason\":\"end_turn\"},\"type\":\"message_delta\",\"usage\":{\"output_tokens\":89,\"cache_creation_input_tokens\":0,\"input_tokens\":81,\"cache_read_input_tokens\":0,\"prompt_tokens_details\":{\"cached_tokens\":0}}}\n\nevent:message_stop\ndata:{\"type\":\"message_stop\"}\n\n"
+      }
+    }
+  ]
+}

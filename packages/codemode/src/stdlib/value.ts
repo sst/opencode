@@ -1,114 +1,95 @@
-export const errorConstructors = new Set([
-  "Error",
-  "TypeError",
-  "RangeError",
-  "SyntaxError",
-  "ReferenceError",
-  "EvalError",
-  "URIError",
-  "AggregateError",
-])
-
-export const valueConstructors = new Set(["Date", "RegExp", "Map", "Set", "URL", "URLSearchParams"])
+import { toProgram } from "../data.js"
+import { fn } from "../interpreter/native.js"
+import { type AstNode, InterpreterRuntimeError } from "../interpreter/model.js"
+import {
+  get,
+  isWrapper,
+  type NativeFunction,
+  ProgramArray,
+  ProgramDate,
+  ProgramError,
+  ProgramMap,
+  ProgramRegExp,
+  ProgramSet,
+  ProgramURL,
+  ProgramURLSearchParams,
+} from "../interpreter/objects.js"
+import type { Runner } from "../interpreter/runner.js"
 
 export const compoundOperators = new Set(["+=", "-=", "*=", "/=", "%=", "**=", "&=", "|=", "^=", "<<=", ">>=", ">>>="])
 
-const ErrorBrand: unique symbol = Symbol("codemode.error")
-
-export const createErrorValue = (name: string, message: string): SafeObject => {
-  const value = Object.assign(Object.create(null) as SafeObject, { name, message })
-  Object.defineProperty(value, ErrorBrand, { value: name })
-  return value
-}
-
-export const createAggregateErrorValue = (errors: Array<unknown>, message: string): SafeObject =>
-  Object.assign(createErrorValue("AggregateError", message), { errors })
-
-export const errorBrandName = (value: unknown): string | undefined =>
-  value !== null && typeof value === "object"
-    ? ((value as Record<PropertyKey, unknown>)[ErrorBrand] as string | undefined)
-    : undefined
-
-export const boundedData = (value: unknown, label: string): unknown => copyIn(value, label, true)
-
+/** The built-in string form of a value, without consulting program-defined `toString` methods. */
 export const coerceToString = (value: unknown): string => {
   if (value === null) return "null"
   if (value === undefined) return "undefined"
-  if (value instanceof CodeModeDate)
+  if (value instanceof ProgramDate)
     return Number.isFinite(value.time) ? new Date(value.time).toISOString() : "Invalid Date"
-  if (value instanceof CodeModeRegExp) return `/${value.regex.source}/${value.regex.flags}`
-  if (value instanceof CodeModeMap) return "[object Map]"
-  if (value instanceof CodeModeSet) return "[object Set]"
-  if (value instanceof CodeModeURL) return value.url.href
-  if (value instanceof CodeModeURLSearchParams) return value.params.toString()
-  if (errorBrandName(value) !== undefined) {
+  if (value instanceof ProgramRegExp) return `/${value.regex.source}/${value.regex.flags}`
+  if (value instanceof ProgramMap) return "[object Map]"
+  if (value instanceof ProgramSet) return "[object Set]"
+  if (value instanceof ProgramURL) return value.url.href
+  if (value instanceof ProgramURLSearchParams) return value.params.toString()
+  if (value instanceof ProgramError) {
     // Match Error.prototype.toString: "name: message", or just one when the other is empty.
-    const error = value as { name?: unknown; message?: unknown }
-    const name = typeof error.name === "string" ? error.name : "Error"
-    const message = typeof error.message === "string" ? error.message : ""
-    if (message === "") return name
-    if (name === "") return message
-    return `${name}: ${message}`
+    const name = get(value, "name")
+    const message = get(value, "message")
+    const shownName = typeof name === "string" ? name : "Error"
+    const shownMessage = typeof message === "string" ? message : ""
+    if (shownMessage === "") return shownName
+    if (shownName === "") return shownMessage
+    return `${shownName}: ${shownMessage}`
   }
-  if (typeof value === "object") {
-    return Array.isArray(value)
-      ? value.map((item) => (item === null || item === undefined ? "" : coerceToString(item))).join(",")
-      : "[object Object]"
+  if (value instanceof ProgramArray) {
+    return value.items.map((item) => (item === null || item === undefined ? "" : coerceToString(item))).join(",")
   }
+  if (typeof value === "object") return "[object Object]"
   return String(value)
 }
 
 export const coerceToNumber = (value: unknown): number => {
-  if (value instanceof CodeModeDate) return value.time
-  if (isCodeModeValue(value)) return Number.NaN
-  // Arrays coerce through our own string coercion: host Number(array) joins with host
-  // ToPrimitive, which throws on the null-prototype objects the interpreter produces.
-  if (Array.isArray(value)) return Number(coerceToString(value))
+  if (value instanceof ProgramDate) return value.time
+  if (isWrapper(value)) return Number.NaN
+  if (value instanceof ProgramArray) return Number(coerceToString(value))
   return value !== null && typeof value === "object" ? Number.NaN : Number(value)
 }
 
-export const invokeCoercion = (ref: CoercionFunction, args: Array<unknown>, node: AstNode): unknown => {
+export type Coercion = "Number" | "String" | "Boolean" | "parseInt" | "parseFloat" | "isFinite" | "isNaN"
+
+const coerce = <R>(runner: Runner<R>, name: Coercion, args: Array<unknown>, node: AstNode): unknown => {
   // Native: Number() is 0 and String() is "", unlike their undefined-argument forms; the
   // other coercers match native through the undefined-argument path below.
   if (args.length === 0) {
-    if (ref.name === "Number") return 0
-    if (ref.name === "String") return ""
+    if (name === "Number") return 0
+    if (name === "String") return ""
   }
   const raw = args[0]
-  // Error values are plain SafeObjects; the boundedData path below would strip their brand.
-  if (ref.name === "String" && errorBrandName(raw) !== undefined) return coerceToString(raw)
-  if (isCodeModeValue(raw)) {
-    if (ref.name === "Boolean") return true
-    if (ref.name === "Number") return coerceToNumber(raw)
-    if (ref.name === "String") return coerceToString(raw)
-    if (ref.name === "isFinite") return Number.isFinite(coerceToNumber(raw))
-    if (ref.name === "isNaN") return Number.isNaN(coerceToNumber(raw))
-    if (ref.name === "parseInt") return parseInt(coerceToString(raw))
+  if (isWrapper(raw)) {
+    if (name === "Boolean") return true
+    if (name === "Number") return coerceToNumber(raw)
+    if (name === "String") return coerceToString(raw)
+    if (name === "isFinite") return Number.isFinite(coerceToNumber(raw))
+    if (name === "isNaN") return Number.isNaN(coerceToNumber(raw))
+    if (name === "parseInt") return parseInt(coerceToString(raw))
     return parseFloat(coerceToString(raw))
   }
-  const value = boundedData(raw, `${ref.name} input`)
-  if (ref.name === "Number") return coerceToNumber(value)
-  if (ref.name === "Boolean") return Boolean(value)
-  if (ref.name === "isFinite") return Number.isFinite(coerceToNumber(value))
-  if (ref.name === "isNaN") return Number.isNaN(coerceToNumber(value))
-  if (ref.name === "parseInt") {
+  const value = toProgram(runner.prototypes, raw, `${name} input`)
+  if (name === "Number") return coerceToNumber(value)
+  if (name === "Boolean") return Boolean(value)
+  if (name === "isFinite") return Number.isFinite(coerceToNumber(value))
+  if (name === "isNaN") return Number.isNaN(coerceToNumber(value))
+  if (name === "parseInt") {
     const radix = args[1]
     if (radix !== undefined && typeof radix !== "number") {
       throw new InterpreterRuntimeError("parseInt expects a numeric radix.", node)
     }
     return parseInt(coerceToString(value), radix)
   }
-  if (ref.name === "parseFloat") return parseFloat(coerceToString(value))
+  if (name === "parseFloat") return parseFloat(coerceToString(value))
   return coerceToString(value)
 }
-import { type AstNode, CoercionFunction, InterpreterRuntimeError } from "../interpreter/model.js"
-import { copyIn, type SafeObject } from "../tool-runtime.js"
-import {
-  isCodeModeValue,
-  CodeModeDate,
-  CodeModeMap,
-  CodeModeRegExp,
-  CodeModeSet,
-  CodeModeURL,
-  CodeModeURLSearchParams,
-} from "../values.js"
+
+/** A global coercion function such as `Number` or `parseInt`. */
+export const coercion = <R>(runner: Runner<R>, name: Coercion, length = 1): NativeFunction<R> =>
+  fn(runner.prototypes, name, length, (_, args, node) =>
+    toProgram(runner.prototypes, coerce(runner, name, args, node), `${name} result`),
+  )

@@ -1,9 +1,10 @@
 import { Route, type RouteDefaultsInput } from "../route/client.js"
+import { Endpoint } from "../route/endpoint.js"
 import type { ProviderPackage } from "../provider-package.js"
 import { OpenAIChat } from "../protocols/openai-chat.js"
-import { OpenAIResponses } from "../protocols/openai-responses.js"
+import { OpenResponses } from "../protocols/open-responses.js"
 import { BedrockAuth, type Credentials } from "../protocols/utils/bedrock-auth.js"
-import { ProviderID, type ModelID } from "../schema/index.js"
+import { ProviderConfigurationError, ProviderID, type ModelID } from "../schema/index.js"
 import { withOpenAIOptions, type OpenAIProviderOptionsInput } from "./openai-options.js"
 
 export const id = ProviderID.make("amazon-bedrock")
@@ -22,26 +23,25 @@ export type Config = RouteDefaultsInput & {
   readonly providerOptions?: OpenAIProviderOptionsInput
 }
 
-export interface Settings extends ProviderPackage.Settings {
-  readonly apiKey?: string
-  readonly auth?: "bearer" | "sigv4"
-  readonly baseURL?: string
-  readonly credentials?: Credentials
-  readonly profile?: string
-  readonly region?: string
-  readonly topP?: number
-  readonly providerOptions?: OpenAIProviderOptionsInput
-}
+export type Settings = ProviderPackage.Settings &
+  OpenAIProviderOptionsInput & {
+    readonly apiKey?: string
+    readonly auth?: "bearer" | "sigv4"
+    readonly baseURL?: string
+    readonly credentials?: Credentials
+    readonly profile?: string
+    readonly region?: string
+    readonly topP?: number
+  }
 
 const responsesRoute = Route.make({
   id: "bedrock-mantle-responses",
   provider: id,
   providerMetadataKey: "mantle",
-  protocol: OpenAIResponses.protocol,
-  endpoint: OpenAIResponses.route.endpoint,
-  auth: OpenAIResponses.route.auth,
-  transport: OpenAIResponses.httpTransport,
-  defaults: OpenAIResponses.route.defaults,
+  protocol: OpenResponses.protocol,
+  endpoint: Endpoint.path(OpenResponses.PATH),
+  transport: OpenResponses.httpTransport,
+  defaults: { providerOptions: { store: false, include: ["reasoning.encrypted_content"] } },
 })
 
 const chatRoute = OpenAIChat.route.with({
@@ -79,9 +79,12 @@ const defaults = (input: Config) => {
 
 export const configure = (input: Config = {}) => {
   if (input.auth === "bearer" && input.apiKey === undefined && process.env.AWS_BEARER_TOKEN_BEDROCK === undefined)
-    throw new Error("Amazon Bedrock Mantle bearer auth requires apiKey")
+    throw new ProviderConfigurationError({ provider: id, message: "Amazon Bedrock Mantle bearer auth requires apiKey" })
   if (input.auth === "sigv4" && input.apiKey !== undefined)
-    throw new Error("Amazon Bedrock Mantle SigV4 auth does not accept apiKey")
+    throw new ProviderConfigurationError({
+      provider: id,
+      message: "Amazon Bedrock Mantle SigV4 auth does not accept apiKey",
+    })
   const configuredResponsesRoute = configuredRoute(responsesRoute, input)
   const configuredChatRoute = configuredRoute(chatRoute, input)
   const modelDefaults = defaults(input)
@@ -105,18 +108,29 @@ export const configure = (input: Config = {}) => {
 
 export const provider = configure()
 
-const fromSettings = (settings: Settings) =>
+const fromSettings = ({
+  apiKey,
+  auth,
+  baseURL,
+  body,
+  credentials,
+  headers,
+  profile,
+  region,
+  topP,
+  ...providerOptions
+}: Settings) =>
   configure({
-    apiKey: settings.apiKey,
-    auth: settings.auth,
-    baseURL: settings.baseURL,
-    credentials: settings.credentials,
-    generation: settings.topP === undefined ? undefined : { topP: settings.topP },
-    headers: settings.headers === undefined ? undefined : { ...settings.headers },
-    http: settings.body === undefined ? undefined : { body: { ...settings.body } },
-    profile: settings.profile,
-    providerOptions: settings.providerOptions,
-    region: settings.region,
+    apiKey,
+    auth,
+    baseURL,
+    credentials,
+    generation: topP === undefined ? undefined : { topP },
+    headers: headers === undefined ? undefined : { ...headers },
+    http: body === undefined ? undefined : { body: { ...body } },
+    profile,
+    providerOptions,
+    region,
   })
 
 export const chatModel: ProviderPackage.Definition<Settings, OpenAIProviderOptionsInput>["model"] = (

@@ -503,12 +503,11 @@ export function Autocomplete(props: {
     const results: AutocompleteOption[] = keymapCommands().flatMap((command) => {
       const slash = command.slash
       if (!slash) return []
-      return {
-        display: `/${slash.name}`,
+      return [slash.name, ...(slash.aliases ?? [])].map((name) => ({
+        display: `/${name}`,
         description: command.description ?? command.title,
-        aliases: slash.aliases?.map((alias) => `/${alias}`),
-        onSelect: slash.arguments ? () => insertSlash(slash.name) : command.run,
-      }
+        onSelect: slash.arguments ? () => insertSlash(name) : command.run,
+      }))
     })
     const commandNames = new Set<string>()
 

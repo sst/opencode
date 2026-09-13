@@ -16,12 +16,14 @@ import { showToast } from "@/shell/notifications/toast"
 import { DialogAddWslServer } from "./dialog"
 import { useWslServers } from "./context"
 import { wslOpencodeAction, wslRuntimeRetryable } from "./model"
+import type { WslServerItem } from "./types"
+import { DialogSsh } from "../ssh/dialog"
 
 export function isWslServer(server: ServerConnection.Any) {
   return server.type === "sidecar" && server.variant === "wsl"
 }
 
-export function AddServerMenu(props: { onAddServer: () => void }) {
+export function AddServerMenu(props: { onAddServer: () => void; compact?: boolean }) {
   const platform = usePlatform()
   const dialog = useDialog()
   const language = useLanguage()
@@ -30,21 +32,52 @@ export function AddServerMenu(props: { onAddServer: () => void }) {
   }
   return (
     <Show
-      when={platform.wslServers}
+      when={platform.wslServers || platform.sshServers}
       fallback={
-        <Button variant="ghost-muted" icon="plus" onClick={props.onAddServer}>
-          {language.t("dialog.server.add.button")}
-        </Button>
+        <Show
+          when={props.compact}
+          fallback={
+            <Button variant="ghost-muted" icon="plus" onClick={props.onAddServer}>
+              {language.t("dialog.server.add.button")}
+            </Button>
+          }
+        >
+          <IconButton
+            variant="ghost-muted"
+            size="small"
+            icon={<Icon name="plus" />}
+            aria-label={language.t("dialog.server.add.button")}
+            onClick={props.onAddServer}
+          />
+        </Show>
       }
     >
       <Menu gutter={4} modal={false} placement="bottom-end">
-        <Menu.Trigger as={Button} variant="ghost-muted" icon="plus">
-          {language.t("dialog.server.add.button")}
-        </Menu.Trigger>
+        <Show
+          when={props.compact}
+          fallback={
+            <Menu.Trigger as={Button} variant="ghost-muted" icon="plus">
+              {language.t("dialog.server.add.button")}
+            </Menu.Trigger>
+          }
+        >
+          <Menu.Trigger
+            as={IconButton}
+            variant="ghost-muted"
+            size="small"
+            icon={<Icon name="plus" />}
+            aria-label={language.t("dialog.server.add.button")}
+          />
+        </Show>
         <Menu.Portal>
           <Menu.Content>
             <Menu.Item onSelect={props.onAddServer}>{language.t("dialog.server.add.button")}</Menu.Item>
-            <Menu.Item onSelect={openAddWsl}>{language.t("wsl.server.add")}</Menu.Item>
+            <Show when={platform.sshServers}>
+              <Menu.Item onSelect={() => void dialog.push(() => <DialogSsh />)}>{language.t("ssh.add")}</Menu.Item>
+            </Show>
+            <Show when={platform.wslServers}>
+              <Menu.Item onSelect={openAddWsl}>{language.t("wsl.server.add")}</Menu.Item>
+            </Show>
           </Menu.Content>
         </Menu.Portal>
       </Menu>
@@ -66,7 +99,7 @@ export function useFilteredWslServers(filter: Accessor<string>) {
 
 export function WslServerSettings(props: {
   domain: Pick<ServerCollectionController, "collection" | "defaults" | "connection">
-  servers: ReturnType<typeof useFilteredWslServers>
+  servers: Accessor<readonly WslServerItem[]>
 }) {
   const platform = usePlatform()
   const language = useLanguage()
@@ -154,7 +187,9 @@ export function WslServerSettings(props: {
                           </Menu.Item>
                         </Show>
                         <Menu.Separator />
-                        <Menu.Item onSelect={() => remove(key)}>{language.t("dialog.server.menu.delete")}</Menu.Item>
+                        <Menu.Item disabled={request.isPending} onSelect={() => remove(key)}>
+                          {language.t("dialog.server.menu.remove")}
+                        </Menu.Item>
                       </Menu.Group>
                     </Menu.Content>
                   </Menu.Portal>

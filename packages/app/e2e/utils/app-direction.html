@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, interactive-widget=resizes-content, viewport-fit=cover"
+    />
+  </head>
+  <body
+    class="antialiased overscroll-none font-(family-name:--font-family-text) text-[13px] font-[440] overflow-hidden bg-v2-background-bg-deep"
+  >
+    <div id="root" class="flex flex-col h-dvh bg-v2-background-bg-deep p-px"></div>
+    <script type="module">
+      import { mount } from "./app-direction.fixture.tsx"
+      const query = new URLSearchParams(location.search)
+      mount({ server: query.get("server"), route: query.get("route"), direction: query.get("direction") })
+    </script>
+  </body>
+</html>

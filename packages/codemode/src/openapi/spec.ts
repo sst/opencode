@@ -1,6 +1,5 @@
 import { fromSchemaOpenApi3_0, fromSchemaOpenApi3_1 } from "effect/JsonSchema"
 import type { JsonSchema } from "../tool.js"
-import { isBlockedMember } from "../tool-runtime.js"
 import type {
   Body,
   Document,
@@ -468,8 +467,7 @@ export const operationInput = (
     ok: true,
     value: {
       fields: fields.map((field) => {
-        const visibleName = isBlockedMember(field.name) ? `${field.name}_2` : field.name
-        const base = conflicts.has(field.name) ? `${field.location}_${visibleName}` : visibleName
+        const base = conflicts.has(field.name) ? `${field.location}_${field.name}` : field.name
         const next = (index: number): string => {
           const candidate = index === 1 ? base : `${base}_${index}`
           return used.has(candidate) ? next(index + 1) : candidate
@@ -567,12 +565,12 @@ export const operationOutput = (
 }
 
 const sanitizeOperationSegment = (raw: string): string => {
-  const base =
+  return (
     raw
       .replaceAll(/[^A-Za-z0-9_$]+/g, "_")
       .replace(/^_+|_+$/g, "")
       .replace(/^([0-9])/, "_$1") || "operation"
-  return isBlockedMember(base) ? `${base}_2` : base
+  )
 }
 
 const fallbackOperationId = (method: string, path: string): string =>

@@ -1,3 +1,57 @@
 ---
 title: "Theme"
 ---
+
+OpenCode includes built-in light and dark themes. Choose a color scheme in settings, or use colors derived from your terminal.
+
+## Choose a theme
+
+Press `Ctrl+P`, then select **Open settings** to change the theme and color mode.
+
+You can also set them in your global [CLI config](/cli/config):
+
+```json title="~/.config/opencode/cli.json"
+{
+  "$schema": "https://opencode.ai/v2/cli.json",
+  "theme": {
+    "name": "tokyonight",
+    "mode": "system"
+  }
+}
+```
+
+## Color mode
+
+Choose whether OpenCode follows your terminal's appearance or always uses light or dark colors:
+
+| Mode | Behavior |
+| --- | --- |
+| `system` | Follow the terminal's detected light or dark appearance. |
+| `dark` | Always use the theme's dark colors. |
+| `light` | Always use the theme's light colors. |
+
+For example, always use dark colors:
+
+```json title="cli.json"
+{
+  "theme": {
+    "name": "tokyonight",
+    "mode": "dark"
+  }
+}
+```
+
+## Terminal colors
+
+When OpenCode can read your terminal palette, the theme picker also includes `system`. This theme derives its colors from your terminal's foreground, background, and ANSI palette.
+
+```json title="cli.json"
+{
+  "theme": {
+    "name": "system",
+    "mode": "system"
+  }
+}
+```
+
+The theme name `system` selects terminal-derived colors. The color mode `system` follows the terminal's light or dark appearance.

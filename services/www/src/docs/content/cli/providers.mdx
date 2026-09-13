@@ -1,3 +1,140 @@
 ---
 title: "Providers"
+description: "Connect provider accounts and manage credentials from the CLI and TUI."
 ---
+
+Connect a provider in the TUI, then choose one of its models:
+
+```text
+/connect
+/models
+```
+
+`/connect` lists the integrations available from the current server and project. Select a provider, choose an
+authentication method when it offers more than one, and follow the prompts.
+
+## TUI
+
+The TUI supports API keys, OAuth, and provider authentication commands. OAuth opens an authorization URL or shows a
+code to enter; press `o` to open the URL and `c` to copy the authorization details.
+
+```text
+/connect
+# Select OpenAI, then ChatGPT Pro/Plus (headless).
+```
+
+Run `/connect` again to add another account. Selecting an already connected provider opens its account list, where you
+can activate, rename, or delete a saved account.
+
+## CLI
+
+Use `auth login` for the same provider methods without opening the TUI. With no provider argument, the command opens an
+interactive provider picker.
+
+```bash
+opencode auth login
+```
+
+Pass an integration ID or name to skip the first picker. Use `--method key` to select API-key entry explicitly.
+
+```bash
+opencode auth login anthropic --method key
+```
+
+Method IDs are provider-specific. Run the command without `--method` to see the available methods when a provider has
+more than one.
+
+```bash
+opencode auth login openai
+```
+
+API-key entry and provider forms require an interactive terminal. OAuth methods that ask you to paste an authorization
+code also require one.
+
+## Methods
+
+OpenCode receives provider credentials through four integration methods:
+
+| Method | Behavior |
+| --- | --- |
+| API key | Prompts for a secret and saves it as a provider account. |
+| OAuth | Provides a browser URL, device code, or authorization-code prompt, then saves tokens and refreshes them when supported. |
+| Command | Runs a provider-supplied authentication command and saves its standard output as a key. |
+| Environment | Reads a supported variable from the server process without saving it. |
+
+Providers can add forms to API-key and OAuth methods for required details such as an Azure resource name or a GitHub
+Enterprise domain. The CLI and TUI render those forms before starting authentication.
+
+## Environment
+
+Set a provider's supported environment variable on the server process that runs model requests. For a one-off private
+server, pass it when starting standalone mode.
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-... opencode --standalone
+```
+
+For the shared background server, add the variable to its managed environment. This stops a running service; the next
+OpenCode command starts it with the new value.
+
+```bash
+opencode service set env ANTHROPIC_API_KEY sk-ant-...
+opencode auth list
+```
+
+Environment connections appear in `auth list` with type `environment`. They are not accounts: `auth logout` cannot
+remove them, so unset the variable to disconnect. A saved account takes precedence over an environment connection for
+the same integration.
+
+```bash
+opencode auth list
+opencode service unset env ANTHROPIC_API_KEY
+```
+
+Some cloud providers also use their native ambient credential chain instead of an API-key variable:
+
+- Amazon Bedrock supports the AWS default credential chain, including profiles, access-key environments, web identity,
+  and container credentials. It also supports `AWS_BEARER_TOKEN_BEDROCK`.
+- Google Vertex uses Application Default Credentials and a resolvable project. For example, authenticate with
+  `gcloud auth application-default login` and set `GOOGLE_CLOUD_PROJECT`.
+- Azure exposes **Microsoft Entra ID (Azure CLI)** as a connect method when `az` is installed. Run `az login` first, then
+  select that method in `/connect` or `auth login azure`.
+
+```bash
+gcloud auth application-default login
+GOOGLE_CLOUD_PROJECT=my-project opencode
+```
+
+See [Providers](/providers) for provider-specific and server-side setup.
+
+## Accounts
+
+Each successful API-key, OAuth, or command login creates a saved account. The newest account becomes active; switch the
+active account by its label or credential ID.
+
+```bash
+opencode auth list
+opencode auth switch anthropic work
+```
+
+Remove a saved account with `auth logout`. Both commands open pickers when their arguments are omitted.
+
+```bash
+opencode auth logout anthropic work
+```
+
+In the TUI, `/connect` provides the same add, activate, rename, and delete operations for saved accounts.
+
+## Storage
+
+Saved API keys and OAuth tokens live in the server's SQLite database. For the local server, print its database path with:
+
+```bash
+opencode debug paths db
+```
+
+The usual release path is `~/.local/share/opencode/opencode.db`; `XDG_DATA_HOME`, the release channel, and `OPENCODE_DB`
+can change it. Do not edit the database to manage credentials; use `/connect` or the `auth` commands.
+
+V2 imports supported credentials from the legacy `auth.json` in the OpenCode data directory during its database
+migration. New and updated credentials are stored in SQLite rather than written back to that file.

@@ -8,7 +8,8 @@ import { useServerSDK } from "@/runtime/server/client"
 import { useMcpToggle } from "@/providers/connect/mcp"
 import { pluginLabels } from "@/providers/catalog/plugin"
 import { ExternalLink } from "@/runtime/platform/external-link"
-import { InlineServerSelect } from "@/settings/server-select"
+import { SettingsList } from "@/settings/list"
+import type { SettingsView } from "@/settings/surface"
 import "@/settings/settings.css"
 
 interface McpRowItem {
@@ -20,7 +21,10 @@ interface PluginRowItem {
   name: string
 }
 
-export const SettingsExtensions: Component = () => {
+export const SettingsExtensions: Component<{
+  subtab?: SettingsView["subtab"]
+  onSubtab: (value: SettingsView["subtab"]) => void
+}> = (props) => {
   const language = useLanguage()
   const serverSdk = useServerSDK()
   const data = useData()
@@ -63,12 +67,18 @@ export const SettingsExtensions: Component = () => {
             <h2 class="settings-tab-title">{language.t("settings.tab.extensions")}</h2>
             <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.extensions.description")}</span>
           </div>
-          <InlineServerSelect />
         </div>
       </div>
 
       <div class="settings-tab-body">
-        <Tabs variant="pill" defaultValue="mcps" class="settings-extensions-tabs">
+        <Tabs
+          variant="pill"
+          value={props.subtab ?? "mcps"}
+          onChange={(value) => {
+            if (value === "mcps" || value === "plugins" || value === "skills") props.onSubtab(value)
+          }}
+          class="settings-extensions-tabs settings-subtabs"
+        >
           <Tabs.List>
             <Tabs.Trigger value="mcps">{language.t("settings.extensions.tab.mcps")}</Tabs.Trigger>
             <Tabs.Trigger value="plugins">{language.t("status.popover.tab.plugins")}</Tabs.Trigger>
@@ -78,18 +88,20 @@ export const SettingsExtensions: Component = () => {
           <Tabs.Content value="mcps">
             <div class="settings-section">
               <div class="flex items-center justify-between">
-                <span class="text-13-medium text-v2-text-text-base">
+                <span class="settings-extension-heading text-13-medium">
                   {language.t("settings.extensions.availableAll")}
                 </span>
-                <span class="text-13-regular text-v2-text-faint">{language.t("settings.extensions.manageConfig")}</span>
+                <span class="text-13-regular text-v2-text-text-muted">
+                  {language.t("settings.extensions.manageConfig")}
+                </span>
               </div>
-              <div class="bg-[var(--v2-background-bg-base)] border-[0.5px] border-[var(--v2-border-border-base)] rounded-[8px] pl-4 pr-3 overflow-hidden">
+              <SettingsList variant="catalog">
                 <For each={mcps()}>
                   {(item) => (
-                    <div class="py-4 flex items-center justify-between border-b-[0.5px] border-[var(--v2-border-border-base)] last:border-b-0">
-                      <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="settings-extension-row">
+                      <div class="settings-extension-lead">
                         <Icon name="mcp" class="text-v2-icon-icon-muted shrink-0" />
-                        <span class="text-13-medium text-v2-text-text-base truncate">{item.name}</span>
+                        <span class="settings-extension-name truncate">{item.name}</span>
                       </div>
                       <Switch checked={item.enabled} onChange={(checked) => handleMcpToggle(item, checked)} hideLabel>
                         {item.name}
@@ -97,58 +109,57 @@ export const SettingsExtensions: Component = () => {
                     </div>
                   )}
                 </For>
-              </div>
+              </SettingsList>
             </div>
           </Tabs.Content>
 
           <Tabs.Content value="plugins">
             <div class="settings-section">
               <div class="flex items-center justify-between">
-                <span class="text-13-medium text-v2-text-text-base">
+                <span class="settings-extension-heading text-13-medium">
                   {language.t("settings.extensions.availableAll")}
                 </span>
-                <span class="text-13-regular text-v2-text-faint">{language.t("settings.extensions.manageConfig")}</span>
+                <span class="text-13-regular text-v2-text-text-muted">
+                  {language.t("settings.extensions.manageConfig")}
+                </span>
               </div>
-              <div class="bg-[var(--v2-background-bg-base)] border-[0.5px] border-[var(--v2-border-border-base)] rounded-[8px] pl-4 pr-3 overflow-hidden">
+              <SettingsList variant="catalog">
                 <For each={plugins()}>
                   {(plugin) => (
-                    <div class="py-4 flex items-center justify-between border-b-[0.5px] border-[var(--v2-border-border-base)] last:border-b-0">
-                      <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="settings-extension-row">
+                      <div class="settings-extension-lead">
                         <Icon name="cube" class="text-v2-icon-icon-muted shrink-0" />
-                        <span class="text-13-medium text-v2-text-text-base truncate font-mono">{plugin.name}</span>
+                        <span class="settings-extension-name truncate">{plugin.name}</span>
                       </div>
                     </div>
                   )}
                 </For>
-              </div>
+              </SettingsList>
             </div>
           </Tabs.Content>
 
           <Tabs.Content value="skills">
             <div class="settings-section">
               <div class="flex items-center justify-between">
-                <span class="text-13-medium text-v2-text-text-base">
+                <span class="settings-extension-heading text-13-medium">
                   {language.t("settings.extensions.availableAll")}
                 </span>
-                <ExternalLink
-                  class="text-13-regular text-v2-text-accent hover:underline"
-                  href="https://opencode.ai/docs/skills/"
-                >
+                <ExternalLink class="settings-extension-link text-13-regular" href="https://opencode.ai/docs/skills/">
                   {language.t("settings.extensions.addSkills")}
                 </ExternalLink>
               </div>
-              <div class="bg-[var(--v2-background-bg-base)] border-[0.5px] border-[var(--v2-border-border-base)] rounded-[8px] pl-4 pr-3 overflow-hidden">
+              <SettingsList variant="catalog">
                 <For each={skills()}>
                   {(skill) => (
-                    <div class="py-4 flex items-center justify-between border-b-[0.5px] border-[var(--v2-border-border-base)] last:border-b-0">
-                      <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="settings-extension-row">
+                      <div class="settings-extension-lead">
                         <Icon name="post-skill" class="text-v2-icon-icon-muted shrink-0" />
-                        <span class="text-13-medium text-v2-text-text-base truncate">{skill.name}</span>
+                        <span class="settings-extension-name truncate">{skill.name}</span>
                       </div>
                     </div>
                   )}
                 </For>
-              </div>
+              </SettingsList>
             </div>
           </Tabs.Content>
         </Tabs>

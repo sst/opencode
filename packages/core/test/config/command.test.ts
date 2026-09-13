@@ -71,6 +71,73 @@ const it = testEffect(
 const decode = Schema.decodeUnknownSync(Info)
 
 describe("ConfigCommandPlugin.Plugin", () => {
+  for (const item of [
+    ...["$&", "$$", "$`", "$'"].flatMap((input) => [
+      { template: "Explain $ARGUMENTS.", input, expected: `Explain ${input}.` },
+      { template: "Explain $1.", input: `"${input}"`, expected: `Explain ${input}.` },
+      { template: "Explain.", input, expected: `Explain.\n\n${input}` },
+    ]),
+    ...["abc", "", "alpha beta", '"alpha beta"', "$1", "$<name>"].map((input) => ({
+      template: "Explain $ARGUMENTS.",
+      input,
+      expected: `Explain ${input}.`,
+    })),
+    {
+      template: "First $1. Rest $2.",
+      input: '"alpha beta" gamma delta',
+      expected: "First alpha beta. Rest gamma delta.",
+    },
+    { template: "$ARGUMENTS / $ARGUMENTS", input: "$& $$", expected: "$& $$ / $& $$" },
+  ]) {
+    it.live(`interpolates ${JSON.stringify(item.template)} with literal input ${JSON.stringify(item.input)}`, () =>
+      Effect.gen(function* () {
+        const command = yield* Command.Service
+        const prompts: { text: string; delivery?: string }[] = []
+        yield* ConfigCommandPlugin.Plugin.effect(
+          host({
+            command: {
+              list: () => Effect.die(new Error("unused command.list")),
+              transform: command.transform,
+              reload: command.reload,
+            },
+            session: {
+              prompt: (input) =>
+                Effect.sync(() => {
+                  prompts.push({ text: input.text, delivery: input.delivery })
+                  return SessionInbox.User.make({
+                    id: SessionMessage.ID.make("msg_test"),
+                    sessionID: input.sessionID,
+                    timeCreated: DateTime.makeUnsafe(0),
+                    type: "user",
+                    payload: { text: input.text },
+                    delivery: input.delivery ?? "steer",
+                  })
+                }),
+            },
+          }),
+        ).pipe(
+          Effect.provide(
+            Config.testLayer([
+              new Document({
+                type: "document",
+                info: decode({ commands: { explain: { template: item.template } } }),
+              }),
+            ]),
+          ),
+        )
+        yield* command.execute({
+          name: "explain",
+          invocation: {
+            sessionID: Session.ID.make("ses_test"),
+            prompt: { text: item.input },
+            delivery: "queue",
+          },
+        })
+        expect(prompts).toEqual([{ text: item.expected, delivery: "queue" }])
+      }),
+    )
+  }
+
   it.live("loads inline and file-based commands in config order", () =>
     Effect.acquireDisposable(Effect.promise(() => tmpdir())).pipe(
       Effect.flatMap((tmp) =>

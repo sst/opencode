@@ -1,4 +1,7 @@
-import { BackgroundMoveHint, BackgroundWorkSummary } from "./message-timeline"
+import { DataProvider } from "@opencode/session-ui/context"
+import { BackgroundMoveHint } from "./message-timeline"
+import { BackgroundWorkSummary } from "../summary/background"
+import "../summary/summary.css"
 
 const tasks = [
   { id: "task_explore", type: "subagent" as const, agent: "explore", label: "Reviewing component implementation" },
@@ -30,7 +33,13 @@ export const InlineMoveHint = {
 export const SummaryPanelEntry = {
   render: () => (
     <div class="w-[280px] rounded-[6px] bg-v2-background-bg-base px-0.5 py-1.5 shadow-[var(--v2-elevation-raised)]">
-      <BackgroundWorkSummary tasks={tasks} />
+      <DataProvider
+        data={{ session: [], session_status: {}, session_diff: {} }}
+        directory="/project"
+        onSessionHref={(id) => `#${id}`}
+      >
+        <BackgroundWorkSummary tasks={tasks} />
+      </DataProvider>
     </div>
   ),
 }

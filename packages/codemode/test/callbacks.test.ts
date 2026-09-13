@@ -63,8 +63,10 @@ describe("built-in method references as callbacks", () => {
     expect(logs[1]).toContain("b")
   })
 
-  test("intrinsic method references keep their receiver, unlike detached JS methods", async () => {
-    expect(await value(`return ["a", "z"].filter("abc".includes)`)).toEqual(["a"])
+  test("detached method references lose their receiver, like JS", async () => {
+    expect((await error(`return ["a", "z"].filter("abc".includes)`)).message).toContain(
+      "String.prototype.includes called on null or undefined",
+    )
   })
 
   test("promise reactions accept built-in references", async () => {

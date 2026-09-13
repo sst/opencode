@@ -2,52 +2,78 @@
 title: "Attachments"
 ---
 
-Attachments add local context to a prompt as text or image media. Regardless
-of how a prompt is submitted, current V2 sessions make these attachment types
-visible to the model:
+## Attach
 
-| Input                   | Model receives                                                 |
-| ----------------------- | -------------------------------------------------------------- |
-| UTF-8 text file         | The filename and decoded text                                  |
-| Directory               | A non-recursive listing of its immediate files and directories |
-| PNG, JPEG, GIF, or WebP | Image media                                                    |
+Attach a local file, then ask OpenCode to use it in your prompt. In the desktop
+or web client, choose **Attach file**, paste a file, or drag it into the prompt.
 
-SVG files are treated as text, not image media. PDF, AVIF, BMP, audio, video,
-and other binary prompt attachments are not currently included in the model
-request. A client accepting a file does not mean its contents are visible to
-the model.
+```text
+Summarize the attached README.md and list the required setup steps.
+```
+
+Desktop file-picker selections can total up to 20 MiB. Other interfaces may
+apply lower client-side limits.
 
 <Callout type="warning">
-  Use a model that supports image input before attaching an image. OpenCode passes supported image media to the selected
-  provider, but the provider and model still enforce their own formats, dimensions, file counts, and size limits. A
-  text-only model may reject the request.
+  Choose a model with image input before attaching an image. OpenCode can pass supported images to the provider, but the
+  provider and model still enforce their own formats, dimensions, file counts, and sizes. A text-only model may reject the
+  request.
 </Callout>
 
-## Add attachments
+## Syntax
 
-Desktop and web clients provide **Attach file**, paste, and drag-and-drop controls for supported text and image files. The
-desktop file picker limits one selection to 20 MiB in total; the server also applies the per-attachment limit below.
+V2 prompt and command inputs describe an attachment with a `uri` and optional
+`name` and `description`:
 
-Attachment controls and client-side limits depend on the interface. For programmatic submission, see the generated
-[API reference](/api).
+```json
+{
+  "uri": "file:///home/me/project/src/server.ts",
+  "name": "server.ts",
+  "description": "HTTP server entrypoint"
+}
+```
 
-V2 prompt and command inputs represent each attachment with a `uri` and
-optional `name` and `description`. Use an absolute `file:` URL for a file or
-directory available to the server, or an inline `data:` URL. For a text `file:`
-URL, optional positive `start` and `end` query parameters select one-based
-lines:
+Use an absolute `file:` URL for a file or directory that is available to the
+server. For text files, positive `start` and `end` parameters select one-based
+lines.
 
 ```text
 file:///home/me/project/src/server.ts?start=20&end=60
 ```
 
-HTTP and HTTPS attachment URLs are not supported. OpenCode materializes each
-attachment before admitting the prompt and rejects invalid URLs, unreadable
-paths, non-files other than directories, and attachments over 20 MiB decoded.
-The server infers the media type from the bytes. A supplied filename or data
-URL media type does not make an unsupported binary format model-visible.
+Use a `data:` URL to send content inline:
 
-## Configure image processing
+```json
+{
+  "uri": "data:text/plain;base64,SGVsbG8sIE9wZW5Db2RlIQ==",
+  "name": "greeting.txt"
+}
+```
+
+HTTP and HTTPS attachment URLs are not supported. See the generated
+[API reference](/api) for programmatic prompt submission.
+
+## Formats
+
+Current V2 sessions make these attachment types visible to the model:
+
+| Input                   | Model receives                                                 | Example            |
+| ----------------------- | -------------------------------------------------------------- | ------------------ |
+| UTF-8 text file         | Filename and decoded text                                      | `README.md`        |
+| Directory               | Non-recursive listing of immediate files and directories       | `file:///home/me/` |
+| PNG, JPEG, GIF, or WebP | Image media                                                    | `diagram.png`      |
+
+SVG is treated as text. PDF, AVIF, BMP, audio, video, and other binary prompt
+attachments are not included in the model request. Convert an unsupported
+binary to text or a supported image first; for example, export a PDF page as
+`page-1.png` before attaching it.
+
+OpenCode reads each attachment before admitting the prompt. It rejects invalid
+URLs, unreadable paths, paths other than files or directories, and decoded
+attachments over 20 MiB. Media type is detected from the bytes, so changing a
+filename or `data:` URL media type does not make an unsupported binary visible.
+
+## Images
 
 Configure image normalization in `opencode.json` or `opencode.jsonc`:
 
@@ -67,41 +93,70 @@ Configure image normalization in `opencode.json` or `opencode.jsonc`:
 
 All fields are optional:
 
-| Field              |   Default | Behavior                                                                            |
-| ------------------ | --------: | ----------------------------------------------------------------------------------- |
-| `auto_resize`      |    `true` | Resize an image that exceeds any configured limit. If `false`, reject it.           |
-| `max_width`        |    `2000` | Maximum width in pixels. Must be a positive integer.                                |
-| `max_height`       |    `2000` | Maximum height in pixels. Must be a positive integer.                               |
-| `max_base64_bytes` | `5242880` | Maximum byte length of the Base64-encoded image string. Must be a positive integer. |
+| Field              | Default   | Behavior                                                                  |
+| ------------------ | --------- | ------------------------------------------------------------------------- |
+| `auto_resize`      | `true`    | Resize an image over a configured limit; when `false`, reject the image.  |
+| `max_width`        | `2000`    | Maximum width in pixels; must be a positive integer.                      |
+| `max_height`       | `2000`    | Maximum height in pixels; must be a positive integer.                     |
+| `max_base64_bytes` | `5242880` | Maximum bytes in the Base64-encoded image; must be a positive integer.    |
 
-<Callout type="note">
-  These settings apply to supported image media attached directly to prompts and images produced by the built-in `read`
-  tool. If the image resizer is unavailable, OpenCode passes the original image through unchanged.
-</Callout>
+For example, this rejects rather than resizes an image wider than 1200 pixels:
 
-The `read` tool recognizes PNG, JPEG, GIF, and WebP by their contents and will
-ingest at most 20 MiB of source image bytes. It decodes the image and compares
-its width, height, and encoded Base64 length with all three configured limits.
+```jsonc title="opencode.jsonc"
+{
+  "media": {
+    "image": {
+      "auto_resize": false,
+      "max_width": 1200,
+    },
+  },
+}
+```
 
-When `auto_resize` is `true`, OpenCode preserves the aspect ratio, scales the
-image down to the dimension limits, and tries progressively smaller PNG and
-JPEG encodings until the Base64 limit is met. The resulting media type can
-therefore change to PNG or JPEG. If no encoding fits, the tool call fails.
+These settings apply both to supported images attached to prompts and to images
+returned by the built-in `read` tool.
 
-When `auto_resize` is `false`, exceeding any limit fails the tool call without
-modifying the image. An image that cannot be decoded also fails. If the image resizer cannot be loaded, OpenCode uses the
-original image instead, so these settings are processing limits rather than an upload or security boundary.
+## Processing
 
-## Limits and provider behavior
+The `read` tool recognizes PNG, JPEG, GIF, and WebP by their contents and reads
+up to 20 MiB of source image data. It checks width, height, and Base64 length
+against the configured image limits.
 
-- Direct prompt attachments are limited to 20 MiB decoded per item by the V2
-  server. Client-specific limits can be lower.
-- `max_base64_bytes` counts the encoded Base64 characters in bytes, not the
-  decoded file size and not the complete `data:` URL.
-- Text attachments are inserted into the prompt as text and do not require a
-  multimodal model. Large text read through the `read` tool has separate
-  paging and truncation limits.
-- Image attachments use provider-native image input. Provider errors can still
-  occur when OpenCode's limits pass but the selected model's limits do not.
-- PDFs and other unsupported binary prompt attachments should be converted to
-  text or supported images before attaching them.
+With `auto_resize: true`, OpenCode preserves the aspect ratio and scales down
+to the dimension limits. It then tries progressively smaller PNG and JPEG
+encodings until the Base64 limit is met, so the output media type can change.
+
+```text
+Input:  4000 × 2000 WebP
+Limits: 2000 × 2000
+Output: 2000 × 1000 PNG or JPEG
+```
+
+If no encoding fits, processing fails. With `auto_resize: false`, an image that
+exceeds any limit fails without modification; an image that cannot be decoded
+also fails.
+
+```text
+Input:  2400 × 1600 JPEG
+Limit:  max_width = 2000, auto_resize = false
+Result: Image processing fails
+```
+
+If the image resizer is unavailable, OpenCode passes the original image through
+unchanged. Image settings are therefore processing limits, not an upload or
+security boundary.
+
+## Limits
+
+| Limit                         | Value or behavior                                             | Example                                      |
+| ----------------------------- | ------------------------------------------------------------- | -------------------------------------------- |
+| Direct attachment             | 20 MiB decoded per item; clients may impose lower limits      | Two 12 MiB files pass the per-item limit     |
+| Desktop picker selection      | 20 MiB total                                                  | Two 12 MiB files exceed the selection limit  |
+| `max_base64_bytes`            | Encoded Base64 only, excluding the complete `data:` URL       | `SGVsbG8=` counts as 8 bytes                 |
+| Provider image limits         | Apply after OpenCode processing                               | A provider may reject an accepted image      |
+| Text attachment model support | Does not require a multimodal model                           | `notes.txt` is inserted as prompt text       |
+| `read` text limits            | Uses separate paging and truncation limits                    | Read a large log in pages                    |
+
+A client accepting a file does not guarantee that its contents reach the
+model. The attachment must use a model-visible format and satisfy both OpenCode
+and provider limits.

@@ -5,12 +5,12 @@ export type Settings = Moonshot.Settings<Moonshot.ResponsesOptionsInput>
 
 export const model: ProviderPackage.Definition<Settings, Moonshot.ResponsesOptionsInput>["model"] = (
   modelID,
-  settings,
+  { apiKey, baseURL, body, headers, ...providerOptions },
 ) =>
   Moonshot.configure({
-    apiKey: settings.apiKey,
-    baseURL: settings.baseURL,
-    headers: settings.headers,
-    http: settings.body === undefined ? undefined : { body: { ...settings.body } },
-    providerOptions: settings.providerOptions,
+    apiKey,
+    baseURL,
+    headers,
+    http: body === undefined ? undefined : { body: { ...body } },
+    providerOptions,
   }).responses(modelID)

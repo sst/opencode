@@ -2,14 +2,14 @@
 title: "Migrate from V1"
 ---
 
-OpenCode 1 and OpenCode 2 can be installed side by side. V1 runs as `opencode`, while V2 installs and runs separately as
-`opencode2`.
+OpenCode 1 and OpenCode 2 both use the `opencode` command and are no longer installed side by side by default. Remove a
+package-managed V1 installation before installing V2; the V2 curl installer replaces the V1 binary.
 
 ## Breaking changes
 
 V2 has three intentional breaking changes:
 
-- [Plugins](#plugins) use a new plugin API.
+- [Plugins](/build/plugins/migrate-v1) use a new plugin API.
 - The [server API and clients](#server-api-and-clients) have new contracts.
 - [Terminal client configuration](/cli/config) moves from layered `tui.json(c)` files to one global `cli.json` file (auto
   migrated).
@@ -20,20 +20,27 @@ schema never had a V2 equivalent and are intentionally ignored; these are listed
 
 Existing supported server config fields, agent definitions, command definitions, skills, and other files in `.opencode/`
 should continue to work without changes. If supported behavior described in this guide stops working in V2, treat it as a
-beta compatibility bug rather than an expected migration requirement.
+compatibility bug rather than an expected migration requirement.
 
 <Callout type="tip">
   If supported V1 functionality does not work in V2, follow the issue-reporting guidance in
   [Troubleshooting](/troubleshooting) and file a compatibility issue.
 </Callout>
 
-<Callout type="warning">
-  OpenCode 2.0 is in beta. Features may break unintentionally, and the server and plugin APIs may continue to change.
-</Callout>
+## Install V2
 
-## Install the beta
+Install the V2 terminal client with the [terminal startup guide](/cli).
 
-The V2 terminal client is published on the `beta` distribution tag. See the [terminal startup guide](/cli).
+You do not need to rewrite everything before starting V2. A practical migration is:
+
+1. Keep your existing configuration and file-based definitions.
+2. Start V2 and verify models, credentials, agents, permissions, and MCP servers.
+3. Port plugins, because V1 plugin implementations do not run in V2.
+4. Port integrations that call the server API.
+5. Convert configuration to the native V2 shape when you are ready. This step is optional.
+
+Keep a copy of your V1 setup while validating the migration. V1 and V2 use the same configuration locations, so do not
+point V1 at files after converting them to native V2-only shapes.
 
 ## Configuration
 
@@ -403,7 +410,10 @@ See [Models](/models) for the complete native model shape.
 ### Supported fields without direct native equivalents
 
 Most fields that keep the same shape, including `shell`, `model`, `default_agent`, `watcher`, `formatter`,
-`lsp`, `instructions`, `enterprise`, and `tool_output`, require no migration.
+`instructions`, `enterprise`, and `tool_output`, require no migration.
+
+V2 accepts and preserves `lsp` configuration, but it does not run language servers, expose LSP tools, or produce LSP
+diagnostics. Replace workflows that depend on those capabilities with the project's lint, typecheck, or compiler commands.
 
 The V1 provider filters do not have one-to-one native V2 config fields, but their behavior remains supported:
 
@@ -523,10 +533,7 @@ Rename `plugin` to `plugins`. Replace a package-and-options tuple with an object
 ```jsonc
 // V1
 {
-  "plugin": [
-    "opencode-example-plugin",
-    ["./plugin/local.ts", { "enabled": true }]
-  ]
+  "plugin": ["opencode-example-plugin", ["./plugin/local.ts", { "enabled": true }]]
 }
 
 // V2
@@ -542,28 +549,24 @@ Rename `plugin` to `plugins`. Replace a package-and-options tuple with an object
 ```
 
 V2 discovers local plugins from both `.opencode/plugin/` and `.opencode/plugins/`; use `.opencode/plugins/` for V2 files.
-Moving a file between these directories does not migrate its implementation.
 
-<Callout type="warning">V1 plugins will not work in V2.</Callout>
+<Callout type="warning">
+  V1 plugin implementations do not run in V2. Moving a file or renaming its config entry is not enough.
+</Callout>
 
-The config entry can be translated automatically, but plugin implementation code must be ported to the new API. The V2
-plugin API is still being finalized during beta, and detailed plugin migration guidance will be published when it is
-ready.
-
-Once the V2 plugin API is finalized, OpenCode should be able to migrate the majority of V1 plugins while keeping related
-local modules and dependencies together. See the current beta [Plugins guide](/build/plugins).
+Port entrypoints, hooks, tools, events, and package exports with the dedicated
+[plugin migration guide](/build/plugins/migrate-v1).
 
 ## Server API and clients
 
 OpenCode 2 has a revised, more ergonomic server API and a new set of clients. Integrations that call the V1 server API
 must migrate to the V2 API.
 
-Use the `@opencode/client` package to access the new clients. The server API and clients are still being finalized
-during beta, so their contracts may continue to change. See the generated [API reference](/api) for the current endpoints,
-request types, and responses.
+Use the `@opencode/client` package to access the released V2 API. See the generated [API reference](/api) for its
+endpoints, request types, and responses.
 
 ## Verify your setup
 
-Verify your model, provider credentials, agents, permissions, MCP servers, and plugins in a project before relying on the
-beta for regular work. Keep your V1 setup until you have confirmed the V2 behavior you need, and do not point V1 at
+Verify your model, provider credentials, agents, permissions, MCP servers, and plugins in a project before relying on V2
+for regular work. Keep your V1 setup until you have confirmed the V2 behavior you need, and do not point V1 at
 configuration that you have converted to the native V2 shape.

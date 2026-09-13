@@ -22,6 +22,10 @@ test("selects a base branch for a new workspace", async ({ page }) => {
     pageMessages: () => ({ items: [] }),
     vcsBranches: ["feature/api", "main", "origin/release"],
   })
+  await page.route("**/api/vcs/branches?*", (route) => {
+    if (new URL(route.request().url()).searchParams.get("search") !== "feature") return route.fallback()
+    return route.fulfill({ json: { location: { directory }, data: ["feature/api"] } })
+  })
   await page.addInitScript(
     ({ directory, draftID, server }) => {
       localStorage.setItem(
@@ -44,10 +48,28 @@ test("selects a base branch for a new workspace", async ({ page }) => {
   await page.getByRole("button", { name: "Local", exact: true }).click()
   await page.getByRole("menuitem", { name: "New worktree", exact: true }).click()
   await page.getByRole("button", { name: "from main", exact: true }).click()
+  const search = page.getByRole("textbox", { name: "Search branches", exact: true })
+  await expect(search).toBeFocused()
+  await page.keyboard.type("feature")
+  await expect(search).toHaveValue("feature")
+  await expect(page.getByRole("menuitemradio")).toHaveText(["feature/api"])
+  await expect(search).toBeFocused()
   await page.getByRole("menuitemradio", { name: "feature/api", exact: true }).click()
 
   const selected = page.getByRole("button", { name: "from feature/api", exact: true })
   await expect(selected).toBeVisible()
   await selected.click()
+  await expect(search).toBeFocused()
+  await expect(search).toHaveValue("")
   await expect(page.getByRole("menuitemradio", { name: "feature/api", exact: true })).toBeChecked()
+  await page.keyboard.press("Escape")
+  await expect(selected).toBeFocused()
+  await page.keyboard.press("Enter")
+  await expect(search).toBeFocused()
+  await page.keyboard.type("feature")
+  await expect(search).toHaveValue("feature")
+  await expect(page.getByRole("menuitemradio")).toHaveText(["feature/api"])
+  await page.getByRole("button", { name: "Clear", exact: true }).click()
+  await expect(search).toHaveValue("")
+  await expect(page.getByRole("menuitemradio")).toHaveText(["feature/api", "main", "origin/release"])
 })

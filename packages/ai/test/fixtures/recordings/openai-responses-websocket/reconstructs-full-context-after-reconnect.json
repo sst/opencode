@@ -81,7 +81,7 @@
         {
           "direction": "client",
           "kind": "text",
-          "body": "{\"type\":\"response.create\",\"model\":\"gpt-5.5\",\"input\":[{\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"Reply exactly: Alpha.\"}]},{\"type\":\"message\",\"id\":\"msg_ws_reconnect_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"Alpha.\"}]},{\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"Reply exactly: Beta.\"}]}],\"store\":false,\"max_output_tokens\":30,\"include\":[\"reasoning.encrypted_content\"],\"reasoning\":{\"effort\":\"medium\",\"summary\":\"auto\"},\"text\":{\"verbosity\":\"low\"},\"instructions\":\"Follow the user's exact reply instruction.\"}"
+          "body": "{\"type\":\"response.create\",\"model\":\"gpt-5.5\",\"input\":[{\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"Reply exactly: Alpha.\"}]},{\"type\":\"message\",\"id\":\"msg_ws_reconnect_1\",\"role\":\"assistant\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"text\":\"Alpha.\"}]},{\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"Reply exactly: Beta.\"}]}],\"store\":false,\"max_output_tokens\":30,\"include\":[\"reasoning.encrypted_content\"],\"reasoning\":{\"effort\":\"medium\",\"summary\":\"auto\"},\"text\":{\"verbosity\":\"low\"},\"instructions\":\"Follow the user's exact reply instruction.\"}"
         },
         {
           "direction": "server",

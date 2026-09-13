@@ -206,7 +206,7 @@ function evaluateTemplate(
       if (position === last) return args.slice(argIndex).join(" ")
       return args[argIndex]
     })
-    const withArguments = expanded.replaceAll("$ARGUMENTS", input)
+    const withArguments = expanded.replaceAll("$ARGUMENTS", () => input)
     const text =
       placeholders.length === 0 && !template.includes("$ARGUMENTS") && input.trim()
         ? `${withArguments}\n\n${input}`.trim()

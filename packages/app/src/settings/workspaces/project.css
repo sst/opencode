@@ -1,0 +1,299 @@
+.project-settings-extension-tabs {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+}
+
+.project-settings-extension-tabs[data-component="tabs-v2"][data-variant="pill"] > [data-slot="tabs-v2-list"] {
+  width: auto;
+}
+
+.project-settings-extension-tabs [data-slot="tabs-v2-content"] {
+  overflow-y: auto;
+}
+
+.project-settings-extension-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.project-settings-extension-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 13px;
+  font-weight: 530;
+  line-height: var(--line-height-compact);
+}
+
+.project-settings-extension-section-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-strong);
+}
+
+.project-settings-extension-section-header > :last-child {
+  color: var(--v2-text-text-muted);
+  font-size: 13px;
+  font-weight: 440;
+}
+
+.project-settings-extension-empty-description {
+  color: var(--v2-text-text-muted);
+  font-size: 13px;
+  font-weight: 440;
+  line-height: var(--line-height-base);
+}
+
+.project-settings-extension-row-icon {
+  flex-shrink: 0;
+  color: var(--v2-icon-icon-muted);
+}
+
+.project-settings-extension-row-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-settings-extension-row-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.project-settings-extension-row-description {
+  color: var(--v2-text-text-muted);
+  font-size: 13px;
+  font-weight: 440;
+  line-height: var(--line-height-base);
+  overflow-wrap: anywhere;
+}
+
+.project-settings-extension-row-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  color: var(--v2-text-text-muted);
+  font-size: 11px;
+  line-height: var(--line-height-compact);
+}
+
+.project-settings-extension-row-status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--v2-state-fg-warning);
+}
+
+.project-settings-shared {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.project-settings-shared-trigger {
+  width: fit-content;
+  align-self: flex-start;
+}
+
+.project-settings-shared-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.project-settings-shared-chevron {
+  color: var(--v2-icon-icon-muted);
+  transition: transform 120ms ease;
+  transform: rotate(-90deg);
+}
+
+.project-settings-shared-chevron.open {
+  transform: rotate(0deg);
+}
+
+[dir="rtl"] .project-settings-shared-chevron {
+  transform: rotate(90deg);
+}
+
+[dir="rtl"] .project-settings-shared-chevron.open {
+  transform: rotate(0deg);
+}
+
+.project-settings-shared-count {
+  display: inline-flex;
+  min-width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 4px;
+  border-radius: 3px;
+  background: var(--v2-background-bg-layer-02);
+  color: var(--v2-text-text-muted);
+  font-size: 11px;
+  font-weight: 530;
+  line-height: var(--line-height-compact);
+}
+
+.project-settings-name {
+  width: min(280px, 100%);
+}
+
+.project-settings-server-link {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--v2-text-text-muted);
+  font-size: 13px;
+  font-weight: 440;
+  line-height: var(--line-height-compact);
+  text-align: start;
+  cursor: pointer;
+}
+
+.project-settings-server-link:hover,
+.project-settings-server-link:focus-visible {
+  color: var(--v2-text-text-base);
+  text-decoration: underline;
+}
+
+.project-settings-server-link:focus-visible {
+  outline: 2px solid var(--v2-border-border-focus);
+  outline-offset: 2px;
+}
+
+.project-settings-icon {
+  position: relative;
+  display: flex;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 6px;
+  outline: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+}
+
+.project-settings-icon--active,
+.project-settings-icon:focus-visible {
+  outline-color: var(--v2-border-border-focus);
+}
+
+.project-settings-icon-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--v2-background-bg-contrast) 80%, transparent);
+  color: var(--v2-icon-icon-contrast);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.project-settings-icon-overlay.visible {
+  opacity: 1;
+}
+
+.project-settings-colors {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.project-settings-color {
+  position: relative;
+  display: flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  outline: none;
+  background: transparent;
+  transition: box-shadow 120ms ease;
+}
+
+.project-settings-color:focus-visible,
+.project-settings-color--selected {
+  box-shadow:
+    0 0 0 2px var(--v2-background-bg-layer-01),
+    0 0 0 4px var(--v2-border-border-focus);
+}
+
+@media (hover: hover) {
+  .project-settings-color:not(.project-settings-color--selected):hover {
+    box-shadow:
+      0 0 0 2px var(--v2-background-bg-layer-01),
+      0 0 0 4px var(--v2-border-border-strong);
+  }
+}
+
+.project-settings-color-check {
+  position: absolute;
+  color: var(--v2-icon-icon-contrast);
+}
+
+.project-settings-startup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-block: 20px;
+}
+
+.project-settings-startup-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.project-settings-startup-title {
+  color: var(--v2-text-text-base);
+  font-size: 13px;
+  font-weight: 530;
+  line-height: var(--line-height-compact);
+}
+
+.project-settings-startup-description,
+.project-settings-startup-hint {
+  color: var(--v2-text-text-muted);
+  font-size: 13px;
+  font-weight: 440;
+  line-height: var(--line-height-base);
+}
+
+.project-settings-startup-hint code {
+  padding-inline: 4px;
+  border-radius: 4px;
+  background: var(--v2-background-bg-layer-02);
+  color: var(--v2-text-text-base);
+  font-family: var(--font-family-mono);
+  font-size: 12px;
+  unicode-bidi: isolate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .project-settings-icon-overlay,
+  .project-settings-color,
+  .project-settings-shared-chevron {
+    transition: none;
+  }
+}

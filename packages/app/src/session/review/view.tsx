@@ -15,11 +15,6 @@ import { SessionReviewTab } from "./review-tab"
 import type { ChangeMode, SessionReviewModel } from "./model"
 import type { createSessionBrowser } from "../browser/model"
 
-const StatusDrawer = lazy(async () => {
-  const { StatusDrawer } = await import("@/shell/status/status-drawer")
-  return { default: StatusDrawer }
-})
-
 const MobilePanelDrawer = lazy(async () => {
   const { MobilePanelDrawer } = await import("@/shell/mobile-panel-drawer")
   return { default: MobilePanelDrawer }
@@ -34,11 +29,9 @@ export function SessionMobileViewTabs(props: {
   const language = useLanguage()
   const [store, setStore] = createStore({
     menu: false,
-    status: false,
-    statusLoaded: false,
     details: false,
     detailsLoaded: false,
-    pending: undefined as "status" | "details" | undefined,
+    pending: false,
   })
   createEffect(() => props.onDetailsOpenChange?.(store.details))
   onCleanup(() => props.onDetailsOpenChange?.(false))
@@ -95,32 +88,18 @@ export function SessionMobileViewTabs(props: {
             onCloseAutoFocus={(event) => {
               if (!store.pending) return
               event.preventDefault()
-              if (store.pending === "status") setStore({ status: true, statusLoaded: true })
-              if (store.pending === "details") setStore({ details: true, detailsLoaded: true })
-              setStore("pending", undefined)
+              setStore({ details: true, detailsLoaded: true, pending: false })
             }}
           >
             <Menu.Item onSelect={() => props.onSelect("usage")}>{language.t("session.tab.usage")}</Menu.Item>
             <Show when={props.details}>
-              <Menu.Item onSelect={() => setStore({ pending: "details", menu: false })}>
+              <Menu.Item onSelect={() => setStore({ pending: true, menu: false })}>
                 {language.t("session.summary.title")}
               </Menu.Item>
             </Show>
-            <Menu.Item onSelect={() => setStore({ pending: "status", menu: false })}>
-              {language.t("status.popover.trigger")}
-            </Menu.Item>
           </Menu.Content>
         </Menu.Portal>
       </Menu>
-      <Show when={store.statusLoaded}>
-        <Suspense>
-          <StatusDrawer
-            open={store.status}
-            onOpenChange={(open) => setStore("status", open)}
-            returnFocus={() => trigger}
-          />
-        </Suspense>
-      </Show>
       <Show when={store.detailsLoaded}>
         <Suspense>
           <MobilePanelDrawer

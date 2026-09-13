@@ -32,7 +32,9 @@ for (const [id, enabled] of [
         enabled ? { type: "adaptive", block_binding: { prefix_mismatch_behavior: "drop_block" } } : undefined,
       )
       expect(prepared.request.headers["anthropic-beta"]).toBe(
-        enabled ? "existing-beta,thinking-binding-controls-2026-08-01" : "existing-beta",
+        enabled
+          ? "existing-beta,interleaved-thinking-2025-05-14,thinking-binding-controls-2026-08-01"
+          : "existing-beta,interleaved-thinking-2025-05-14",
       )
     }),
   )
@@ -53,7 +55,9 @@ it.effect("preserves explicit thinking settings and combines required beta heade
       const prepared = yield* AnthropicMessages.route.prepareTransport(compiled.body, request)
       expect(compiled.body.thinking).toEqual(thinking)
       expect(prepared.request.headers["anthropic-beta"]).toBe(
-        thinking.type === "disabled" ? "compact-2026-01-12" : "compact-2026-01-12,thinking-binding-controls-2026-08-01",
+        thinking.type === "disabled"
+          ? "interleaved-thinking-2025-05-14,compact-2026-01-12"
+          : "interleaved-thinking-2025-05-14,compact-2026-01-12,thinking-binding-controls-2026-08-01",
       )
     }
   }),

@@ -140,6 +140,30 @@ describe("toSessionError", () => {
     })
   })
 
+  test("preserves provider configuration and initialization errors", () => {
+    const configuration = new ModelResolver.ModelConfigurationError({
+      providerID: Provider.ID.make("azure"),
+      modelID: ID.make("gpt-5.4-nano"),
+      package: "aisdk:@ai-sdk/azure",
+      detail: "Azure requires resourceName or baseURL",
+    })
+    expect(toSessionError(configuration)).toEqual({
+      type: "provider.no-route",
+      message: "Cannot initialize azure/gpt-5.4-nano: Azure requires resourceName or baseURL",
+    })
+    const initialization = new ModelResolver.ModelInitializationError({
+      providerID: Provider.ID.make("custom"),
+      modelID: ID.make("model"),
+      package: "@opencode/ai/providers/custom",
+      phase: "load",
+      detail: "Provider package @opencode/ai/providers/custom is broken",
+    })
+    expect(toSessionError(initialization)).toEqual({
+      type: "provider.no-route",
+      message: "Cannot initialize custom/model: Provider package @opencode/ai/providers/custom is broken",
+    })
+  })
+
   test("retries rate limits, provider-internal, transport, and unrecognized failures", () => {
     const eligible = [
       llm(new RateLimitError({ message: "rate" })),
@@ -168,7 +192,7 @@ describe("toSessionError", () => {
     expect(ineligible.map(SessionRunnerRetry.isRetryable)).toEqual([false, false, false, false, false, false, false])
   })
 
-  test("retries transport failures only when delivery is absent or not sent", () => {
+  test("retries transport failures unless the provider accepted or rejected the request", () => {
     const retryable = [
       llm(new TransportError({ message: "http transport", transport: "http", operation: "request" })),
       llm(
@@ -180,8 +204,6 @@ describe("toSessionError", () => {
           phase: "connect",
         }),
       ),
-    ]
-    const ineligible = [
       llm(
         new TransportError({
           message: "send uncertain",
@@ -191,6 +213,8 @@ describe("toSessionError", () => {
           phase: "send",
         }),
       ),
+    ]
+    const ineligible = [
       llm(
         new TransportError({
           message: "response interrupted",
@@ -212,8 +236,8 @@ describe("toSessionError", () => {
       ),
     ]
 
-    expect(retryable.map(SessionRunnerRetry.isRetryable)).toEqual([true, true])
-    expect(ineligible.map(SessionRunnerRetry.isRetryable)).toEqual([false, false, false])
+    expect(retryable.map(SessionRunnerRetry.isRetryable)).toEqual([true, true, true])
+    expect(ineligible.map(SessionRunnerRetry.isRetryable)).toEqual([false, false])
   })
 
   test("honors provider retry header overrides", () => {

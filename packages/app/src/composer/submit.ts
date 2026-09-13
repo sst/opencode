@@ -11,6 +11,7 @@ import { createComposerSubmission } from "./submission-state"
 import { buildPromptRequest } from "./request"
 import { setCursorPosition } from "./editor/dom"
 import { blobDataUrl } from "@/runtime/persistence/drafts"
+import type { ModelSelection } from "@/providers/models/selection"
 
 const submitting = new WeakSet<object>()
 
@@ -87,8 +88,12 @@ export function createComposerSubmit(input: ComposerSubmitInput) {
       if (value.mode === "normal" && !command) {
         session.handoff?.set(handoffMessage(value))
         const optimisticBusy = !input.adapter.working()
-        if (optimisticBusy) session.data.session.setStatus(session.id, "running")
-        const sending = sendPrompt(session, value).then(
+        if (optimisticBusy && input.adapter.kind === "new-session")
+          session.data.session.setStatus(session.id, "running")
+        const sending = sendPrompt(session, value, input.adapter.controls().model.selection.trackSessionCommit, () => {
+          if (optimisticBusy && input.adapter.kind === "active-session")
+            session.data.session.setStatus(session.id, "running")
+        }).then(
           () => ({ ok: true as const }),
           (error) => ({ ok: false as const, error }),
         )
@@ -121,11 +126,8 @@ export function createComposerSubmit(input: ComposerSubmitInput) {
 
       if (command) {
         clearSubmission(input, submission)
-        // Commands always steer: the server applies a command's configured
-        // agent and model immediately at admission, so queueing one would
-        // reconfigure the turn it is supposed to wait behind.
-        void sendCommand(session, { ...value, delivery: "steer" }, command).catch((error) =>
-          failSubmission(input, session, "command", error, restore, value.id),
+        void sendCommand(session, value, command, input.adapter.controls().model.selection.trackSessionCommit).catch(
+          (error) => failSubmission(input, session, "command", error, restore, value.id),
         )
         return
       }
@@ -315,8 +317,11 @@ async function sendCommand(
   session: ComposerSession,
   value: ComposerSubmission,
   command: { command: string; arguments: string },
+  track?: ModelSelection["trackSessionCommit"],
 ) {
   const request = await buildSubmissionRequest(session, value)
+  // Like queued prompts, queued commands must not apply the composer's selection to active work.
+  if (value.delivery === "steer") await applySelection(session, value.selection, track)
   await session.api.command({
     sessionID: session.id,
     command: command.command,
@@ -328,7 +333,34 @@ async function sendCommand(
   })
 }
 
-async function sendPrompt(session: ComposerSession, value: ComposerSubmission) {
+async function applySelection(
+  session: ComposerSession,
+  selection: ComposerSelection,
+  track?: ModelSelection["trackSessionCommit"],
+) {
+  const cancel = track?.(session.id, selection)
+  try {
+    const current = session.current()
+    if (current?.agent !== selection.agent) {
+      await session.api.switchAgent({ sessionID: session.id, agent: selection.agent })
+    }
+    // The server deduplicates unchanged selections; cached SSE state may still be behind an earlier switch.
+    await session.api.switchModel({
+      sessionID: session.id,
+      model: { id: selection.model.modelID, providerID: selection.model.providerID, variant: selection.variant },
+    })
+  } catch (error) {
+    cancel?.()
+    throw error
+  }
+}
+
+async function sendPrompt(
+  session: ComposerSession,
+  value: ComposerSubmission,
+  track: ModelSelection["trackSessionCommit"] | undefined,
+  onAdmit: () => void,
+) {
   const request = await buildSubmissionRequest(session, value)
   // Switching agent or model reconfigures the session immediately, and with it
   // the remainder of a running turn. A steer targets that turn, so its
@@ -336,24 +368,7 @@ async function sendPrompt(session: ComposerSession, value: ComposerSubmission) {
   // waits behind, so it runs with the session selection at delivery time (the
   // intended selection stays recorded in its metadata).
   if (value.delivery === "steer") {
-    const current = session.current()
-    if (current?.agent !== value.selection.agent) {
-      await session.api.switchAgent({ sessionID: session.id, agent: value.selection.agent })
-    }
-    if (
-      current?.model?.providerID !== value.selection.model.providerID ||
-      current.model.id !== value.selection.model.modelID ||
-      (current.model.variant ?? "default") !== (value.selection.variant ?? "default")
-    ) {
-      await session.api.switchModel({
-        sessionID: session.id,
-        model: {
-          id: value.selection.model.modelID,
-          providerID: value.selection.model.providerID,
-          variant: value.selection.variant,
-        },
-      })
-    }
+    await applySelection(session, value.selection, track)
   }
 
   const admission = {
@@ -374,7 +389,9 @@ async function sendPrompt(session: ComposerSession, value: ComposerSubmission) {
       },
     },
   }
-  await session.data.session.prompt(admission).catch(() => session.data.session.prompt(admission))
+  const sending = session.data.session.prompt(admission).catch(() => session.data.session.prompt(admission))
+  onAdmit()
+  await sending
 }
 
 async function buildSubmissionRequest(session: ComposerSession, value: ComposerSubmission) {

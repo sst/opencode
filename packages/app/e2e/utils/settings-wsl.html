@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module">
+      import { mount } from "./settings-wsl.fixture.tsx"
+      const query = new URLSearchParams(location.search)
+      mount({ server: query.get("server"), mode: query.get("mode") })
+    </script>
+  </body>
+</html>

@@ -35,8 +35,10 @@ export function isRetryable(error: AIError) {
     case "RateLimit":
     case "ProviderInternal":
       return true
+    // HTTP transport errors carry no delivery and always retry. WebSocket marks accepted and rejected
+    // requests as final; not-sent and ambiguous (no frame observed) are still pre-output.
     case "Transport":
-      return error.reason.delivery === undefined || error.reason.delivery === "not-sent"
+      return error.reason.delivery !== "accepted" && error.reason.delivery !== "rejected"
     case "InvalidProviderOutput":
       return error.reason.classification === "incomplete-stream"
     // Unrecognized failures retry: classification records affirmative

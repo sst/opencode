@@ -2,7 +2,7 @@ import { NodeServices } from "@effect/platform-node"
 import { Global } from "@opencode/util/global"
 import { AppProcess } from "@opencode/util/process"
 import { expect, spyOn, test } from "bun:test"
-import { Effect, FileSystem, Stream } from "effect"
+import { Effect, FileSystem, PlatformError, Stream } from "effect"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import { existsSync } from "node:fs"
 import path from "node:path"
@@ -18,6 +18,7 @@ function fixture(
     error?: AppProcess.AppProcessError
   } = () => ({}),
   name = "@opencode/cli",
+  failCleanup = false,
 ) {
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem
@@ -57,6 +58,17 @@ function fixture(
       Effect.provideService(Global.Service, global),
       Effect.provideService(FileSystem.FileSystem, {
         ...fs,
+        remove: (target, options) =>
+          failCleanup && target.startsWith(global.cache)
+            ? Effect.fail(
+                PlatformError.systemError({
+                  _tag: "PermissionDenied",
+                  module: "FileSystem",
+                  method: "remove",
+                  pathOrDescriptor: target,
+                }),
+              )
+            : fs.remove(target, options),
         realPath: (input) => (input === process.execPath ? Effect.succeed(executable) : fs.realPath(input)),
       }),
       Effect.provideService(
@@ -88,7 +100,7 @@ function fixture(
 }
 
 const installs = [
-  { method: "npm", command: ["npm", "install", "--global", "@opencode/cli@2.3.4-beta.1"] },
+  { method: "npm", command: ["npm", "install", "--global", "--force", "@opencode/cli@2.3.4-beta.1"] },
   {
     method: "pnpm",
     command: ["pnpm", "add", "--global", "--allow-build=@opencode/cli", "@opencode/cli@2.3.4-beta.1"],
@@ -125,6 +137,14 @@ installs.forEach(({ method, command }) => {
     }),
   )
 })
+
+it.live("bun ignores install cache cleanup failures", () =>
+  Effect.gen(function* () {
+    const test = yield* fixture(() => ({}), "@opencode/cli", true)
+    yield* test.updater.upgrade("bun", "v2.3.4-beta.1")
+    expect(test.commands).toHaveLength(1)
+  }),
+)
 ;["success", "download", "install"].forEach((failure) => {
   it.live(`curl uses the V2 installer and cleans its directory: ${failure}`, () =>
     Effect.gen(function* () {

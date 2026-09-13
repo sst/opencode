@@ -362,7 +362,7 @@ test("dialog actions run without options while row actions still require a selec
   )
 
   try {
-    app.mockInput.pressKey("m", { ctrl: true })
+    app.mockInput.pressKey("a", { ctrl: true })
     app.mockInput.pressKey("d", { ctrl: true })
 
     expect(global).toBe(1)

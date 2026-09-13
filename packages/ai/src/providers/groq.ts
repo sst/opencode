@@ -26,11 +26,11 @@ export type LanguageModelOptions = Omit<RouteDefaultsInput, "providerOptions"> &
     readonly providerOptions?: ProviderOptions
   }
 
-export interface Settings extends ProviderPackage.Settings {
-  readonly apiKey?: string
-  readonly baseURL?: string
-  readonly providerOptions?: ProviderOptions
-}
+export type Settings = ProviderPackage.Settings &
+  ProviderOptions & {
+    readonly apiKey?: string
+    readonly baseURL?: string
+  }
 
 const Options = Schema.Struct({
   includeReasoning: Schema.optional(Schema.Boolean),
@@ -103,13 +103,16 @@ export const configure = (input: LanguageModelOptions = {}) => {
 
 export const provider = configure()
 
-export const model: ProviderPackage.Definition<Settings, ProviderOptions>["model"] = (modelID, settings) =>
+export const model: ProviderPackage.Definition<Settings, ProviderOptions>["model"] = (
+  modelID,
+  { apiKey, baseURL, body, headers, ...providerOptions },
+) =>
   configure({
-    apiKey: settings.apiKey,
-    baseURL: settings.baseURL,
-    headers: settings.headers === undefined ? undefined : { ...settings.headers },
-    http: settings.body === undefined ? undefined : { body: { ...settings.body } },
-    providerOptions: settings.providerOptions,
+    apiKey,
+    baseURL,
+    headers: headers === undefined ? undefined : { ...headers },
+    http: body === undefined ? undefined : { body: { ...body } },
+    providerOptions,
   }).model(modelID)
 
 export * as Groq from "./groq.js"

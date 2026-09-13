@@ -3,10 +3,8 @@ title: "References"
 ---
 
 References give OpenCode named access to directories outside the current
-project. Use them for documentation, shared libraries, examples, or source from
-another repository.
-
-Configure references by alias in `opencode.json` or `opencode.jsonc`:
+project. Add one in `opencode.json` or `opencode.jsonc`, then attach its alias in
+your client when you need it.
 
 ```jsonc title="opencode.jsonc"
 {
@@ -16,16 +14,20 @@ Configure references by alias in `opencode.json` or `opencode.jsonc`:
       "path": "../product-docs",
       "description": "Use for product behavior and terminology",
     },
-    "effect": {
-      "repository": "Effect-TS/effect",
-      "branch": "main",
-      "description": "Use for Effect implementation details",
-    },
   },
 }
 ```
 
-## Local directories
+After attaching `docs`, ask the agent to inspect the relevant path:
+
+```text
+Read the attached docs reference and summarize api/authentication.md.
+```
+
+Use references for documentation, shared libraries, examples, or source from
+another repository.
+
+## Local
 
 Use `path` for a local directory:
 
@@ -40,11 +42,13 @@ Use `path` for a local directory:
 }
 ```
 
-Relative paths resolve from the directory containing the config file that
-defines them. Absolute paths and home-relative paths such as `~/docs` are also
-supported.
+Paths behave as follows:
 
-The string shorthand is useful when no other fields are needed:
+- Relative paths resolve from the directory containing the config file.
+- Absolute paths are supported.
+- Home-relative paths such as `~/docs` are supported.
+
+Use the string shorthand when no other fields are needed:
 
 ```jsonc
 {
@@ -56,14 +60,13 @@ The string shorthand is useful when no other fields are needed:
 ```
 
 <Callout type="note">
-  A shorthand string is treated as a local path only when it starts with `.`, `/`, or `~`. Use `./docs`, not `docs`; a
-  bare `docs` value is interpreted as a Git repository.
+  A shorthand string is a local path only when it starts with `.`, `/`, or `~`. Use `./docs`, not `docs`; a bare `docs`
+  value is interpreted as a Git repository.
 </Callout>
 
-## Git repositories
+## Git
 
-Use `repository` for a remote Git repository. GitHub `owner/repo` shorthand,
-Git URLs, host/path forms, and SCP-style remotes are supported.
+Use `repository` for a remote Git repository:
 
 ```jsonc
 {
@@ -80,12 +83,16 @@ Git URLs, host/path forms, and SCP-style remotes are supported.
 }
 ```
 
-Without `branch`, OpenCode checks out and refreshes the remote's default
-branch. Branch names may contain letters, numbers, `/`, `_`, `.`, and `-`, but
-cannot start with `-` or contain `..`. Local `file:` repositories are not
-supported.
+Supported remote forms include:
 
-Git references also support shorthand:
+- GitHub `owner/repo` shorthand
+- Git URLs
+- Host/path forms
+- SCP-style remotes
+
+Local `file:` repositories are not supported.
+
+Use the string shorthand to follow the remote's default branch:
 
 ```jsonc
 {
@@ -96,47 +103,114 @@ Git references also support shorthand:
 }
 ```
 
-### Cloning and storage
+Without `branch`, OpenCode checks out and refreshes the remote's default branch.
+Branch names may contain letters, numbers, `/`, `_`, `.`, and `-`, but cannot
+start with `-` or contain `..`.
 
-OpenCode normalizes a remote and stores one checkout per remote and branch
-under its global data directory. Without an explicit branch, the checkout is
-stored at `opencode/repos/<host>/<repository-path>`. On a typical Linux
-installation, for example, `Effect-TS/effect` is stored at:
+```jsonc
+{
+  "references": {
+    "sdk": {
+      "repository": "example/sdk",
+      "branch": "release/v2.1",
+    },
+  },
+}
+```
+
+## Storage
+
+OpenCode normalizes each remote and stores one checkout per remote and branch
+under its global data directory. Without an explicit branch, the path uses this
+shape:
+
+```text
+opencode/repos/<host>/<repository-path>
+```
+
+On a typical Linux installation, `Effect-TS/effect` is stored at:
 
 ```text
 ~/.local/share/opencode/repos/github.com/Effect-TS/effect
 ```
 
-An explicit branch adds an encoded `@<branch>` suffix to the checkout path.
+An explicit branch adds an encoded `@<branch>` suffix:
 
-Missing repositories are cloned. When references load or reload, and after a
-new user prompt is admitted in their Location, OpenCode checks them in the
-background. An existing checkout is eligible when its last refresh attempt was
-at least 24 hours ago, or no attempt has been recorded. A refresh fetches and
-resets to the requested branch, or to the remote default branch when `branch`
-is omitted.
+```text
+~/.local/share/opencode/repos/github.com/Effect-TS/effect@main
+```
 
-Refresh timestamps persist across service restarts and are shared by Locations
-using the same checkout. Failed refresh attempts are logged and remain subject
-to the 24-hour limit. There is no periodic polling while a Location is unused.
+## Refresh
 
-Prompts do not wait for background refreshes. An attachment can therefore
-contain older content even if a later tool read sees the updated checkout.
-Initial cloning is also asynchronous, so a new reference can appear before its
-checkout is ready. Clone and refresh failures do not stop other references
-from loading.
+Missing repositories are cloned asynchronously. Existing checkouts are checked
+in the background when references load or reload and after a new user prompt is
+admitted in their Location.
+
+```text
+Prompt admitted → refresh check starts in background → agent continues
+```
+
+A checkout is eligible when its last refresh attempt was at least 24 hours ago,
+or when no attempt has been recorded. A refresh fetches and resets to the
+configured branch or the remote's default branch.
+
+```text
+Last attempt: 25 hours ago → eligible
+Last attempt: 2 hours ago  → skipped
+```
+
+Refresh behavior follows these rules:
+
+- Timestamps persist across service restarts.
+- Locations using the same checkout share its timestamp.
+- Failed attempts are logged and remain subject to the 24-hour limit.
+- There is no periodic polling while a Location is unused.
+- Clone or refresh failures do not stop other references from loading.
+
+Prompts do not wait for cloning or refreshing. An attachment can contain older
+content even if a later tool read sees the updated checkout, and a new reference
+can appear before its checkout is ready.
+
+```text
+Attachment created → cached content
+Background refresh completes → later tool read sees newer content
+```
 
 <Callout type="warning">
   Cached checkouts are shared and can update while an agent is using them. Avoid editing cached checkouts because a
   refresh resets them.
 </Callout>
 
-## Description and visibility
+## Guidance
 
 `description` tells agents when a reference is relevant. References with a
-description are included in agent instructions with their alias and resolved
-path. References without one remain available to clients but are not advertised
-automatically.
+description appear in agent instructions with their alias and resolved path.
+
+```jsonc
+{
+  "references": {
+    "docs": {
+      "path": "../docs",
+      "description": "Use for product behavior and terminology",
+    },
+  },
+}
+```
+
+References without a description remain available to clients but are not
+advertised automatically.
+
+```jsonc
+{
+  "references": {
+    "archive": {
+      "path": "../archive",
+    },
+  },
+}
+```
+
+## Visibility
 
 Set `hidden` to `true` to remove a reference from interactive client selectors:
 
@@ -152,20 +226,32 @@ Set `hidden` to `true` to remove a reference from interactive client selectors:
 }
 ```
 
-`hidden` controls only interactive visibility. It does not remove the
-reference from the reference API or agent instructions when a description is
-present.
+`hidden` affects only interactive visibility. The reference remains in the
+reference API and, when it has a description, in agent instructions.
 
-## Use references
+## Usage
 
-Clients can attach a reference by its root alias. The attachment provides a
-non-recursive listing of the root's immediate files and directories. Ask the
-agent to inspect a particular path when more detail is needed.
+Clients attach a reference by its root alias. The attachment contains a
+non-recursive listing of the root's immediate files and directories.
+
+```text
+Attached alias: docs
+Ask: Inspect docs/guides/deployment.md and explain the deployment steps.
+```
+
+Ask the agent to inspect a specific path when you need content below the root.
+
+## Permissions
 
 References do not grant extra tool permissions. Access outside the active
-Location remains subject to the agent's normal tool rules and the
-`external_directory` permission. Editing a reference additionally requires the
-applicable edit permission.
+Location still follows normal tool rules and the `external_directory`
+permission; editing also requires the applicable edit permission.
+
+```text
+Read ../product-docs/api.md
+```
+
+The request succeeds only when the active permissions allow that external read.
 
 ## Fields
 
@@ -177,5 +263,28 @@ applicable edit permission.
 | `description` | Optional | Optional | Guidance describing when agents should use it |
 | `hidden`      | Optional | Optional | Hide it from interactive client selectors     |
 
+A complete Git entry can use every Git-compatible field:
+
+```jsonc
+{
+  "references": {
+    "sdk": {
+      "repository": "example/sdk",
+      "branch": "main",
+      "description": "Use for SDK implementation details",
+      "hidden": false,
+    },
+  },
+}
+```
+
+## Aliases
+
 An alias cannot be empty or contain `/`, `\`, whitespace, a backtick, or a
 comma.
+
+```text
+Valid:   docs
+Invalid: product docs
+Invalid: docs/api
+```

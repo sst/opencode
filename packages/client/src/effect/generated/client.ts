@@ -68,6 +68,8 @@ import type {
   SessionRevertCommitOutput,
   SessionContextInput,
   SessionContextOutput,
+  SessionDiffInput,
+  SessionDiffOutput,
   SessionInboxListInput,
   SessionInboxListOutput,
   SessionInboxCancelInput,
@@ -92,8 +94,6 @@ import type {
   SessionBackgroundOutput,
   SessionMessageInput,
   SessionMessageOutput,
-  SessionMessageUpdateInput,
-  SessionMessageUpdateOutput,
   SessionEnvironmentInput,
   SessionEnvironmentOutput,
   SessionViewInput,
@@ -183,6 +183,8 @@ import type {
   PermissionGetOutput,
   PermissionReplyInput,
   PermissionReplyOutput,
+  PermissionRulesInput,
+  PermissionRulesOutput,
   FileListInput,
   FileListOutput,
   FileFindInput,
@@ -270,6 +272,10 @@ import type {
   WebsearchQueryOutput,
   ConfigGetInput,
   ConfigGetOutput,
+  ConfigPreferencesOutput,
+  ConfigUpdatePreferencesInput,
+  ConfigUpdatePreferencesOutput,
+  ConfigShellsOutput,
 } from "../api/api.js"
 import { ClientError } from "./client-error.js"
 
@@ -397,6 +403,7 @@ const EndpointSessionCreate = (raw: RawClient["server.session"]) => (input?: Ses
         model: input?.["model"],
         location: input?.["location"],
         metadata: input?.["metadata"],
+        permissions: input?.["permissions"],
       },
     }).pipe(
       Effect.mapError(mapClientError),
@@ -594,6 +601,17 @@ const EndpointSessionContext = (raw: RawClient["server.session"]) => (input: Ses
     ),
   )
 
+const EndpointSessionDiff = (raw: RawClient["server.session"]) => (input: SessionDiffInput) =>
+  preserveEffect<SessionDiffOutput>()(
+    raw["session.diff"]({
+      params: { sessionID: input["sessionID"] },
+      query: { from: input["from"], to: input["to"], context: input["context"] },
+    }).pipe(
+      Effect.mapError(mapClientError),
+      Effect.map((value) => value.data),
+    ),
+  )
+
 const EndpointSessionInboxList = (raw: RawClient["server.session"]) => (input: SessionInboxListInput) =>
   preserveEffect<SessionInboxListOutput>()(
     raw["session.inbox.list"]({ params: { sessionID: input["sessionID"] } }).pipe(
@@ -691,17 +709,6 @@ const EndpointSessionMessage = (raw: RawClient["server.session"]) => (input: Ses
     ),
   )
 
-const EndpointSessionMessageUpdate = (raw: RawClient["server.session"]) => (input: SessionMessageUpdateInput) =>
-  preserveEffect<SessionMessageUpdateOutput>()(
-    raw["session.messageUpdate"]({
-      params: { sessionID: input["sessionID"], messageID: input["messageID"] },
-      payload: { content: input["content"] },
-    }).pipe(
-      Effect.mapError(mapClientError),
-      Effect.map((value) => value.data),
-    ),
-  )
-
 const EndpointSessionEnvironment = (raw: RawClient["server.session"]) => (input: SessionEnvironmentInput) =>
   preserveEffect<SessionEnvironmentOutput>()(
     raw["session.environment"]({
@@ -744,6 +751,7 @@ const adaptGroupSession = (raw: RawClient["server.session"]) => ({
     commit: EndpointSessionRevertCommit(raw),
   },
   context: EndpointSessionContext(raw),
+  diff: EndpointSessionDiff(raw),
   inbox: {
     list: EndpointSessionInboxList(raw),
     cancel: EndpointSessionInboxCancel(raw),
@@ -762,7 +770,6 @@ const adaptGroupSession = (raw: RawClient["server.session"]) => ({
   interrupt: EndpointSessionInterrupt(raw),
   background: EndpointSessionBackground(raw),
   message: EndpointSessionMessage(raw),
-  messageUpdate: EndpointSessionMessageUpdate(raw),
   environment: EndpointSessionEnvironment(raw),
   view: EndpointSessionView(raw),
 })
@@ -771,7 +778,7 @@ const EndpointMessageList = (raw: RawClient["server.message"]) => (input: Messag
   preserveEffect<MessageListOutput>()(
     raw["session.messages"]({
       params: { sessionID: input["sessionID"] },
-      query: { limit: input["limit"], order: input["order"], cursor: input["cursor"] },
+      query: { limit: input["limit"], order: input["order"], cursor: input["cursor"], type: input["type"] },
     }).pipe(Effect.mapError(mapClientError)),
   )
 
@@ -1159,6 +1166,14 @@ const EndpointPermissionReply = (raw: RawClient["server.permission"]) => (input:
     }).pipe(Effect.mapError(mapClientError)),
   )
 
+const EndpointPermissionRules = (raw: RawClient["server.permission"]) => (input: PermissionRulesInput) =>
+  preserveEffect<PermissionRulesOutput>()(
+    raw["session.permission.rules"]({
+      params: { sessionID: input["sessionID"] },
+      payload: { permissions: input["permissions"] },
+    }).pipe(Effect.mapError(mapClientError)),
+  )
+
 const adaptGroupPermission = (raw: RawClient["server.permission"]) => ({
   request: { list: EndpointPermissionRequestList(raw) },
   saved: { list: EndpointPermissionSavedList(raw), remove: EndpointPermissionSavedRemove(raw) },
@@ -1166,6 +1181,7 @@ const adaptGroupPermission = (raw: RawClient["server.permission"]) => ({
   list: EndpointPermissionList(raw),
   get: EndpointPermissionGet(raw),
   reply: EndpointPermissionReply(raw),
+  rules: EndpointPermissionRules(raw),
 })
 
 const EndpointFileList = (raw: RawClient["server.fs"]) => (input?: FileListInput) =>
@@ -1585,7 +1601,25 @@ const EndpointConfigGet = (raw: RawClient["server.config"]) => (input?: ConfigGe
     raw["config.get"]({ query: { location: input?.["location"] } }).pipe(Effect.mapError(mapClientError)),
   )
 
-const adaptGroupConfig = (raw: RawClient["server.config"]) => ({ get: EndpointConfigGet(raw) })
+const EndpointConfigPreferences = (raw: RawClient["server.config"]) => () =>
+  preserveEffect<ConfigPreferencesOutput>()(raw["config.preferences"]({}).pipe(Effect.mapError(mapClientError)))
+
+const EndpointConfigUpdatePreferences = (raw: RawClient["server.config"]) => (input?: ConfigUpdatePreferencesInput) =>
+  preserveEffect<ConfigUpdatePreferencesOutput>()(
+    raw["config.updatePreferences"]({ payload: { shell: input?.["shell"], websearch: input?.["websearch"] } }).pipe(
+      Effect.mapError(mapClientError),
+    ),
+  )
+
+const EndpointConfigShells = (raw: RawClient["server.config"]) => () =>
+  preserveEffect<ConfigShellsOutput>()(raw["config.shells"]({}).pipe(Effect.mapError(mapClientError)))
+
+const adaptGroupConfig = (raw: RawClient["server.config"]) => ({
+  get: EndpointConfigGet(raw),
+  preferences: EndpointConfigPreferences(raw),
+  updatePreferences: EndpointConfigUpdatePreferences(raw),
+  shells: EndpointConfigShells(raw),
+})
 
 const adaptClient = (raw: RawClient) => ({
   health: adaptGroupHealth(raw["server.health"]),

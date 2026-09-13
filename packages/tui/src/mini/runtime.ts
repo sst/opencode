@@ -22,6 +22,7 @@ import {
 } from "./runtime.boot"
 import { createRuntimeLifecycle } from "./runtime.lifecycle"
 import { cycleVariant, formatModelLabel, resolveVariant } from "./variant.shared"
+import { verbosityPreset } from "./verbosity"
 import type {
   LocalReplayRow,
   MiniHost,
@@ -255,6 +256,10 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
       ? async (change) => {
           const info = await config.update((draft) => {
             if (!draft.mini || typeof draft.mini !== "object") draft.mini = {}
+            if (change.key === "verbosity") {
+              Object.assign(draft.mini, verbosityPreset(change.value))
+              return
+            }
             draft.mini[change.key] = change.value
           })
           configState.current = resolveMiniSettings(info)
@@ -793,6 +798,7 @@ async function runInteractiveRuntime(input: RunRuntimeInput, deps: RunRuntimeDep
         location: state.location,
         sessionID: state.sessionID,
         thinking: thinking(),
+        tools: configState.current.tools === "show",
         replay: input.replay,
         replayLimit: input.replayLimit,
         footer,

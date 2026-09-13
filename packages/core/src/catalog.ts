@@ -77,6 +77,7 @@ const layer = Layer.effect(
         ...(provider.canonical === undefined ? {} : { canonical: provider.canonical }),
         package: model.package ?? provider.package,
         compaction: model.compaction ?? provider.compaction,
+        websocket: model.websocket ?? provider.websocket,
         settings: Provider.mergeOverlay(provider.settings, model.settings),
         headers: Provider.mergeHeaders(provider.headers, model.headers),
         body: Provider.mergeOverlay(provider.body, model.body),

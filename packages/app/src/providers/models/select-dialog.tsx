@@ -1,7 +1,7 @@
 import { Popover } from "@kobalte/core/popover"
 import { Component, ComponentProps, createEffect, createMemo, For, JSX, Show } from "solid-js"
 import { createStore } from "solid-js/store"
-import { useLocal } from "@/providers/models/selection"
+import { useLocal, type ModelSelection } from "@/providers/models/selection"
 import { useDialog } from "@opencode/ui/context/dialog"
 import { popularProviders } from "@/providers/catalog/providers"
 import { Button } from "@opencode/ui/button"
@@ -27,7 +27,7 @@ import "@/settings/settings.css"
 const isFree = (provider: string, cost: { input: number } | undefined) =>
   provider === "opencode" && (!cost || cost.input === 0)
 
-type ModelState = ReturnType<typeof useLocal>["model"]
+type ModelState = ModelSelection
 type ModelItem = ReturnType<ModelState["list"]>[number]
 
 const modelKey = (model: ModelItem) => `${model.provider.id}:${model.id}`
@@ -162,12 +162,12 @@ const ModelList: Component<{
                         </span>
                         <span class="settings-models-group-label">
                           <ProviderIcon id={group.category} width={16} height={16} class="shrink-0" />
-                          <span class="settings-section-title">{group.items[0].provider.name}</span>
+                          <span class="settings-models-group-title">{group.items[0].provider.name}</span>
                         </span>
                       </button>
                     </h3>
                     <Show when={open()}>
-                      <SettingsList>
+                      <SettingsList variant="catalog">
                         <For each={group.items}>
                           {(item) => (
                             <button
@@ -314,7 +314,7 @@ function ModelSelectorPopoverView(props: {
 
   const models = createMemo(() => props.models(store.search))
   const groups = createMemo(() => props.groups(models()))
-  const keys = () => [...models().map(modelKey), manageKey]
+  const keys = () => [...groups().flatMap((group) => group.items.map(modelKey)), manageKey]
   const initialActive = () => {
     const selected = props.current
     const options = keys()

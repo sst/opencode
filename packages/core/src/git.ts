@@ -9,6 +9,7 @@ import { AppProcess } from "@opencode/util/process"
 import { makeGlobalNode } from "@opencode/util/effect/app-node"
 import { File } from "./file.js"
 import { KeyedMutex } from "./effect/keyed-mutex.js"
+import { VcsPatch } from "./vcs/patch.js"
 
 export class Repository extends Schema.Class<Repository>("Git.Repository")({
   worktree: AbsolutePath,
@@ -308,7 +309,7 @@ const layer = Layer.effect(
       operationName: OperationError["operation"],
       repository: Repository,
       args: string[],
-      options?: { stdin?: string; env?: Record<string, string> },
+      options?: { stdin?: string; env?: Record<string, string>; maxOutputBytes?: number },
     ) {
       const result = yield* proc
         .run(
@@ -317,7 +318,7 @@ const layer = Layer.effect(
             env: options?.env,
             extendEnv: true,
           }),
-          { stdin: options?.stdin },
+          { stdin: options?.stdin, maxOutputBytes: options?.maxOutputBytes },
         )
         .pipe(
           Effect.mapError(
@@ -331,7 +332,8 @@ const layer = Layer.effect(
           ),
         )
       const text = result.stdout.toString("utf8")
-      if (result.exitCode === 0) return { text, stderr: result.stderr.toString("utf8") }
+      if (result.exitCode === 0)
+        return { text, stderr: result.stderr.toString("utf8"), truncated: result.stdoutTruncated }
       return yield* new OperationError({
         operation: operationName,
         directory: repository.worktree,
@@ -385,9 +387,7 @@ const layer = Layer.effect(
       maximumUntrackedFileBytes?: number
     }) {
       const list = (args: string[]) =>
-        repositoryOperation("refresh", input.repository, args).pipe(
-          Effect.map((result) => result.text.split("\0").filter(Boolean)),
-        )
+        repositoryOperation("refresh", input.repository, args).pipe(Effect.map((result) => nuls(result.text)))
       const [tracked, untracked] = yield* Effect.all(
         [
           list(["diff-files", "--name-only", "-z", "--", input.scope]),
@@ -464,13 +464,7 @@ const layer = Layer.effect(
           directory: input.repository.worktree,
           message: result.stderr.toString("utf8").trim() || "Failed to check ignored paths",
         })
-      return new Set(
-        result.stdout
-          .toString("utf8")
-          .split("\0")
-          .filter(Boolean)
-          .map((file) => RelativePath.make(file)),
-      )
+      return new Set(nuls(result.stdout.toString("utf8")).map((file) => RelativePath.make(file)))
     })
 
     const writeTree = Effect.fn("Git.tree.write")(function* (repository: Repository) {
@@ -499,19 +493,23 @@ const layer = Layer.effect(
       to: TreeID
     }) {
       // Undo needs both paths of a rename, not only its destination.
-      return (yield* repositoryOperation("list_files", input.repository, [
-        "diff",
-        "--name-only",
-        "--no-renames",
-        "-z",
-        input.from,
-        input.to,
-      ])).text
-        .split("\0")
-        .filter(Boolean)
-        .map((file) => RelativePath.make(file))
+      return nuls(
+        (yield* repositoryOperation("list_files", input.repository, [
+          "diff",
+          "--name-only",
+          "--no-renames",
+          "-z",
+          input.from,
+          input.to,
+        ])).text,
+      ).map((file) => RelativePath.make(file))
     })
 
+    /**
+     * Three batched invocations over the tree pair instead of three per file. An
+     * explicit empty selection diffs nothing; an absent one diffs every changed path.
+     * Patch output is capped like VCS diffs: files past the cap get an empty patch.
+     */
     const treeDiff = Effect.fn("Git.tree.diff")(function* (input: {
       repository: Repository
       from: TreeID
@@ -519,49 +517,57 @@ const layer = Layer.effect(
       context?: number
       paths?: readonly RelativePath[]
     }) {
-      const paths = input.paths ?? (yield* treeFiles(input))
-      return yield* Effect.forEach(paths, (file) =>
-        Effect.gen(function* () {
-          const statusText = (yield* repositoryOperation("diff", input.repository, [
+      if (input.paths?.length === 0) return []
+      const args = ["--no-renames", input.from, input.to, "--", ...(input.paths ?? [])]
+      // Patch headers have no -z form: unquoted paths keep chunksByFile matching non-ASCII names.
+      const [names, numbers, patch] = yield* Effect.all(
+        [
+          repositoryOperation("diff", input.repository, ["diff", "--name-status", "-z", ...args]),
+          repositoryOperation("diff", input.repository, ["diff", "--numstat", "-z", ...args]),
+          repositoryOperation(
             "diff",
-            "--name-status",
-            "--no-renames",
-            input.from,
-            input.to,
-            "--",
-            file,
-          ])).text.trim()
-          const status = statusText.startsWith("A") ? "added" : statusText.startsWith("D") ? "deleted" : "modified"
-          const stats = (yield* repositoryOperation("diff", input.repository, [
-            "diff",
-            "--numstat",
-            "--no-renames",
-            input.from,
-            input.to,
-            "--",
-            file,
-          ])).text.split("\t")
-          const binary = stats[0] === "-" || stats[1] === "-"
-          const patch = binary
-            ? ""
-            : (yield* repositoryOperation("diff", input.repository, [
-                "diff",
-                `--unified=${input.context ?? 3}`,
-                "--no-renames",
-                input.from,
-                input.to,
-                "--",
-                file,
-              ])).text
-          return {
-            file,
-            status,
-            additions: binary ? 0 : Number(stats[0] ?? 0),
-            deletions: binary ? 0 : Number(stats[1] ?? 0),
-            patch,
-          } satisfies File.Diff
+            input.repository,
+            ["-c", "core.quotepath=false", "diff", "--no-ext-diff", `--unified=${input.context ?? 3}`, ...args],
+            { maxOutputBytes: VcsPatch.MAX_TOTAL_PATCH_BYTES },
+          ),
+        ],
+        { concurrency: 3 },
+      )
+      const statuses = nuls(names.text)
+      const files = statuses.flatMap((code, index) => {
+        const file = statuses[index + 1]
+        if (index % 2 !== 0 || !file) return []
+        return [
+          {
+            file: RelativePath.make(file),
+            status: code.startsWith("A") ? "added" : code.startsWith("D") ? "deleted" : "modified",
+          } as const,
+        ]
+      })
+      const stats = new Map(
+        nuls(numbers.text).flatMap((line) => {
+          const [additions, deletions, ...file] = line.split("\t")
+          if (!additions || !deletions || file.length === 0) return []
+          return [
+            [
+              file.join("\t"),
+              additions === "-" || deletions === "-"
+                ? { binary: true, additions: 0, deletions: 0 }
+                : { binary: false, additions: Number(additions), deletions: Number(deletions) },
+            ] as const,
+          ]
         }),
       )
+      const patches = VcsPatch.chunksByFile(patch, (index) => files[index]?.file)
+      return files.map((entry) => {
+        const stat = stats.get(entry.file)
+        return {
+          ...entry,
+          additions: stat?.additions ?? 0,
+          deletions: stat?.deletions ?? 0,
+          patch: stat?.binary ? "" : (patches.get(entry.file) ?? VcsPatch.emptyPatch(entry.file)),
+        } satisfies File.Diff
+      })
     })
 
     const hasEntry = Effect.fnUntraced(function* (repository: Repository, tree: TreeID, file: RelativePath) {
@@ -731,6 +737,11 @@ function execute(cwd: string, proc: AppProcess.Interface, args: string[]) {
           }) satisfies Result,
       ),
     )
+}
+
+/** Split NUL-terminated git output into its records. */
+function nuls(text: string) {
+  return text.split("\0").filter(Boolean)
 }
 
 function resolvePath(cwd: string, value: string) {

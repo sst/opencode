@@ -2,6 +2,7 @@ export * as ShellTool from "./shell.js"
 
 import { ToolFailure } from "@opencode/ai"
 import type { Context } from "@opencode/plugin/effect/plugin"
+import type { SessionHooks } from "@opencode/plugin/effect/session"
 import type { ShellCreateBefore } from "@opencode/plugin/effect/shell"
 import type { Tool } from "@opencode/schema/tool"
 import { Deferred, Effect, Schema, Scope } from "effect"
@@ -22,7 +23,7 @@ export const name = "shell"
 export const DEFAULT_TIMEOUT_MS = 2 * 60 * 1_000
 
 const BACKGROUND_INSTRUCTION =
-  "You will be notified automatically when the command finishes. The notification will include the command's output. DO NOT run sleep commands or poll the output file to check for completion. You can read from the file when its current output would be useful, such as when inspecting logs from a background server. Otherwise, continue with other work or end your response."
+  "You will be notified automatically when the command finishes. The notification will include the command's output. Unless the user explicitly asks otherwise, DO NOT poll for completion, even if you need the final result to continue. Repeatedly sleeping and reading or searching the output file is polling, not useful work. You may read the current output if it lets you do useful work now, but do not repeatedly check it while waiting for the command to finish. Keep working on anything that does not depend on the result. If you have nothing else to do, end your response; you will be resumed automatically when the command finishes."
 const OS =
   process.platform === "darwin"
     ? "macOS"
@@ -271,12 +272,14 @@ export const Plugin = {
       )
       .pipe(Effect.orDie)
 
-    yield* ctx.session.hook("context", (event) =>
+    const hook = (event: SessionHooks["context"]) =>
       Effect.gen(function* () {
         const tool = event.tools[name]
         if (!tool) return
         tool.description = description(ShellSelect.name(yield* compatibleShell))
-      }),
-    )
+      })
+    yield* ctx.session.hook("context", hook)
+    yield* ctx.session.hook("compaction", hook)
+    yield* ctx.session.hook("generate", hook)
   }),
 }

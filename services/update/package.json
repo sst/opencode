@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@opencode/update",
+  "version": "2.0.3",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "db:migrate": "wrangler d1 migrations apply DB --remote",
+    "test": "bun test",
+    "typecheck": "tsgo --noEmit"
+  },
+  "dependencies": {
+    "jose": "6.0.11",
+    "semver": "catalog:",
+    "yaml": "2.9.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "@tsconfig/node22": "catalog:",
+    "@types/bun": "catalog:",
+    "@types/semver": "catalog:",
+    "@typescript/native-preview": "catalog:",
+    "wrangler": "4.110.0"
+  }
+}

@@ -334,9 +334,18 @@ export function BasicTool(props: BasicToolProps) {
         </div>
       </Show>
       <Show when={!props.animated && hasChildren() && !props.hideDetails}>
-        <Collapsible.Content>
-          <Show when={!props.defer || ready()}>{props.children}</Show>
-        </Collapsible.Content>
+        <Show
+          when={props.locked && open() && !props.defer}
+          fallback={
+            <Collapsible.Content>
+              <Show when={!props.defer || ready()}>{props.children}</Show>
+            </Collapsible.Content>
+          }
+        >
+          <div data-slot="collapsible-content" data-expanded="">
+            {props.children}
+          </div>
+        </Show>
       </Show>
     </Collapsible>
   )

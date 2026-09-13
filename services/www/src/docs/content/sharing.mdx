@@ -1,35 +1,5 @@
 ---
-title: "Session sharing"
+title: "Sharing"
 ---
 
-Session sharing is not yet available in OpenCode V2. V2 does not currently
-publish sessions, upload conversation history to a sharing service, or create
-public links.
-
-There is no functional share or unshare server API endpoint.
-
-## Configuration
-
-The V2 configuration schema accepts a `share` field with three values:
-
-```jsonc title="opencode.jsonc"
-{
-  "$schema": "https://opencode.ai/config.json",
-  "share": "manual",
-}
-```
-
-- `"manual"` represents sharing only when explicitly requested.
-- `"auto"` represents automatically sharing new sessions.
-- `"disabled"` represents preventing session sharing.
-
-These values are parsed but are not acted on by the current V2 runtime. In
-particular, setting `"auto"` does not publish sessions. If `share` is omitted,
-V2 leaves the sharing policy unspecified.
-
-## Beta limitations
-
-V2 currently provides no public session viewer, share URL, history sync,
-retention controls, or unshare/delete operation. Until those surfaces are
-implemented in the V2 server and protocol, keep using sessions locally and do
-not treat the `share` configuration field as a privacy or publishing control.
+OpenCode V2 does not support session sharing yet.

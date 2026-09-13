@@ -1,5 +1,14 @@
 import { expect } from "bun:test"
-import { LLMClient, LLMEvent, LLMResponse, LanguageModel, ToolDefinition, type LLMRequest } from "@opencode/ai"
+import {
+  LLMClient,
+  LLMEvent,
+  LLMResponse,
+  LanguageModel,
+  Message,
+  SystemPart,
+  ToolDefinition,
+  type LLMRequest,
+} from "@opencode/ai"
 import { OpenAIChat } from "@opencode/ai/protocols"
 import type { StreamOptions } from "@opencode/ai/route"
 import { Agent } from "@opencode/core/agent"
@@ -38,6 +47,7 @@ import {
 import { SessionStore } from "@opencode/core/session/store"
 import { SkillInstructions } from "@opencode/core/skill/instructions"
 import { Plugin } from "@opencode/core/plugin"
+import { PluginHooks } from "@opencode/core/plugin/hooks"
 import { PluginSupervisor } from "@opencode/core/plugin/supervisor"
 import { Tool } from "@opencode/core/tool"
 import { asc, eq } from "drizzle-orm"
@@ -134,6 +144,7 @@ const it = testEffect(
       Agent.node,
       InstructionBuiltIns.node,
       SessionContext.node,
+      PluginHooks.node,
       llmClient,
     ]),
     [
@@ -340,6 +351,43 @@ it.effect(
       expect(requests[0]?.toolChoice).toBeUndefined()
       expect(options[0]?.webSocket).toBeUndefined()
       expect(yield* durableState(db, sessionID)).toEqual(before)
+    }),
+  { timeout: 15_000 },
+)
+
+it.effect(
+  "runs generate hooks instead of context hooks",
+  () =>
+    Effect.gen(function* () {
+      requests.length = 0
+      instruction = "Initial context"
+      const { db, bus, instructions, session, instances } = yield* setup
+      yield* InstructionState.prepare(db, bus, instructions, sessionID)
+      const hooks = yield* PluginHooks.Service
+      let contexts = 0
+      yield* hooks.register("session", "context", () => Effect.sync(() => contexts++))
+      yield* hooks.register("session", "generate", (event) =>
+        Effect.sync(() => {
+          expect(event.sessionID).toBe(sessionID)
+          expect(event.agent).toBe(Agent.ID.make("build"))
+          expect(Object.keys(event.tools)).toEqual(["lookup"])
+          event.system.push(SystemPart.make("Answer briefly."))
+          event.messages = [Message.user("[redacted]")]
+          event.options.maxTokens = 32
+          event.options.reasoningEffort = "low"
+        }),
+      )
+
+      yield* SessionGenerate.generate({ session, prompt: "Summarize privately" }).pipe(
+        Effect.provideService(Instance.Service, instances),
+      )
+
+      expect(contexts).toBe(0)
+      expect(requests).toHaveLength(1)
+      expect(requests[0]?.system.map((part) => part.text)).toContain("Answer briefly.")
+      expect(userTexts(requests[0])).toEqual(["[redacted]"])
+      expect(requests[0]?.generation).toEqual(expect.objectContaining({ maxTokens: 32 }))
+      expect(requests[0]?.providerOptions).toEqual({ reasoningEffort: "low" })
     }),
   { timeout: 15_000 },
 )

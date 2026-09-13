@@ -90,6 +90,53 @@ describe("WebFetchTool helpers", () => {
     )
   })
 
+  test.each([
+    ["`x`", "`` `x` ``"],
+    ["`x", "`` `x ``"],
+    ["x`", "`` x` ``"],
+    ["`", "`` ` ``"],
+    ["``", "``` `` ```"],
+    ["``x`", "``` ``x` ```"],
+    ["say(`x`)", "``say(`x`)``"],
+    ["a``b`c", "```a``b`c```"],
+    ["x", "`x`"],
+    [" x ", "`  x  `"],
+    [" x", "`  x `"],
+    ["x ", "` x  `"],
+    ["   ", "`   `"],
+    [" ` ", "``  `  ``"],
+  ])("preserves inline code boundaries for %j", (content, expected) => {
+    expect(WebFetchTool.convertHTMLToMarkdown(`<p>Use <code>${content}</code>.</p>`)).toBe(`Use ${expected}.`)
+  })
+
+  test.each([
+    ["discarded trailing backtick after ASCII", "x`", 7, "``x``"],
+    ["discarded trailing backtick after Unicode", "😀`", 10, "``😀``"],
+    ["discarded trailing backtick with spare room", "x`", 9, "``x``"],
+    ["retained trailing backtick", "x`", 10, "`` x` ``"],
+    ["new trailing backtick from an internal run", "x`y", 8, "``x``"],
+    ["leading backtick without padding room", "`x", 8, ""],
+    ["leading backtick alone fits", "`x", 9, "`` ` ``"],
+    ["leading backtick with payload fits", "`x", 10, "`` `x ``"],
+    ["all backticks truncated", "``", 11, "``` ` ```"],
+    ["all backticks fit", "``", 12, "``` `` ```"],
+    ["mixed internal runs truncated", "a``b`c", 11, "```a```"],
+    ["Unicode code point cannot fit", "😀`", 9, ""],
+    ["ordinary payload cannot fit", "x", 3, ""],
+    ["spaces cannot fit", "   ", 4, ""],
+    ["space-only prefix fits", "   ", 5, "` `"],
+    ["truncated prefix becomes space-only", " x", 6, "` `"],
+    ["discarded trailing space", "x ", 5, "`x`"],
+  ] as const)("fits inline code to its emitted boundaries: %s", (_name, content, spare, expected) => {
+    const prefix = "x".repeat(WebFetchTool.MAX_RESPONSE_BYTES - 64 * 1024 - spare)
+    const html = `<p>${prefix}<code>${content}</code></p>`
+    expect(Buffer.byteLength(html)).toBeLessThanOrEqual(WebFetchTool.MAX_RESPONSE_BYTES)
+    const output = WebFetchTool.convertHTMLToMarkdown(html)
+    expect(output.slice(0, prefix.length)).toBe(prefix)
+    expect(output.slice(prefix.length)).toBe(expected)
+    expect(Buffer.byteLength(output)).toBeLessThanOrEqual(WebFetchTool.MAX_RESPONSE_BYTES)
+  })
+
   test("keeps nested ordered and unordered lists structurally readable", () => {
     const html = `<ol start="3"><li>alpha<ul><li>nested <strong>item</strong></li></ul></li><li><p>beta first</p><p>beta second</p></li></ol>`
     expect(WebFetchTool.convertHTMLToMarkdown(html)).toBe(

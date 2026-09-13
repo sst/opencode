@@ -203,7 +203,7 @@ function variants(remote: UsableModel, messages: boolean): Model.Info["variants"
       settings: {
         thinking: {
           type: "adaptive",
-          ...(remote.id.includes("opus-4.7") ? { display: "summarized" } : {}),
+          display: "summarized",
         },
         effort,
       },

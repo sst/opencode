@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "metadata": {
+    "tags": [
+      "prefix:alibaba-responses",
+      "provider:alibaba",
+      "protocol:alibaba-responses",
+      "region:ap-southeast-1",
+      "text",
+      "reasoning",
+      "usage"
+    ],
+    "name": "alibaba-responses/qwen-3-8-max-streams-none-effort",
+    "recordedAt": "2026-09-08T03:10:16.259Z"
+  },
+  "interactions": [
+    {
+      "transport": "http",
+      "request": {
+        "method": "POST",
+        "url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/responses",
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"model\":\"qwen3.8-max\",\"input\":[{\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"What is 173 multiplied by 219? Reply with only the final integer.\"}]}],\"reasoning\":{\"effort\":\"none\"},\"max_output_tokens\":4096,\"stream\":true}"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/event-stream;charset=UTF-8"
+        },
+        "body": "id:1\nevent:response.created\n:HTTP_STATUS/200\ndata:{\"sequence_number\":0,\"type\":\"response.created\",\"response\":{\"top_logprobs\":0,\"metadata\":{},\"presence_penalty\":0.0,\"reasoning\":{\"effort\":\"none\"},\"created_at\":1788837016,\"store\":true,\"tools\":[],\"output\":[],\"top_p\":1.0,\"completed_at\":1788837016,\"frequency_penalty\":0.0,\"parallel_tool_calls\":true,\"background\":false,\"temperature\":1.0,\"tool_choice\":\"auto\",\"model\":\"qwen3.8-max\",\"service_tier\":\"default\",\"id\":\"resp_25a2d379-9830-903b-b2d6-86d4f270a5f3\",\"max_output_tokens\":4096,\"object\":\"response\",\"status\":\"queued\"}}\n\nid:2\nevent:response.in_progress\n:HTTP_STATUS/200\ndata:{\"sequence_number\":1,\"type\":\"response.in_progress\",\"response\":{\"top_logprobs\":0,\"metadata\":{},\"presence_penalty\":0.0,\"reasoning\":{\"effort\":\"none\"},\"created_at\":1788837016,\"store\":true,\"tools\":[],\"output\":[],\"top_p\":1.0,\"completed_at\":1788837016,\"frequency_penalty\":0.0,\"parallel_tool_calls\":true,\"background\":false,\"temperature\":1.0,\"tool_choice\":\"auto\",\"model\":\"qwen3.8-max\",\"service_tier\":\"default\",\"id\":\"resp_25a2d379-9830-903b-b2d6-86d4f270a5f3\",\"max_output_tokens\":4096,\"object\":\"response\",\"status\":\"in_progress\"}}\n\nid:3\nevent:response.output_item.added\n:HTTP_STATUS/200\ndata:{\"sequence_number\":2,\"item\":{\"id\":\"msg_c5e3e012-16b0-4755-97a1-f610184b536d\",\"role\":\"assistant\",\"type\":\"message\",\"content\":[],\"status\":\"in_progress\"},\"output_index\":0,\"type\":\"response.output_item.added\"}\n\nid:4\nevent:response.content_part.added\n:HTTP_STATUS/200\ndata:{\"sequence_number\":3,\"output_index\":0,\"type\":\"response.content_part.added\",\"content_index\":0,\"item_id\":\"msg_c5e3e012-16b0-4755-97a1-f610184b536d\",\"part\":{\"type\":\"output_text\",\"annotations\":[],\"text\":\"\"}}\n\nid:5\nevent:response.output_text.delta\n:HTTP_STATUS/200\ndata:{\"sequence_number\":4,\"content_index\":0,\"item_id\":\"msg_c5e3e012-16b0-4755-97a1-f610184b536d\",\"delta\":\"3\",\"output_index\":0,\"type\":\"response.output_text.delta\",\"logprobs\":[]}\n\nid:6\nevent:response.output_text.delta\n:HTTP_STATUS/200\ndata:{\"sequence_number\":5,\"content_index\":0,\"item_id\":\"msg_c5e3e012-16b0-4755-97a1-f610184b536d\",\"delta\":\"78\",\"output_index\":0,\"type\":\"response.output_text.delta\",\"logprobs\":[]}\n\nid:7\nevent:response.output_text.delta\n:HTTP_STATUS/200\ndata:{\"sequence_number\":6,\"content_index\":0,\"item_id\":\"msg_c5e3e012-16b0-4755-97a1-f610184b536d\",\"delta\":\"87\",\"output_index\":0,\"type\":\"response.output_text.delta\",\"logprobs\":[]}\n\nid:8\nevent:response.output_text.delta\n:HTTP_STATUS/200\ndata:{\"sequence_number\":7,\"content_index\":0,\"item_id\":\"msg_c5e3e012-16b0-4755-97a1-f610184b536d\",\"delta\":\"\",\"output_index\":0,\"type\":\"response.output_text.delta\",\"logprobs\":[]}\n\nid:9\nevent:response.output_text.done\n:HTTP_STATUS/200\ndata:{\"sequence_number\":8,\"content_index\":0,\"item_id\":\"msg_c5e3e012-16b0-4755-97a1-f610184b536d\",\"text\":\"37887\",\"output_index\":0,\"type\":\"response.output_text.done\",\"logprobs\":[]}\n\nid:10\nevent:response.content_part.done\n:HTTP_STATUS/200\ndata:{\"sequence_number\":9,\"output_index\":0,\"type\":\"response.content_part.done\",\"content_index\":0,\"item_id\":\"msg_c5e3e012-16b0-4755-97a1-f610184b536d\",\"part\":{\"type\":\"output_text\",\"annotations\":[],\"text\":\"37887\"}}\n\nid:11\nevent:response.output_item.done\n:HTTP_STATUS/200\ndata:{\"sequence_number\":10,\"item\":{\"id\":\"msg_c5e3e012-16b0-4755-97a1-f610184b536d\",\"role\":\"assistant\",\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"annotations\":[],\"text\":\"37887\"}],\"status\":\"completed\"},\"output_index\":0,\"type\":\"response.output_item.done\"}\n\nid:12\nevent:response.completed\n:HTTP_STATUS/200\ndata:{\"sequence_number\":11,\"type\":\"response.completed\",\"response\":{\"top_logprobs\":0,\"metadata\":{},\"presence_penalty\":0.0,\"reasoning\":{\"effort\":\"none\"},\"usage\":{\"total_tokens\":73,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":5,\"input_tokens\":68,\"output_tokens_details\":{\"reasoning_tokens\":0},\"x_details\":[{\"total_tokens\":73,\"x_billing_type\":\"response_api\",\"output_tokens\":5,\"input_tokens\":68,\"prompt_tokens_details\":{\"cached_tokens\":0}}]},\"created_at\":1788837016,\"store\":true,\"tools\":[],\"output\":[{\"id\":\"msg_c5e3e012-16b0-4755-97a1-f610184b536d\",\"role\":\"assistant\",\"type\":\"message\",\"content\":[{\"type\":\"output_text\",\"annotations\":[],\"text\":\"37887\"}],\"status\":\"completed\"}],\"top_p\":1.0,\"completed_at\":1788837016,\"frequency_penalty\":0.0,\"parallel_tool_calls\":true,\"background\":false,\"temperature\":1.0,\"tool_choice\":\"auto\",\"model\":\"qwen3.8-max\",\"service_tier\":\"default\",\"id\":\"resp_25a2d379-9830-903b-b2d6-86d4f270a5f3\",\"max_output_tokens\":4096,\"object\":\"response\",\"status\":\"completed\"}}\n\n"
+      }
+    }
+  ]
+}

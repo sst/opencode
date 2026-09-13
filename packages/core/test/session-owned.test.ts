@@ -166,7 +166,7 @@ const setup = Effect.fnUntraced(function* (options?: {
 })
 
 describe("Session-owned handles", () => {
-  it.live("owns state changes and message editing without caller services or Location acquisition", () =>
+  it.live("owns state changes and message reads without caller services or Location acquisition", () =>
     Effect.gen(function* () {
       const fixture = yield* setup()
       const handle = fixture.sessions.forSession(sessionID)
@@ -191,7 +191,7 @@ describe("Session-owned handles", () => {
         .where(eq(SessionTable.id, sessionID))
         .run()
         .pipe(Effect.orDie)
-      const { rename, switchAgent, switchModel, view, message, updateMessage } = handle
+      const { rename, switchAgent, switchModel, view, message } = handle
 
       yield* Effect.gen(function* () {
         yield* rename({ title: "Renamed" })
@@ -200,9 +200,7 @@ describe("Session-owned handles", () => {
         yield* switchModel({ model })
         yield* view({ idle: 0 })
         yield* view({ idle: 0 })
-        const content = [SessionMessage.AssistantText.make({ type: "text", text: "Edited" })]
-        expect((yield* updateMessage({ messageID, content })).content).toEqual(content)
-        expect(yield* message(messageID)).toMatchObject({ type: "assistant", content })
+        expect(yield* message(messageID)).toMatchObject({ type: "assistant", content: [] })
       }).pipe(Effect.satisfiesServicesType<never>(), Effect.setContext(Context.empty()))
 
       const session = yield* handle.get()

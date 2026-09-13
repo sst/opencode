@@ -13,6 +13,7 @@ export interface ButtonProps
     | "warning"
     | "outline"
     | "contrast"
+    | "submit"
     | "ghost"
     | "ghost-muted"
     | "ghost-faint"

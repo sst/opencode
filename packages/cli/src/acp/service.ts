@@ -41,7 +41,12 @@ import type {
 } from "@agentclientprotocol/sdk"
 import { OPENCODE_VERSION } from "../version"
 import { SessionMessage } from "@opencode/schema/session-message"
-import { buildConfigOptions, parseModelSelection, type ConfigOptionProvider } from "./config-option"
+import {
+  buildConfigOptions,
+  DEFAULT_VARIANT_VALUE,
+  parseModelSelection,
+  type ConfigOptionProvider,
+} from "./config-option"
 import { promptContentToParts } from "./content"
 import {
   ChildSessionUpdateMethod,
@@ -275,7 +280,7 @@ export function make(input: { readonly client: OpenCodeClient; readonly connecti
       if (typeof params.value !== "string") throw new ACPError.InvalidConfigOptionError({ configId: params.configId })
       switch (params.configId) {
         case "model": {
-          const selected = requireModel(state.catalog, params.value)
+          const selected = requireModel(state.catalog, params.value, state.model)
           state.model = selected
           await input.client.session.switchModel({ sessionID: state.id, model: selected })
           break
@@ -284,7 +289,10 @@ export function make(input: { readonly client: OpenCodeClient; readonly connecti
           const model = state.catalog.models.find(
             (item) => item.providerID === state.model.providerID && item.id === state.model.id,
           )
-          if (!model?.variants.some((variant) => variant.id === params.value))
+          if (
+            !model ||
+            (params.value !== DEFAULT_VARIANT_VALUE && !model.variants.some((variant) => variant.id === params.value))
+          )
             throw new ACPError.InvalidEffortError({ effort: params.value })
           state.model = { ...state.model, variant: params.value }
           await input.client.session.switchModel({ sessionID: state.id, model: state.model })
@@ -453,7 +461,7 @@ function providers(models: readonly ModelInfo[]): ConfigOptionProvider[] {
     }))
 }
 
-function requireModel(catalog: Catalog, modelID: string): ModelRef {
+function requireModel(catalog: Catalog, modelID: string, current: ModelRef): ModelRef {
   const selected = parseModelSelection(modelID, catalog.providers)
   const model = catalog.models.find(
     (item) => item.providerID === selected.model.providerID && item.id === selected.model.modelID,
@@ -461,7 +469,14 @@ function requireModel(catalog: Catalog, modelID: string): ModelRef {
   if (!model) throw new ACPError.InvalidModelError({ providerId: selected.model.providerID, modelId: modelID })
   if (selected.variant && !model.variants.some((variant) => variant.id === selected.variant))
     throw new ACPError.InvalidEffortError({ effort: selected.variant })
-  return { providerID: model.providerID, id: model.id, variant: selected.variant }
+  const variant =
+    selected.variant ??
+    (current.providerID === model.providerID &&
+    current.id === model.id &&
+    (current.variant === DEFAULT_VARIANT_VALUE || model.variants.some((variant) => variant.id === current.variant))
+      ? current.variant
+      : undefined)
+  return { providerID: model.providerID, id: model.id, variant }
 }
 
 async function selectMode(client: OpenCodeClient, state: Attached, modeID: string) {

@@ -132,4 +132,21 @@ export const makePermissionGroup = <
           }),
         ),
     )
+    .add(
+      HttpApiEndpoint.put("session.permission.rules", "/api/session/:sessionID/permission/rules", {
+        params: { sessionID: Session.ID },
+        payload: Schema.Struct({ permissions: Permission.Ruleset }),
+        success: HttpApiSchema.NoContent,
+        error: SessionNotFoundError,
+      })
+        .middleware(sessionLocationMiddleware)
+        .annotateMerge(
+          OpenApi.annotations({
+            identifier: "v2.session.permission.rules",
+            summary: "Replace session permission rules",
+            description:
+              "Replace the session-scoped permission rules. Rules are evaluated after the agent's rules, and the last matching rule wins.",
+          }),
+        ),
+    )
     .annotateMerge(OpenApi.annotations({ title: "permission", description: "Experimental permission routes." }))

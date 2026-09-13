@@ -84,6 +84,15 @@ export const PermissionHandler = HttpApiBuilder.group(Api, "server.permission", 
         }),
       )
       .handle(
+        "session.permission.rules",
+        Effect.fn(function* (ctx) {
+          yield* sessions
+            .setPermissions({ sessionID: ctx.params.sessionID, permissions: ctx.payload.permissions })
+            .pipe(Effect.catchTag("Session.NotFoundError", missingSession))
+          return HttpApiSchema.NoContent.make()
+        }),
+      )
+      .handle(
         "permission.saved.list",
         Effect.fn(function* (ctx) {
           const location = yield* Location.Service

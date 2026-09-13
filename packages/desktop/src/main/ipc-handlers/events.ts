@@ -6,13 +6,15 @@ import { ipcEventStream } from "../ipc-events"
 import { IpcPortHandoff } from "../ipc-transport"
 import { Shutdown } from "../lifecycle/shutdown"
 import { isRendererUrl } from "../windows/protocol"
+import { DesktopStorage } from "../storage"
 import { sender } from "./context"
 
 export const eventHandlers = EventRpcs.toLayer(
   Effect.gen(function* () {
     const handoff = yield* IpcPortHandoff
     const shutdown = yield* Shutdown.Service
-    const browser = createBrowserPane()
+    const storage = yield* DesktopStorage.Service
+    const browser = createBrowserPane(storage.state)
     const stop = Effect.promise(() => browser.dispose())
     const remove = yield* shutdown.add(stop)
     yield* Effect.addFinalizer(() => Effect.sync(remove).pipe(Effect.andThen(stop)))

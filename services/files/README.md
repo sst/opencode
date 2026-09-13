@@ -77,8 +77,8 @@ Both publishers upload signed/packaged outputs to the production bucket for
 every release channel:
 
 ```text
-R2 key: bin/0.0.0-dev-123/opencode2-linux-x64.tar.gz
-URL:    https://opencode.ai/files/bin/0.0.0-dev-123/opencode2-linux-x64.tar.gz
+R2 key: bin/0.0.0-dev-123/opencode-linux-x64.tar.gz
+URL:    https://opencode.ai/files/bin/0.0.0-dev-123/opencode-linux-x64.tar.gz
 
 R2 key: bin/2.0.0/opencode-desktop-mac-arm64.dmg
 URL:    https://opencode.ai/files/bin/2.0.0/opencode-desktop-mac-arm64.dmg

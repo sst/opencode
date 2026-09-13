@@ -34,6 +34,52 @@ test("coalesces progress only within the same message and tool state", () => {
   )
 })
 
+test.each(["show", "hide"] as const)("tools setting %s controls tool and skill transcript", async (tools) => {
+  const app = await setup({ tools })
+  try {
+    app.footer.append({ kind: "user", text: "do the thing", phase: "start", source: "system" })
+    app.footer.append({
+      kind: "tool",
+      text: "running read",
+      phase: "start",
+      source: "tool",
+      tool: "read",
+      messageID: "msg_1",
+      partID: "prt_1",
+    })
+    app.footer.append({
+      kind: "system",
+      text: `→ Skill "demo"`,
+      phase: "start",
+      source: "system",
+      messageID: "msg_skill",
+      partID: "skill:demo",
+    })
+    app.footer.append({
+      kind: "assistant",
+      text: "all done",
+      phase: "progress",
+      source: "assistant",
+      messageID: "msg_2",
+      partID: "prt_text",
+    })
+    await app.footer.idle()
+    const text = app.externalOutput.takeText()
+    expect(text).toContain("do the thing")
+    expect(text).toContain("all done")
+    if (tools === "hide") {
+      expect(text).not.toContain("Read")
+      expect(text).not.toContain("Skill")
+      return
+    }
+    expect(text).toContain("-> Read")
+    expect(text).toContain("Skill")
+  } finally {
+    app.footer.destroy()
+    app.renderer.destroy()
+  }
+})
+
 test("falls back only when no agent is selected", () => {
   const agents: RunAgent[] = [
     { id: "task", name: "Task", mode: "subagent", hidden: false },
@@ -50,6 +96,7 @@ test("falls back only when no agent is selected", () => {
 async function setup(
   input: {
     mono?: boolean
+    tools?: MiniSettings["tools"]
     theme?: RunTuiConfig["theme"]
     startup?: { version: string; detail: string }
     cursorRow?: number
@@ -93,7 +140,7 @@ async function setup(
     theme: mono ? RUN_THEME_MONO : RUN_THEME_FALLBACK,
     tuiConfig: createTuiResolvedConfig({ theme: input.theme }),
     miniSettings: {
-      current: { ...resolveMiniSettings(), mono },
+      current: { ...resolveMiniSettings(), mono, ...(input.tools ? { tools: input.tools } : {}) },
       update: input.update,
     },
     onPermissionReply: () => {},

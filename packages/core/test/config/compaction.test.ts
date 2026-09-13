@@ -95,7 +95,7 @@ describe("ConfigCompactionPlugin.Plugin", () => {
         yield* compaction.compactManual({
           session,
           resolveContext: () => Effect.succeed({ ...nearInput.context, messages, instructionUpdate: "" }),
-          prepare: modelRequests.prepare,
+          prepare: modelRequests.compaction,
           messages,
           inputID: SessionMessage.ID.make("msg_compaction_manual"),
         }),

@@ -26,6 +26,7 @@ export function HomeProjects(props: {
       onWheel={props.scroll.viewport.containWheel}
       onChooseProject={props.projects.project.choose}
       onFocusServer={props.projects.server.focus}
+      onAuthenticateServer={props.projects.server.authenticate}
       onToggleCollapsed={props.projects.server.toggleCollapsed}
       onEditServer={props.projects.server.edit}
       onSetDefaultServer={props.projects.server.setDefault}

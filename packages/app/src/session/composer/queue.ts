@@ -237,7 +237,7 @@ export function queuedPromptRows(items: QueuedPrompt[], replacement?: { original
     .map((item) => ({
       id: item.id,
       text: queuedPromptText(item),
-      attachments: (item.payload.files?.length ?? 0) > 0,
+      attachments: item.payload.files?.length ?? 0,
     }))
 }
 

@@ -115,8 +115,11 @@ const waitOpen = (ws: globalThis.WebSocket, input: WebSocketRequest) => {
     }
     const onAbort = () => {
       cleanup()
-      if (ws.readyState !== globalThis.WebSocket.CLOSED && ws.readyState !== globalThis.WebSocket.CLOSING)
-        ws.close(1000)
+      if (ws.readyState === globalThis.WebSocket.CLOSED || ws.readyState === globalThis.WebSocket.CLOSING) return
+      // Node's ws reports an aborted handshake as an error event on the next tick; with no listener left
+      // after cleanup, EventEmitter would throw it as an uncaught exception.
+      ws.addEventListener("error", () => {}, { once: true })
+      ws.close(1000)
     }
     const onOpen = () => {
       cleanup()

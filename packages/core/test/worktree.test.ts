@@ -315,6 +315,15 @@ describe("Worktree", () => {
       const bus = yield* Bus.Service
       const context = yield* Layer.build(worktreeLayer(selected.directory, selected.id, database, bus, root.path))
       const worktrees = Context.get(context, Worktree.Service)
+      const config = yield* Config.Test
+      yield* config.setEntries([
+        new Document({
+          type: "document",
+          path: abs(path.join(root.path, "global/opencode.json")),
+          info: new Info({ worktree: { directory: ".lane/trees" } }),
+        }),
+      ])
+      yield* ConfigWorktreePlugin.Plugin.effect(host()).pipe(Effect.provide(context))
       yield* projects.update({
         projectID: initial.id,
         commands: {
@@ -326,11 +335,11 @@ describe("Worktree", () => {
       const created = yield* worktrees.create({
         strategy: gitWorktree,
         from: selected.canonical,
-        directory: abs(path.join(root.path, "worktrees")),
         name: "selected-clone",
       })
 
       expect(selected.id).toBe(initial.id)
+      expect(created.directory).toBe(abs(path.join(clone, ".lane/trees/selected-clone")))
       expect((yield* projects.list()).find((project) => project.id === initial.id)?.canonical).toBe(main)
       expect(yield* Effect.promise(() => $`git rev-parse HEAD`.cwd(created.directory).text())).toBe(
         yield* Effect.promise(() => $`git rev-parse HEAD`.cwd(clone).text()),
@@ -911,7 +920,7 @@ describe("Worktree", () => {
         }),
       )
       const first = yield* worktrees.create({ name: "one" })
-      expect(first.directory).toBe(abs(path.join(input.root.path, "nested/copies/one")))
+      expect(first.directory).toBe(abs(path.join(input.root.path, "copies/one")))
       expect(yield* stored(input.projectID)).toContainEqual({ directory: first.directory, strategy: "custom" })
       yield* config.setEntries(documents.slice(0, 1))
       yield* bus.publish(Event.Updated, {})
@@ -925,6 +934,50 @@ describe("Worktree", () => {
       expect(third.directory).toBe(abs(path.join(input.root.path, "worktree", input.projectID.slice(0, 6), "three")))
     }),
   )
+  ;["relative", "absolute", "home"].forEach((mode) => {
+    it.live(`resolves ${mode} global directory config from a linked checkout's subdirectory`, () =>
+      Effect.gen(function* () {
+        const input = yield* setup()
+        const config = yield* Config.Test
+        const projects = yield* Project.Service
+        const global = yield* Global.Service
+        const worktrees = yield* Worktree.Service
+        const linked = abs(path.join(input.root.path, "linked"))
+        const nested = abs(path.join(linked, "src"))
+        const home = abs(path.join(input.root.path, "home"))
+        yield* Effect.promise(async () => {
+          await $`git worktree add ${linked} -b linked`.cwd(input.sourceDirectory).quiet()
+          await fs.mkdir(nested)
+        })
+        const project = yield* projects.resolve(nested)
+        const directory =
+          mode === "relative" ? ".lane/trees" : mode === "home" ? "~/copies" : path.join(home, "absolute")
+        yield* config.setEntries([
+          new Document({
+            type: "document",
+            path: abs(path.join(home, ".config/opencode/opencode.json")),
+            info: new Info({ worktree: { directory } }),
+          }),
+        ])
+        yield* ConfigWorktreePlugin.Plugin.effect(host()).pipe(
+          Effect.provideService(Location.Service, { directory: nested, project }),
+          Effect.provideService(Global.Service, { ...global, home }),
+        )
+
+        const created = yield* worktrees.create({ name: "task" })
+
+        expect(project.directory).toBe(linked)
+        expect(project.canonical).toBe(input.sourceDirectory)
+        expect(created.directory).toBe(
+          abs(
+            mode === "relative"
+              ? path.join(input.sourceDirectory, ".lane/trees/task")
+              : path.join(home, mode === "home" ? "copies/task" : "absolute/task"),
+          ),
+        )
+      }),
+    )
+  })
 
   it.effect("normalization retains worktree directory and rejects invalid configuration", () =>
     Effect.sync(() => {

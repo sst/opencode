@@ -77,11 +77,11 @@ export type LanguageModelOptions = Omit<RouteDefaultsInput, "providerOptions"> &
     readonly providerOptions?: OpenRouterProviderOptionsInput
   }
 
-export interface Settings extends ProviderPackage.Settings {
-  readonly apiKey?: string
-  readonly baseURL?: string
-  readonly providerOptions?: OpenRouterProviderOptionsInput
-}
+export type Settings = ProviderPackage.Settings &
+  OpenRouterProviderOptionsInput & {
+    readonly apiKey?: string
+    readonly baseURL?: string
+  }
 
 const OpenRouterBody = Schema.StructWithRest(Schema.Struct(OpenAIChat.bodyFields), [
   Schema.Record(Schema.String, Schema.Any),
@@ -191,12 +191,12 @@ export const configure = (input: LanguageModelOptions = {}) => {
 export const provider = configure()
 export const model: ProviderPackage.Definition<Settings, OpenRouterProviderOptionsInput>["model"] = (
   modelID,
-  settings,
+  { apiKey, baseURL, body, headers, ...providerOptions },
 ) =>
   configure({
-    apiKey: settings.apiKey,
-    baseURL: settings.baseURL,
-    headers: settings.headers,
-    http: settings.body === undefined ? undefined : { body: { ...settings.body } },
-    providerOptions: settings.providerOptions,
+    apiKey,
+    baseURL,
+    headers,
+    http: body === undefined ? undefined : { body: { ...body } },
+    providerOptions,
   }).model(modelID)

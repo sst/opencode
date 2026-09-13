@@ -109,6 +109,18 @@ export class Info extends Schema.Class<Info>("Config.Info")({
   experimental: ConfigExperimental.Info.pipe(optional),
 }) {}
 
+export const Preferences = Schema.Struct({
+  shell: Schema.String.pipe(optional),
+  websearch: ConfigWebSearch.Selection.pipe(optional),
+}).annotate({ identifier: "Config.Preferences" })
+export interface Preferences extends Schema.Schema.Type<typeof Preferences> {}
+
+export const PreferencesPatch = Schema.Struct({
+  shell: Schema.NullOr(Schema.String).pipe(optional),
+  websearch: Schema.NullOr(ConfigWebSearch.Selection).pipe(optional),
+}).annotate({ identifier: "Config.PreferencesPatch" })
+export interface PreferencesPatch extends Schema.Schema.Type<typeof PreferencesPatch> {}
+
 export class Document extends Schema.Class<Document>("Config.Document")({
   type: Schema.Literal("document"),
   path: AbsolutePath.pipe(optional),

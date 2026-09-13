@@ -91,6 +91,12 @@ runtime.execute(source) // Effect<CodeMode.Result, never, ToolServices>
 The Effect environment is inferred from the supplied tools. `onToolCallStart` observes admitted calls with decoded
 input; `onToolCallEnd` observes settled outcomes and duration. Both hooks return Effects and must not fail.
 
+### `Values`
+
+`Values` exports the runtime's non-JSON value classes: `Values.URL`, `Values.URLSearchParams`, `Values.Date`,
+`Values.RegExp`, `Values.Map`, `Values.Set`, and `Values.Promise`. The interpreter recognizes these by class; a
+program's `new URL(...)` is a `Values.URL` wrapping the host `URL`. `Values.isValue` narrows to the data-like kinds.
+
 ### OpenAPI tools
 
 `OpenAPI.fromSpec` converts an OpenAPI 3.x document into one tool per supported operation. Dotted `operationId` values

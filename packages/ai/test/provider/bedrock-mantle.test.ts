@@ -4,7 +4,7 @@ import { HttpClientRequest } from "effect/unstable/http"
 import { LLM, Message } from "../../src/index.js"
 import { AmazonBedrockMantle } from "../../src/providers.js"
 import { model } from "../../src/providers/amazon-bedrock/mantle.js"
-import { OpenAIResponses } from "../../src/protocols/openai-responses.js"
+import { OpenResponses } from "../../src/protocols/open-responses.js"
 import { compileRequest, LLMClient } from "../../src/route/client.js"
 import { it } from "../lib/effect.js"
 import { withProcessEnv } from "../lib/env.js"
@@ -25,7 +25,7 @@ describe("Amazon Bedrock Mantle provider", () => {
       expect(provider.model).toBe(provider.responses)
       expect(AmazonBedrockMantle.model).toBe(AmazonBedrockMantle.responsesModel)
       expect(model).toBe(AmazonBedrockMantle.responsesModel)
-      expect(provider.model("openai.gpt-oss-120b").route.transport).toBe(OpenAIResponses.httpTransport)
+      expect(provider.model("openai.gpt-oss-120b").route.transport).toBe(OpenResponses.httpTransport)
       const chat = yield* compileRequest(LLM.request({ model: provider.chat("openai.gpt-oss-120b"), prompt: "Hi" }))
       const responses = yield* compileRequest(
         LLM.request({ model: provider.model("openai.gpt-oss-120b"), prompt: "Hi" }),
@@ -38,7 +38,7 @@ describe("Amazon Bedrock Mantle provider", () => {
       })
       expect(responses).toMatchObject({
         route: "bedrock-mantle-responses",
-        protocol: "openai-responses",
+        protocol: "open-responses",
         body: { model: "openai.gpt-oss-120b", store: false },
       })
       expect(provider.model("openai.gpt-oss-120b").route.providerMetadataKey).toBe("mantle")
@@ -178,7 +178,7 @@ describe("Amazon Bedrock Mantle provider", () => {
 const recorded = recordedTests({
   prefix: "bedrock-mantle",
   provider: "amazon-bedrock",
-  protocol: "openai-responses",
+  protocol: "open-responses",
   requires: ["AWS_BEARER_TOKEN_BEDROCK"],
   metadata: { model: "openai.gpt-oss-120b" },
 })

@@ -1,0 +1,3 @@
+# Upstream test262 files are populated locally by script/sync-test262.ts and not committed yet.
+built-ins/
+language/

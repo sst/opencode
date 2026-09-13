@@ -5,6 +5,8 @@ title: "Overview"
 Plugins can modify OpenCode's behavior and add new features. To change the terminal UI, build a [CLI
 plugin](/build/plugins/cli).
 
+Migrating an existing OpenCode 1 plugin? Follow the [V1 plugin migration guide](/build/plugins/migrate-v1).
+
 ```ts title=".opencode/plugins/example/index.ts"
 import { Plugin } from "@opencode/plugin"
 
@@ -656,6 +658,16 @@ const request = await ctx.permission.get({ sessionID, requestID })
 await ctx.permission.reply({ sessionID, requestID, reply: "once" })
 ```
 
+Replace the session-scoped permission rules. They are evaluated after the agent's rules, and the
+last matching rule wins. Child sessions inherit the rules in effect when they are created.
+
+```ts
+await ctx.permission.rules({
+  sessionID,
+  permissions: [{ action: "edit", resource: "/path/to/original/checkout/**", effect: "deny" }],
+})
+```
+
 ### Sessions
 
 Create or read a session.
@@ -1025,8 +1037,12 @@ force confirmation without depending on Core or Git errors.
 
 #### Reference
 
-Implementations receive the final destination after naming and collision handling. Return that directory from `create`;
-`list` must report only directories the strategy owns, plus any repository roots. Core owns inventory and startup commands.
+Implementations receive a suggested destination after naming and collision handling. Return the actual directory from
+`create`; it may differ when a backend requires its own layout. OpenCode resolves the returned path and uses it for
+inventory, startup commands, and the API result. The returned directory must exist.
+
+Strategies choosing another destination handle naming collisions there. OpenCode still creates the suggested parent
+directory before calling the strategy. `list` must report only directories the strategy owns, plus any repository roots.
 
 ```ts
 interface WorktreeDefinition {
@@ -1193,30 +1209,39 @@ Keep prompt hooks retry-safe. They are not an exactly-once side-effect boundary:
 - Concurrent submissions can run hooks more than once, but only the first successful admission wins.
 - Prompt hooks transform input and do not expose a typed rejection API.
 
-#### Model context
+#### Model requests
 
-Modify assembled system instructions, messages, tools, generation settings, or provider options immediately before model
-dispatch.
+Modify assembled system instructions, messages, tools, or request options immediately before model dispatch. Each
+kind of request a session issues has its own hook, so a plugin can treat the agent loop and auxiliary requests
+differently:
+
+- `context` runs for the agent loop, including tool-driven continuations.
+- `compaction` runs for checkpoint summaries. `messages` is the transcript being summarized; OpenCode appends its
+  summary prompt after hooks run. Set `result` to record the compaction yourself and skip the model call; it takes the
+  same fields as a completed compaction message.
+- `generate` runs for transient `ctx.session.generate` calls.
+- `title` runs for title generation. It has no `agent` or `tools`. Set `result` to supply the title yourself.
 
 ```ts
 await ctx.session.hook("context", (event) => {
-  event.system.push({ text: "Keep the review focused on correctness." })
+  event.system.push({ type: "text", text: "Keep the review focused on correctness." })
   delete event.tools.write
-  event.generation.temperature = 0.2
-  event.generation.maxTokens = 8_000
+  event.options.temperature = 0.2
+  event.options.maxTokens = 8_000
+})
+
+await ctx.session.hook("compaction", async (event) => {
+  event.result = { summary: await summarize(event.messages) }
 })
 ```
 
-Context changes affect only the outgoing model call, not persisted history or
-configuration. The hook runs again for subsequent calls such as tool-driven
-continuations, transient session generation, and compaction, but not for title requests.
-
-Compaction context hooks receive the selected session agent. Its model-request
-and HTTP hooks retain the `compaction` agent identity for provider-specific handling.
+Changes affect only the outgoing model call, not persisted history or configuration. A hook that should apply to
+every request must register for each kind.
 
 Request overrides follow these rules:
 
-- `generation` and `providerOptions` start empty for each model call; they do not contain resolved model settings.
+- `options` starts empty for each model call; it does not contain resolved model settings.
+- Typed keys are generation settings; any other key is passed to the selected protocol as a provider option.
 - Hooks run in registration order and see overrides made by earlier hooks.
 - Request overrides take precedence over model defaults, which take precedence over route defaults.
 - Provider option objects merge recursively; arrays and scalar values replace earlier values.
@@ -1232,7 +1257,7 @@ settings to the matching provider. For example, OpenAI Responses uses `reasoning
 await ctx.session.hook(
   "context",
   (event) => {
-    event.providerOptions.reasoningEffort = "high"
+    event.options.reasoningEffort = "high"
   },
   { providerID: "openai" },
 )
@@ -1320,6 +1345,9 @@ import type { SessionPrompt } from "@opencode/plugin/promise/session"
 interface SessionHooks {
   prompt: SessionPrompt
   context: SessionContextHook
+  compaction: SessionContextHook & { result?: SessionCompactionResult }
+  generate: SessionContextHook
+  title: SessionRequestHook & { result?: string }
   "model.request": SessionModelRequestHook
   "http.request": SessionHttpRequestHook
   "http.response": SessionHttpResponseHook
@@ -1337,14 +1365,12 @@ interface SessionRetryHook {
   decision: RetryDecision
 }
 
-interface SessionContextHook {
+interface SessionRequestHook {
   readonly sessionID: string
-  readonly agent: string
   readonly model: { providerID: string; id: string; variant?: string }
   system: SystemPart[]
   messages: Message[]
-  tools: Record<string, { description: string; input: JsonSchema }>
-  generation: {
+  options: {
     maxTokens?: number
     temperature?: number
     topP?: number
@@ -1353,8 +1379,19 @@ interface SessionContextHook {
     presencePenalty?: number
     seed?: number
     stop?: string[]
-  }
-  providerOptions: Record<string, unknown>
+  } & Record<string, unknown>
+}
+
+interface SessionContextHook extends SessionRequestHook {
+  readonly agent: string
+  tools: Record<string, { description: string; input: JsonSchema }>
+}
+
+interface SessionCompactionResult {
+  summary: string
+  providerState?: Record<string, unknown>
+  metadata?: Record<string, unknown>
+  tokens?: TokenUsage
 }
 
 interface SessionHookContext {
@@ -1486,7 +1523,7 @@ manifest is:
     "./rpc": "./src/rpc.ts"
   },
   "dependencies": {
-    "@opencode/plugin": "beta"
+    "@opencode/plugin": "latest"
   }
 }
 ```
@@ -1496,9 +1533,8 @@ The `./rpc` export is optional; include it when publishing a shared
 without loading your implementation.
 
 Use versions compatible with the OpenCode release you target and test the
-installed package, not only a workspace-linked copy. Because the plugin API is
-beta, publish compatible plugin updates when V2 entrypoints or contracts
-change.
+installed package, not only a workspace-linked copy. Publish a compatible
+plugin update when you adopt a newer API contract.
 
 ## Support V1
 

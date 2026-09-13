@@ -1,0 +1,94 @@
+---
+title: "Websearch"
+---
+
+Ask OpenCode for current information and it can search the web, read the results, and include source links in its response.
+
+```text
+Find the latest Bun release and summarize the changes.
+```
+
+The first search asks you to allow web search and select a provider. OpenCode remembers your choice for later sessions.
+
+## Providers
+
+OpenCode includes four search providers:
+
+| Provider | ID | Environment variable |
+| --- | --- | --- |
+| Exa | `exa` | `EXA_API_KEY` |
+| Firecrawl | `firecrawl` | `FIRECRAWL_API_KEY` |
+| Parallel | `parallel` | `PARALLEL_API_KEY` |
+| Tavily | `tavily` | `TAVILY_API_KEY` |
+
+Connect an account from the TUI with `/connect`, or set the provider's environment variable before starting OpenCode.
+
+```bash
+$ TAVILY_API_KEY=your-key opencode
+```
+
+## Selection
+
+Set a provider in `opencode.jsonc` to skip the selection prompt.
+
+```jsonc title="opencode.jsonc"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "websearch": {
+    "provider": "tavily",
+  },
+}
+```
+
+Use `"random"` to choose an available provider automatically. Each session keeps using its selected provider until that provider is rate limited.
+
+```jsonc title="opencode.jsonc"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "websearch": {
+    "provider": "random",
+  },
+}
+```
+
+## Limits
+
+When a provider returns HTTP 429, random selection retries the search with another available provider. The rate-limited provider waits for its `Retry-After` period, or 60 seconds when the response does not include a valid period.
+
+```text
+Exa returns HTTP 429
+→ Exa enters cooldown
+→ OpenCode retries with another provider
+```
+
+If every provider is cooling down, the search fails immediately. Moving a session or restarting its server clears its remembered provider; cooldowns are shared by sessions in the same workspace.
+
+## Permissions
+
+Web searches use the `websearch` permission action and the search query as the resource. Ask before searches that are not explicitly allowed.
+
+```jsonc title="opencode.jsonc"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permissions": [
+    {
+      "action": "websearch",
+      "resource": "*",
+      "effect": "ask",
+    },
+  ],
+}
+```
+
+See [Permissions](/permissions) for rule order and matching.
+
+## Disable
+
+Set `websearch` to `false` to remove the web search tool from model requests.
+
+```jsonc title="opencode.jsonc"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "websearch": false,
+}
+```

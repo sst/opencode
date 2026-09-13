@@ -1,0 +1,318 @@
+.session-summary-popover {
+  transform-origin: var(--kb-popover-content-transform-origin);
+  animation: menu-v2-in 120ms ease-out;
+}
+
+[data-component="session-summary-panel"] {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 280px;
+  max-width: calc(100vw - 32px);
+
+  &[data-mobile] {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.session-summary-card {
+  position: relative;
+  z-index: 1;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--v2-background-bg-base);
+  box-shadow: var(--v2-elevation-raised);
+}
+
+[data-color-scheme="dark"] .session-summary-card {
+  background: var(--v2-background-bg-layer-01);
+}
+
+.session-summary-card,
+.session-summary-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.session-summary-row,
+.session-service-row,
+.session-service-config,
+[data-component="switch"].session-mcp-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  color: var(--v2-text-text-base);
+  font-size: 13px;
+  font-weight: 440;
+  line-height: var(--line-height-base);
+  text-align: start;
+}
+
+.session-summary-card .session-summary-row {
+  /* Keep copy out of the trailing indicator column, including rows without an indicator. */
+  padding-inline-end: 36px;
+}
+
+.session-summary-card .session-summary-row:has(> .session-summary-menu-indicator) {
+  /* Align trailing 16px indicators with the move row's 20px dismiss button. */
+  padding-inline-end: 8px;
+}
+
+.session-summary-card .session-summary-menu-indicator {
+  margin-inline-start: 4px;
+}
+
+.session-summary-row:focus-visible,
+.session-service-config:focus-visible,
+.session-mcp-row:focus-within {
+  outline: none;
+  background: var(--v2-overlay-simple-overlay-hover);
+}
+
+@media (hover: hover) {
+  button.session-summary-row:hover,
+  .session-service-config:not(:disabled):hover,
+  .session-summary-move:has(> .session-summary-dismiss:hover) > .session-summary-row,
+  .session-mcp-row:not([data-disabled]):hover {
+    background: var(--v2-overlay-simple-overlay-hover);
+  }
+}
+
+.session-summary-row[data-expanded] {
+  background: var(--v2-overlay-simple-overlay-pressed);
+}
+
+.session-summary-heading {
+  color: var(--v2-text-text-muted);
+  font-weight: 530;
+}
+
+.session-summary-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
+}
+.session-summary-heading .session-summary-label {
+  flex: 0 1 auto;
+}
+.session-summary-disclosure {
+  flex-shrink: 0;
+  color: var(--v2-icon-icon-muted);
+}
+.session-summary-heading[aria-expanded="false"] .session-summary-disclosure {
+  transform: rotate(-90deg);
+}
+.session-summary-heading[aria-expanded="false"]:dir(rtl) .session-summary-disclosure {
+  transform: rotate(90deg);
+}
+
+.session-service-menu {
+  z-index: 60;
+  width: 280px;
+  max-width: calc(100vw - 32px);
+  max-height: min(480px, calc(100dvh - 32px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--v2-background-bg-layer-01);
+  box-shadow: var(--v2-elevation-floating);
+  outline: none;
+  color: var(--v2-text-text-base);
+  font-size: 13px;
+  font-weight: 440;
+  line-height: var(--line-height-compact);
+  transform-origin: var(--kb-popover-content-transform-origin);
+  animation: menu-v2-in 120ms ease-out;
+
+  &[data-empty] {
+    width: 232px;
+  }
+}
+
+.session-service-menu .session-summary-row,
+.session-service-menu .session-service-row,
+.session-service-menu .session-service-config,
+.session-service-menu [data-component="switch"].session-mcp-row {
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.session-service-menu > :is(.session-service-row, .session-mcp-row) + :is(.session-service-row, .session-mcp-row) {
+  margin-block-start: 2px;
+}
+
+.session-service-title {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  color: var(--v2-text-text-faint);
+  font-size: inherit;
+  font-weight: 530;
+  letter-spacing: 0.05px;
+}
+
+.session-service-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  color: var(--v2-text-text-faint);
+  font-size: inherit;
+  font-weight: 440;
+  line-height: var(--line-height-compact);
+  overflow-wrap: anywhere;
+
+  strong {
+    padding: 8px 12px;
+    font-weight: 530;
+  }
+}
+
+.session-service-message {
+  padding: 6px 12px;
+  color: var(--v2-text-text-faint);
+  overflow-wrap: anywhere;
+}
+.session-service-menu > .session-service-footer {
+  padding-block-start: 6px;
+}
+.session-service-config-separator {
+  display: block;
+  height: 1px;
+  width: calc(100% + 4px);
+  margin: 2px -2px;
+  background: var(--v2-border-border-muted);
+}
+.session-service-config {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--v2-text-text-base);
+  font: inherit;
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+
+  .session-service-config-arrow {
+    opacity: 0;
+    transition: opacity 150ms ease-out;
+  }
+
+  &:is(:hover, :focus-visible) .session-service-config-arrow {
+    opacity: 1;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--v2-border-border-focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}
+.session-service-dot {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--v2-icon-icon-faint);
+
+  &::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+}
+.session-service-dot[data-status="connected"],
+.session-service-dot[data-status="active"] {
+  color: var(--icon-success-base);
+}
+.session-service-dot[data-status="failed"] {
+  color: var(--icon-critical-base);
+}
+.session-service-dot[data-status="needs_auth"] {
+  color: var(--icon-warning-base);
+}
+
+[data-component="switch"].session-mcp-row [data-slot="switch-label"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  align-self: stretch;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+}
+.session-service-status {
+  flex-shrink: 0;
+  font-size: inherit;
+  line-height: var(--line-height-compact);
+  color: var(--v2-text-text-faint);
+}
+.session-mcp-row[aria-disabled="true"] [data-slot="switch-control"] {
+  opacity: 0.5;
+}
+.session-summary-move {
+  position: relative;
+  /* The first 6px sit behind the card, leaving 4px of visible space above the row. */
+  padding: 10px 2px 2px;
+  margin-top: -6px;
+  border-radius: 0 0 6px 6px;
+  background: var(--v2-background-bg-layer-02);
+}
+.session-summary-move > .session-summary-row {
+  padding-inline-end: 36px;
+}
+.session-summary-dismiss {
+  position: absolute;
+  inset-inline-end: 8px;
+  bottom: 8px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--v2-icon-icon-muted);
+  border-radius: 4px;
+}
+.session-summary-dismiss:hover,
+.session-summary-dismiss:focus-visible {
+  background: var(--v2-overlay-simple-overlay-hover);
+  outline: none;
+}
+
+@media (max-width: 767px) {
+  [data-component="session-summary-panel"] .session-summary-row,
+  .session-service-menu .session-service-title,
+  .session-service-menu .session-service-row,
+  .session-service-menu .session-service-config,
+  .session-service-menu .session-mcp-row {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-summary-popover,
+  .session-service-menu {
+    animation: none;
+  }
+
+  .session-service-config .session-service-config-arrow {
+    transition: none;
+  }
+}

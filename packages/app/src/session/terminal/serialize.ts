@@ -481,12 +481,12 @@ class StringSerializeHandler extends BaseSerializeHandler {
 
     if (excludeFinalCursorPosition) return content
 
-    const absoluteCursorRow = (this._buffer.baseY ?? 0) + this._buffer.cursorY
-    const cursorRow = constrain(absoluteCursorRow - this._firstRow + 1, 1, Number.MAX_SAFE_INTEGER)
-    const cursorCol = this._buffer.cursorX + 1
-    content += `\u001b[${cursorRow};${cursorCol}H`
+    // CUP addresses the screen and ghostty-web reports cursorY relative to the screen, so the
+    // serialized range start must not shift the row. The cursor line sits in the screen region
+    // at the bottom of the buffer, after any scrollback rows.
+    content += `\u001b[${this._buffer.cursorY + 1};${this._buffer.cursorX + 1}H`
 
-    const line = this._buffer.getLine(absoluteCursorRow)
+    const line = this._buffer.getLine(this._buffer.length - this._terminal.rows + this._buffer.cursorY)
     const cell = line?.getCell(this._buffer.cursorX)
     const style = (() => {
       if (!cell) return this._buffer.getNullCell()

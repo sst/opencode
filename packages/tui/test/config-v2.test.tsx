@@ -18,9 +18,10 @@ test("validates the three explicit diff source defaults", () => {
 })
 
 test("validates mini replay and work spinner settings", () => {
-  expect(decodeInfo({ mini: { replay: false, replay_limit: 50 } })).toEqual({
-    mini: { replay: false, replay_limit: 50 },
+  expect(decodeInfo({ mini: { tools: "hide", replay: false, replay_limit: 50 } })).toEqual({
+    mini: { tools: "hide", replay: false, replay_limit: 50 },
   })
+  expect(() => decodeInfo({ mini: { tools: "quiet" } })).toThrow()
   expect(() => decodeInfo({ mini: { replay_limit: 0 } })).toThrow()
   expect(() => decodeInfo({ mini: { replay_limit: 1.5 } })).toThrow()
   expect(decodeInfo({ mini: { work_spinner: "quadrant-orbit" } })).toEqual({
@@ -175,7 +176,6 @@ test("accepts every v2-only named command ID", () => {
     "diff.mark_reviewed",
     "opencode.settings",
     "service.restart",
-    "permission.mode",
     "session.cd",
     "app.scrap",
   ]

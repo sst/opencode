@@ -31,22 +31,6 @@ export const SettingsExperimental: Component = () => {
       <div class="settings-tab-body">
         <div class="settings-section">
           <SettingsList>
-            <Show when={platform.browserPane}>
-              <SettingsRow
-                title={language.t("settings.general.row.browserPane.title")}
-                description={language.t("settings.general.row.browserPane.description")}
-              >
-                <div data-action="settings-experimental-browser">
-                  <Switch
-                    checked={settings.general.experimentalBrowser()}
-                    onChange={settings.general.setExperimentalBrowser}
-                    hideLabel
-                  >
-                    {language.t("settings.general.row.browserPane.title")}
-                  </Switch>
-                </div>
-              </SettingsRow>
-            </Show>
             <SettingsRow
               title={language.t("settings.appearance.row.tabs.title")}
               description={language.t("settings.appearance.row.tabs.description")}
@@ -65,6 +49,22 @@ export const SettingsExperimental: Component = () => {
                 onSelect={(option) => option && settings.appearance.setTabLayout(option)}
               />
             </SettingsRow>
+            <Show when={platform.browserPane}>
+              <SettingsRow
+                title={language.t("settings.general.row.browserPane.title")}
+                description={language.t("settings.general.row.browserPane.description")}
+              >
+                <div data-action="settings-experimental-browser">
+                  <Switch
+                    checked={settings.general.experimentalBrowser()}
+                    onChange={settings.general.setExperimentalBrowser}
+                    hideLabel
+                  >
+                    {language.t("settings.general.row.browserPane.title")}
+                  </Switch>
+                </div>
+              </SettingsRow>
+            </Show>
             <SettingsRow
               title={language.t("settings.appearance.row.projectName.title")}
               description={language.t("settings.appearance.row.projectName.description")}

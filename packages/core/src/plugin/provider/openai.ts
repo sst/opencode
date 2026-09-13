@@ -20,7 +20,8 @@ const pollingSafetyMargin = 3000
 const codexBaseURL = "https://chatgpt.com/backend-api/codex"
 const browserMethodID = Integration.MethodID.make("chatgpt-browser")
 const headlessMethodID = Integration.MethodID.make("chatgpt-headless")
-const codexAllowed = new Set(["gpt-5.5", "gpt-5.3-codex-spark", "gpt-5.4", "gpt-5.4-mini"])
+// ChatGPT accounts lost gpt-5.4 and gpt-5.4-mini in Codex on 2026-08-31 (replacements: gpt-5.6-terra, gpt-5.6-luna).
+const codexAllowed = new Set(["gpt-5.5", "gpt-5.3-codex-spark"])
 const codexDisallowed = new Set(["gpt-5.5-pro", "gpt-5.6"])
 
 type Pkce = {
@@ -256,6 +257,7 @@ export const OpenAIPlugin = define({
       for (const model of item.models.values()) {
         evt.model.update(item.provider.id, model.id, (draft) => {
           draft.capabilities.responsesWebsockets = true
+          draft.websocket = true
         })
       }
       if (!chatgpt) return

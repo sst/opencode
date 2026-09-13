@@ -44,6 +44,7 @@ export const MessageHandler = HttpApiBuilder.group(Api, "server.message", (handl
             sessionID: ctx.params.sessionID,
             limit: ctx.query.limit ?? DefaultMessagesLimit,
             order,
+            type: ctx.query.type,
             cursor: decoded ? { id: decoded.id, direction: decoded.direction } : undefined,
           })
           .pipe(

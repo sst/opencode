@@ -50,6 +50,19 @@ export class UnsupportedOperationError extends Schema.TaggedError<UnsupportedOpe
   route: Schema.optional(RouteID),
 }) {}
 
+/**
+ * Provider settings that are missing, conflicting, or unsupported, such as
+ * Azure without `resourceName` or `baseURL`. Thrown synchronously while a
+ * provider facade or package entrypoint configures a model, before any
+ * request exists, so it is not an `AIError` reason.
+ */
+export class ProviderConfigurationError extends Schema.TaggedError<ProviderConfigurationError>(
+  "AI.Error.ProviderConfiguration",
+)("ProviderConfiguration", {
+  provider: ProviderID,
+  message: Schema.String,
+}) {}
+
 export class NoRouteError extends Schema.TaggedError<NoRouteError>("AI.Error.NoRoute")("NoRoute", {
   ...ReasonFields,
   route: RouteID,

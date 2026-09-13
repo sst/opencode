@@ -1,6 +1,6 @@
 import { Plugin } from "@opencode/plugin/tui"
 import { useTerminalDimensions } from "@opentui/solid"
-import { batch, createSignal, For } from "solid-js"
+import { batch, createSignal, For, Show } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
 import {
   EMPTY_SESSION_TAB_STATUS,
@@ -13,6 +13,18 @@ import {
 } from "../../../component/session-tabs"
 import { closeSessionTab, cycleSessionTab, moveSessionTab } from "../../../context/session-tabs-model"
 import { StoryFooter } from "./footer"
+import { DialogPrompt } from "../../../ui/dialog-prompt"
+import { useDialog } from "../../../ui/dialog"
+import { DialogSelect } from "../../../ui/dialog-select"
+import {
+  clampSessionTabsWidth,
+  sessionTabsFitVertically,
+  SESSION_SIDEBAR_WIDTH,
+  SESSION_TABS_COMPACT_BREAKPOINT,
+  SESSION_TABS_COMPACT_WIDTH,
+} from "../../../ui/layout"
+import { createPaneResize } from "../../../ui/pane-resize"
+import { PaneResizeHandle } from "../../../ui/pane-resize-handle"
 import type { Story } from "./index"
 
 type FixtureStatus = ReturnType<SessionTabsController["status"]>
@@ -54,6 +66,7 @@ const TRANSCRIPT_FILES = [
 function SessionTabsStory(props: { context: Plugin.Context }) {
   const dimensions = useTerminalDimensions()
   const theme = props.context.theme
+  const dialog = useDialog()
   // A keyed store mirrors production: retitles mutate rows in place instead of remounting them.
   const [tabStore, setTabStore] = createStore<{ items: { sessionID: string; title?: string }[] }>({
     items: FIXTURE_TABS.slice(0, 6).map((tab) => ({ ...tab })),
@@ -65,6 +78,18 @@ function SessionTabsStory(props: { context: Plugin.Context }) {
   const [lastEvent, setLastEvent] = createSignal("idle / working / question / permission / complete / error")
   const [statuses, setStatuses] = createSignal<Record<string, FixtureStatus>>(FIXTURE_STATUSES)
   const [orientation, setOrientation] = createSignal<"horizontal" | "vertical">("vertical")
+  const [width, setWidth] = createSignal(SESSION_SIDEBAR_WIDTH)
+  const resize = createPaneResize({
+    value: width,
+    defaultValue: () => SESSION_SIDEBAR_WIDTH,
+    clamp: (width) => clampSessionTabsWidth(width, dimensions().width),
+    fromMouse: (event) => event.x + 1,
+    contains: (event, width) => event.x >= width - 1 && event.x <= width,
+    onCommit: setWidth,
+  })
+  const vertical = () => orientation() === "vertical" && sessionTabsFitVertically(dimensions().width, resize.size())
+  const [indicators, setIndicators] = createSignal<"status" | "numbers">("status")
+  const railCompact = () => resize.size() < SESSION_TABS_COMPACT_BREAKPOINT
   const spinners = Object.keys(TAB_SPINNERS) as TabSpinner[]
   const [spinner, setSpinner] = createSignal<TabSpinner>("dots")
   const markers = Object.keys(TAB_UNREAD_MARKERS) as TabUnreadMarker[]
@@ -116,6 +141,22 @@ function SessionTabsStory(props: { context: Plugin.Context }) {
     tabs,
     current: active,
     add: addTab,
+    search() {
+      dialog.replace(() => (
+        <DialogSelect
+          title="Sessions (fixture)"
+          current={active()}
+          options={FIXTURE_TABS.map((tab) => ({ title: tab.title, value: tab.sessionID, description: tab.project }))}
+          onSelect={(option) => {
+            if (!tabs().some((tab) => tab.sessionID === option.value)) {
+              setItems([...tabs(), { ...FIXTURE_TABS.find((tab) => tab.sessionID === option.value)! }])
+            }
+            select(option.value)
+            dialog.clear()
+          }}
+        />
+      ))
+    },
     detail(sessionID) {
       return FIXTURE_TABS.find((tab) => tab.sessionID === sessionID)?.project
     },
@@ -123,6 +164,19 @@ function SessionTabsStory(props: { context: Plugin.Context }) {
       return statuses()[sessionID] ?? EMPTY_SESSION_TAB_STATUS
     },
     select,
+    rename(sessionID: string) {
+      dialog.replace(() => (
+        <DialogPrompt
+          title="Rename fixture tab"
+          value={tabs().find((tab) => tab.sessionID === sessionID)?.title}
+          onConfirm={(title) => {
+            if (!title.trim()) return
+            setTabStore("items", (tab) => tab.sessionID === sessionID, "title", title.trim())
+            dialog.clear()
+          }}
+        />
+      ))
+    },
     move(sessionID: string, index: number) {
       const next = moveSessionTab(tabs(), sessionID, index)
       if (next === tabs()) return
@@ -267,6 +321,8 @@ function SessionTabsStory(props: { context: Plugin.Context }) {
       setMarker("small-dot")
       setAnimations(true)
       setOrientation("vertical")
+      setWidth(SESSION_SIDEBAR_WIDTH)
+      setIndicators("status")
     })
     setLastEvent(showcase ? "all six states are visible" : "reset; all tabs idle")
   }
@@ -395,8 +451,30 @@ function SessionTabsStory(props: { context: Plugin.Context }) {
         run: () => setMarker((value) => markers[(markers.indexOf(value) + 1) % markers.length]),
       },
       { bind: "m", title: "Toggle animations", group: "Storybook", run: () => setAnimations((value) => !value) },
+      {
+        bind: "g",
+        title: "Toggle status icons or numbers",
+        group: "Storybook",
+        run: () => setIndicators((value) => (value === "status" ? "numbers" : "status")),
+      },
       { bind: "t", title: "Add tab", group: "Storybook", run: addTab },
       { bind: "d", title: "Close tab", group: "Storybook", run: () => controller.close() },
+      {
+        bind: "b",
+        title: "Switch minimum or default width",
+        group: "Storybook",
+        run: () => setWidth(railCompact() ? SESSION_SIDEBAR_WIDTH : SESSION_TABS_COMPACT_WIDTH),
+      },
+      {
+        bind: "n",
+        title: "Cycle tab count",
+        group: "Storybook",
+        run() {
+          const count = tabs().length < 6 ? 6 : tabs().length < 12 ? 12 : 3
+          setItems(FIXTURE_TABS.slice(0, count).map((tab) => ({ ...tab })))
+          if (!tabs().some((tab) => tab.sessionID === active())) setActive("fixture-1")
+        },
+      },
       {
         bind: "o",
         title: "Toggle tab orientation",
@@ -417,15 +495,24 @@ function SessionTabsStory(props: { context: Plugin.Context }) {
       flexDirection="column"
       backgroundColor={theme.background.default}
     >
-      <box flexGrow={1} flexDirection={orientation() === "vertical" ? "row" : "column"}>
+      <box
+        flexGrow={1}
+        minHeight={0}
+        flexDirection={vertical() ? "row" : "column"}
+        onMouseDrag={resize.onMouseDrag}
+        onMouseDragEnd={resize.onMouseDragEnd}
+        onMouseUp={resize.onMouseUp}
+      >
         <SessionTabs
           controller={controller}
-          orientation={orientation()}
+          orientation={vertical() ? "vertical" : "horizontal"}
+          width={resize.size()}
           spinner={spinner()}
           unreadMarker={marker()}
           animations={animations()}
+          indicators={indicators()}
         />
-        <box flexGrow={1} paddingLeft={2} paddingRight={2} paddingTop={1} flexDirection="column">
+        <box flexGrow={1} minWidth={0} paddingLeft={2} paddingRight={2} paddingTop={1} flexDirection="column">
           <For each={transcript()}>
             {(line) => (
               <text fg={line.color} wrapMode="none" selectable={false}>
@@ -434,19 +521,25 @@ function SessionTabsStory(props: { context: Plugin.Context }) {
             )}
           </For>
         </box>
+        <Show when={vertical()}>
+          <PaneResizeHandle resize={resize} left={resize.size() - 1} />
+        </Show>
       </box>
       <StoryFooter
         context={props.context}
         title="storybook / tabs"
         details={[
-          orientation() === "vertical" ? "left rail" : "top strip",
+          vertical() ? `${railCompact() ? "compact rail" : "expanded rail"} · ${resize.size()} cols` : "top strip",
           spinner(),
+          indicators(),
           `${TAB_UNREAD_MARKERS[marker()]} ${marker()}`,
           animations() ? "animated" : "still",
         ]}
         status={stateSummary()}
         message={lastEvent()}
         controls={[
+          { shortcut: "b", label: "min/default width" },
+          { shortcut: "n", label: "3/6/12 tabs" },
           { shortcut: "s", label: "work" },
           { shortcut: "space/e", label: "random work" },
           { shortcut: "p", label: "prompt" },
@@ -456,10 +549,12 @@ function SessionTabsStory(props: { context: Plugin.Context }) {
           { shortcut: "f/x", label: "complete/fail" },
           { shortcut: "t/d", label: "add/close" },
           { shortcut: "c", label: "spinner" },
+          { shortcut: "g", label: "status/numbers" },
           { shortcut: "u", label: "unread marker" },
           { shortcut: "m", label: "motion" },
           { shortcut: "↑/↓", label: "select" },
           { shortcut: "o", label: "layout" },
+          { shortcut: "drag edge", label: "resize / double-click reset" },
           { shortcut: "r", label: "reset idle" },
           { shortcut: "v", label: "all states" },
           { shortcut: "esc", label: "back" },

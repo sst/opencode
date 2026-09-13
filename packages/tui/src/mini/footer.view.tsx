@@ -546,6 +546,26 @@ export function RunFooterView(props: RunFooterViewProps) {
     props.onRequestExit?.(undefined)
   })
 
+  const clearScreen = () => {
+    if (renderer.isDestroyed) return
+    if (renderer.screenMode !== "split-footer") return
+    if (renderer.externalOutputMode !== "capture-stdout") return
+    if (renderer.currentControlState === "explicit_suspended") return
+    // Home, erase the visible display, keep terminal scrollback, then repaint the footer.
+    renderer.resetSplitFooterForReplay({ clearSavedLines: false })
+  }
+
+  Keymap.createLayer(() => ({
+    commands: [
+      {
+        id: "app.clear",
+        title: "Clear screen",
+        group: "System",
+        run: clearScreen,
+      },
+    ],
+  }))
+
   Keymap.createLayer(() => ({
     enabled: active().type === "prompt" && route().type === "composer" && !composer.visible(),
     commands: [
@@ -831,7 +851,12 @@ export function RunFooterView(props: RunFooterViewProps) {
                               composer.submitText("/new")
                               closePanel()
                             }}
+                            onClear={() => {
+                              closePanel()
+                              clearScreen()
+                            }}
                             onExit={props.onExit}
+                            clearShortcut={shortcut("app.clear")}
                             mono={props.mono}
                           />
                         </Match>

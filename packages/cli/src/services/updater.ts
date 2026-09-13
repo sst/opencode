@@ -19,6 +19,9 @@ export interface Interface {
   readonly method: () => Effect.Effect<Method | undefined>
   readonly latest: () => Effect.Effect<string, Error>
   readonly upgrade: (method: Method, version: string) => Effect.Effect<void, Error>
+  readonly removal: (method: Method) =>
+    | { readonly command: ReadonlyArray<string>; readonly run: Effect.Effect<void, Error> }
+    | undefined
 }
 
 export const pollUpdates = Effect.fnUntraced(function* (input: {
@@ -64,6 +67,8 @@ const make = Effect.gen(function* () {
     const manifest: { name: string; bin?: Record<string, string> } = yield* fs
       .readFileString(path.join(directory, "package.json"))
       .pipe(Effect.flatMap((text) => Effect.try(() => JSON.parse(text))))
+    // Source invocations run inside Bun or Node, which may themselves be npm packages.
+    if (!/^@opencode(?:-ai)?\/cli(?:-node)?$/.test(manifest.name)) return
     if (Object.values(manifest.bin ?? {}).some((bin) => path.resolve(directory, bin) === executable))
       return manifest.name
   }).pipe(Effect.orElseSucceed(() => undefined))
@@ -100,7 +105,7 @@ const make = Effect.gen(function* () {
       global.home,
       ".opencode",
       "bin",
-      process.platform === "win32" ? "opencode2.exe" : "opencode2",
+      process.platform === "win32" ? "opencode.exe" : "opencode",
     )
     if (path.resolve(process.execPath) === path.resolve(binary)) return "curl"
     if (!installedPackage) return
@@ -118,6 +123,27 @@ const make = Effect.gen(function* () {
     )
     return results.find((result) => result.result.stdout.includes(installedPackage))?.check.method
   })
+
+  const removal = (method: Method) => {
+    if (method === "curl" || !installedPackage) return undefined
+    const commands = {
+      npm: ["npm", "uninstall", "--global", installedPackage],
+      pnpm: ["pnpm", "remove", "--global", installedPackage],
+      bun: ["bun", "remove", "--global", installedPackage],
+      yarn: ["yarn", "global", "remove", installedPackage],
+    }
+    const command = commands[method]
+    return {
+      command,
+      run: exec(command, "5 minutes").pipe(
+        Effect.flatMap((result) =>
+          result.code === 0
+            ? Effect.void
+            : Effect.fail(new Error(result.stderr.trim() || `Failed to uninstall with ${method}`)),
+        ),
+      ),
+    }
+  }
 
   const release = Effect.fnUntraced(function* () {
     const response = yield* Effect.tryPromise({
@@ -141,6 +167,11 @@ const make = Effect.gen(function* () {
 
   const latest = () => release().pipe(Effect.map((data) => data.version))
 
+  const temporaryDirectory = (prefix: string) =>
+    Effect.acquireRelease(fs.makeTempDirectory({ directory: global.cache, prefix }), (directory) =>
+      fs.remove(directory, { recursive: true, force: true }).pipe(Effect.ignore),
+    )
+
   const upgrade = Effect.fnUntraced(function* (method: Method, input: string) {
     if (!parseReleaseVersion(input)) return yield* Effect.fail(new Error(`Invalid version: ${input}`))
     const version = input.trim().replace(/^v/, "")
@@ -155,7 +186,10 @@ const make = Effect.gen(function* () {
         "npm",
         "install",
         "--global",
-        ...(installedPackage && packageName !== installedPackage ? ["--force"] : []),
+        ...((OPENCODE_ARTIFACT === "cli" && !installedPackage?.endsWith("/cli-node")) ||
+        (installedPackage && packageName !== installedPackage)
+          ? ["--force"]
+          : []),
         target,
       ],
       pnpm: ["pnpm", "add", "--global", `--allow-build=${packageName}`, target],
@@ -166,12 +200,12 @@ const make = Effect.gen(function* () {
         if (method === "bun") {
           // Bun does not prune old versions from its shared package cache.
           yield* fs.makeDirectory(global.cache, { recursive: true })
-          const cache = yield* fs.makeTempDirectoryScoped({ directory: global.cache, prefix: "update-" })
+          const cache = yield* temporaryDirectory("update-")
           return yield* exec(["bun", "install", "--global", "--trust", "--cache-dir", cache, target], "5 minutes")
         }
         if (method === "curl") {
           yield* fs.makeDirectory(global.cache, { recursive: true })
-          const directory = yield* fs.makeTempDirectoryScoped({ directory: global.cache, prefix: "update-" })
+          const directory = yield* temporaryDirectory("update-")
           const installer = path.join(directory, "install")
           const download = yield* exec(
             ["curl", "-fsSL", "-o", installer, "https://opencode.ai/v2/install"],
@@ -263,7 +297,7 @@ const make = Effect.gen(function* () {
     Effect.catch((error) => Effect.logWarning("update check failed", { error }).pipe(Effect.as(undefined))),
   )
 
-  return Service.of({ run, check, apply, method, latest, upgrade })
+  return Service.of({ run, check, apply, method, latest, upgrade, removal })
 })
 
 export const layer = Layer.effect(Service, make)

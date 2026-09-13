@@ -17,11 +17,11 @@ export type Config = Omit<RouteDefaultsInput, "providerOptions"> &
     readonly providerOptions?: ChatOptionsInput
   }
 
-export interface Settings extends ProviderPackage.Settings {
-  readonly apiKey?: string
-  readonly baseURL?: string
-  readonly providerOptions?: ChatOptionsInput
-}
+export type Settings = ProviderPackage.Settings &
+  ChatOptionsInput & {
+    readonly apiKey?: string
+    readonly baseURL?: string
+  }
 
 export type { ZAIImageOptions } from "../protocols/zai-images.js"
 
@@ -70,13 +70,16 @@ export const provider = configure()
 export const image = provider.image
 export const chat = provider.chat
 
-export const model: ProviderPackage.Definition<Settings, ChatOptionsInput>["model"] = (modelID, settings) =>
+export const model: ProviderPackage.Definition<Settings, ChatOptionsInput>["model"] = (
+  modelID,
+  { apiKey, baseURL, body, headers, ...providerOptions },
+) =>
   configure({
-    apiKey: settings.apiKey,
-    baseURL: settings.baseURL,
-    headers: settings.headers,
-    http: settings.body === undefined ? undefined : { body: { ...settings.body } },
-    providerOptions: settings.providerOptions,
+    apiKey,
+    baseURL,
+    headers,
+    http: body === undefined ? undefined : { body: { ...body } },
+    providerOptions,
   }).model(modelID)
 
 export * as ZAI from "./zai.js"

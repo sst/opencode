@@ -4,15 +4,15 @@ import path from "node:path"
 import { tmpdir } from "node:os"
 
 // Spawns a real Electron window; CI runners have no display for it.
-test.skipIf(!!process.env.CI)(
-  "browser suite over authenticated HTTP RPC with separate server and desktop storage",
-  async () => {
+test.skipIf(!!process.env.CI).each(["native", "idle"])(
+  "browser %s suite over authenticated HTTP RPC with separate server and desktop storage",
+  async (suite) => {
     const root = await mkdtemp(path.join(tmpdir(), "opencode-browser-suite-"))
     const output = await mkdtemp(path.resolve(import.meta.dir, "../node_modules/.browser-suite-"))
     const names = ["home", "config", "data", "cache", "state", "server-files", "client-files", "electron-data"]
     await Promise.all(names.map((name) => mkdir(path.join(root, name), { recursive: true })))
     const built = await Bun.build({
-      entrypoints: [path.join(import.meta.dir, "browser/native.ts")],
+      entrypoints: [path.join(import.meta.dir, `browser/${suite}.ts`)],
       outdir: output,
       naming: "native.mjs",
       target: "node",
@@ -34,15 +34,18 @@ test.skipIf(!!process.env.CI)(
       ELECTRON_RUN_AS_NODE: undefined,
     }
     const ready = Promise.withResolvers<string>()
-    const server = Bun.spawn([process.execPath, path.join(import.meta.dir, "browser/server.ts")], {
-      cwd: root,
-      env: { ...environment, TMP: path.join(root, "server-files"), TEMP: path.join(root, "server-files") },
-      stdout: "inherit",
-      stderr: "inherit",
-      ipc(message: unknown) {
-        if (typeof message === "string") ready.resolve(message)
+    const server = Bun.spawn(
+      [process.execPath, path.join(import.meta.dir, suite === "idle" ? "browser/idle-server.ts" : "browser/server.ts")],
+      {
+        cwd: root,
+        env: { ...environment, TMP: path.join(root, "server-files"), TEMP: path.join(root, "server-files") },
+        stdout: "inherit",
+        stderr: "inherit",
+        ipc(message: unknown) {
+          if (typeof message === "string") ready.resolve(message)
+        },
       },
-    })
+    )
     void server.exited.then((code) => ready.reject(new Error(`Fixture server exited: ${code}`)))
     let native: ReturnType<typeof Bun.spawn> | undefined
     let proxy: Bun.Server<undefined> | undefined

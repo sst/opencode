@@ -63,15 +63,14 @@ export const layer = Layer.effect(
             })
           : Effect.void,
       )
-      const prepared = yield* context.prepare({
-        kind: "title",
-        scope: { session: input.session, agentID: input.agent.id, model: input.model },
-        transcript: {
-          system: input.agent.system ? [SystemPart.make(input.agent.system)] : [],
-          messages: [Message.user(input.text)],
-        },
-        contextHooks: false,
+      const prepared = yield* context.request.title({
+        session: input.session,
+        agent: input.agent.id,
+        model: input.model,
+        system: input.agent.system ? [SystemPart.make(input.agent.system)] : [],
+        messages: [Message.user(input.text)],
       })
+      if (prepared.event.result !== undefined) return prepared.event.result
       yield* llm.stream(prepared.request, prepared.options).pipe(
         Stream.runForEach((event) => {
           if (LLMEvent.is.providerError(event)) failed = true

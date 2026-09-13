@@ -4,6 +4,14 @@ import "./icon.css"
 
 // Consumers center the SVG viewport, so each icon must center its artwork within its viewBox.
 const icons = {
+  lock: {
+    viewBox: "0 0 16 16",
+    body: `<rect x="3.5" y="7" width="9" height="7" rx="1" stroke="currentColor"/><path d="M5 7V5a3 3 0 0 1 6 0v2M8 10v1" stroke="currentColor" stroke-linecap="round"/>`,
+  },
+  globe: {
+    viewBox: "0 0 16 16",
+    body: `<circle cx="8" cy="8" r="6" stroke="currentColor"/><ellipse cx="8" cy="8" rx="2.5" ry="6" stroke="currentColor"/><path d="M2 8h12" stroke="currentColor"/>`,
+  },
   flask: {
     viewBox: "0 0 16 16",
     body: `<path d="M5.5 2H10.5M6 2V6L2.5 12C2 13 2.5 14 3.5 14H12.5C13.5 14 14 13 13.5 12L10 6V2M4.25 9H11.75" stroke="currentColor" stroke-linecap="square" stroke-linejoin="round"/>`,
@@ -18,7 +26,7 @@ const icons = {
   },
   folder: {
     viewBox: "0 0 16 16",
-    body: `<path d="M2.545 3.364V12.636H13.455V5H8.545L6.909 3.364H2.545Z" stroke="currentColor" stroke-miterlimit="10" stroke-linecap="square"/>`,
+    body: `<path d="M1.33337 2V13.3333H14.6667V4H8.66671L6.66671 2H1.33337Z" stroke="currentColor" stroke-miterlimit="10" stroke-linecap="square"/>`,
   },
   branch: {
     viewBox: "0 0 16 16",
@@ -43,6 +51,10 @@ const icons = {
   "circle-exclamation": {
     viewBox: "0 0 16 16",
     body: `<path d="M8.75 11.75H7.25V10.25H8.75V11.75Z" fill="currentColor"/><path d="M8.75 9.25H7.25V4.25H8.75V9.25Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M8 1C9.93286 1 11.684 1.7836 12.9502 3.0498C14.2164 4.31601 15 6.06714 15 8C15 11.866 11.866 15 8 15C6.06714 15 4.31601 14.2164 3.0498 12.9502C1.7836 11.684 1 9.93286 1 8C1 4.13401 4.13401 1 8 1ZM8 2C4.68629 2 2 4.68629 2 8C2 9.65699 2.67148 11.1559 3.75781 12.2422C4.84415 13.3285 6.34301 14 8 14C11.3137 14 14 11.3137 14 8C14 6.34301 13.3285 4.84415 12.2422 3.75781C11.1559 2.67148 9.65699 2 8 2Z" fill="currentColor"/>`,
+  },
+  "circle-xmark": {
+    viewBox: "0 0 16 16",
+    body: `<path fill-rule="evenodd" clip-rule="evenodd" d="M1.33334 8.00016C1.33334 4.31826 4.31811 1.3335 8.00001 1.3335C11.6819 1.3335 14.6667 4.31826 14.6667 8.00016C14.6667 11.6821 11.6819 14.6668 8.00001 14.6668C4.31811 14.6668 1.33334 11.6821 1.33334 8.00016ZM6.00001 5.29306L5.2929 6.00016L7.2929 8.00016L5.2929 10.0002L6.00001 10.7073L8.00001 8.70727L10 10.7073L10.7071 10.0002L8.70712 8.00016L10.7071 6.00016L10 5.29306L8.00001 7.29306L6.00001 5.29306Z" fill="currentColor"/>`,
   },
   "sidebar-right": {
     viewBox: "0 0 20 20",
@@ -152,6 +164,14 @@ const icons = {
     viewBox: "0 0 16 16",
     body: `<path d="M14.5 9.8333V13.5H1.5V2.5H7.1667M9.5 2.5V7.5H14.5V2.5H9.5Z" stroke="currentColor" stroke-miterlimit="10" stroke-linecap="square"/>`,
   },
+  "graduation-cap": {
+    viewBox: "0 0 16 16",
+    body: `<path d="M12.3327 7.50065V11.0007L7.99935 13.6673L3.66602 11.0007V7.50065M14.3327 9.83398V6.16732M7.99935 2.33398L1.66602 6.00065L7.99935 10.0007L14.3327 6.00065L7.99935 2.33398Z" stroke="currentColor" stroke-linecap="square"/>`,
+  },
+  "code-slash": {
+    viewBox: "0 0 16 16",
+    body: `<path fill-rule="evenodd" clip-rule="evenodd" d="M10.0812 2.10803L6.55974 14.0809L5.92016 13.8928L9.44161 1.91992L10.0812 2.10803ZM4.13793 4.97275L1.44666 8.00045L4.13793 11.0281L3.63966 11.471L0.554688 8.00045L3.63966 4.52984L4.13793 4.97275ZM12.3617 4.52984L15.4467 8.00045L12.3617 11.471L11.8634 11.0281L14.5547 8.00045L11.8634 4.97275L12.3617 4.52984Z" fill="currentColor"/>`,
+  },
   trash: {
     viewBox: "0 0 20 20",
     body: `<path d="M4.58342 17.9134L4.58369 17.4134L4.22787 17.5384L4.22766 18.0384H4.58342V17.9134ZM15.4167 17.9134V18.0384H15.7725L15.7723 17.5384L15.4167 17.9134ZM2.08342 3.95508V3.45508H1.58342V3.95508H2.08342V4.45508V3.95508ZM17.9167 4.45508V4.95508H18.4167V4.45508H17.9167V3.95508V4.45508ZM4.16677 4.58008L3.66701 4.5996L4.22816 17.5379L4.72792 17.4934L5.22767 17.4489L4.66652 4.54055L4.16677 4.58008ZM4.58342 18.0384V17.9134H15.4167V18.0384V18.5384H4.58342V18.0384ZM15.4167 17.9134L15.8332 17.5379L16.2498 4.5996L15.7501 4.58008L15.2503 4.56055L14.8337 17.4989L15.4167 17.9134ZM15.8334 4.58008V4.08008H4.16677V4.58008V5.08008H15.8334V4.58008ZM2.08342 4.45508V4.95508H4.16677V4.58008V4.08008H2.08342V4.45508ZM15.8334 4.58008V5.08008H17.9167V4.45508V3.95508H15.8334V4.58008ZM6.83951 4.35149L7.432 4.55047C7.79251 3.47701 8.80699 2.70508 10.0001 2.70508V2.20508V1.70508C8.25392 1.70508 6.77335 2.83539 6.24702 4.15251L6.83951 4.35149ZM10.0001 2.20508V2.70508C11.1932 2.70508 12.2077 3.47701 12.5682 4.55047L13.1607 4.35149L13.7532 4.15251C13.2269 2.83539 11.7463 1.70508 10.0001 1.70508V2.20508Z" fill="currentColor"/>`,
@@ -192,6 +212,10 @@ const icons = {
     viewBox: "0 0 20 20",
     body: `<path d="M2.5 10s3.33-5.42 7.5-5.42S17.5 10 17.5 10s-3.33 5.42-7.5 5.42S2.5 10 2.5 10Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="10" r="2.5" stroke="currentColor"/><path d="M3 3 17 17" stroke="currentColor" stroke-linecap="round"/>`,
   },
+  refresh: {
+    viewBox: "0 0 20 20",
+    body: `<path d="M16.25 7.5A6.5 6.5 0 1 0 16.5 11M16.25 3.5v4h-4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/>`,
+  },
   reset: {
     viewBox: "0 0 20 20",
     body: `<path d="M5.83333 4.16406L2.5 7.4974L5.83333 10.8307M3.33333 7.4974H17.9167V15.4141H10" stroke="currentColor" stroke-linecap="square"/>`,
@@ -202,7 +226,7 @@ const icons = {
   },
   "fill-triangle-down": {
     viewBox: "0 0 16 16",
-    body: `<path d="M5.37624 6.75194C5.1818 6.41861 5.42223 6 5.80813 6H10.1921C10.578 6 10.8184 6.41861 10.624 6.75194L8.43199 10.5096C8.23905 10.8404 7.76115 10.8404 7.56821 10.5096L5.37624 6.75194Z" fill="currentColor"/>`,
+    body: `<path d="M5.37624 6.75194C5.18184 6.41861 5.42224 6 5.80814 6H10.1921C10.578 6 10.8184 6.41861 10.624 6.75194L8.43203 10.5096C8.23909 10.8404 7.76119 10.8404 7.56825 10.5096L5.37624 6.75194Z" fill="currentColor"/>`,
   },
   archive: {
     viewBox: "0 0 16 16",

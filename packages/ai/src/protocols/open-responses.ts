@@ -1,4 +1,4 @@
-import { Effect, Option, Schema } from "effect"
+import { Effect, Option, Schema, SchemaGetter } from "effect"
 import type { Content } from "@opencode/schema/tool"
 import { HttpTransport } from "../route/transport/index.js"
 import { Protocol } from "../route/protocol.js"
@@ -325,9 +325,8 @@ export const StreamItem = Schema.StructWithRest(
 export type StreamItem = Schema.Schema.Type<typeof StreamItem>
 export type OutputItem = StreamItem & { readonly id: string }
 
-// The Responses schema puts streaming error details at the top level and
-// response failures under `response.error`. WebSocket failures use an
-// event-level `error` envelope, so accept all three shapes here.
+// Responses-compatible providers put streaming error details at the top level or
+// under `error`, and response failures under `response.error`. Accept all three shapes.
 // https://www.openresponses.org/specification
 const OpenResponsesErrorPayload = Schema.Struct({
   type: optionalNull(Schema.String),
@@ -401,13 +400,45 @@ export const Event = Schema.StructWithRest(
     headers: Schema.optional(Schema.Unknown),
   }),
   [Schema.Record(Schema.String, Schema.Unknown)],
+).pipe(
+  Schema.decode({
+    decode: SchemaGetter.transform((event) => {
+      if (event.type !== "error" || event.error != null) return event
+      const { code, message, param, ...rest } = event
+      if (code === undefined && message === undefined && param === undefined) return event
+      // Flat errors (for example, Meta's) can also arrive through generic Responses endpoints.
+      return { ...rest, error: { code, message, param } }
+    }),
+    encode: SchemaGetter.passthrough(),
+  }),
 )
 export type Event = Schema.Schema.Type<typeof Event>
 export type NormalizedEvent = Event & { readonly item?: OutputItem | null }
 
+const decodeEventValue = Schema.decodeUnknownEffect(Event)
+const decodeFrame = Schema.decodeUnknownEffect(ProviderShared.Json)
+
+/**
+ * Decodes one WebSocket frame. xAI answers a rejected `response.create` with `{ "error": { "message", "type" } }` and no
+ * event type; that envelope reads as an error event so the failure classifies instead of failing decoding.
+ */
+export const decodeChannelEvent = (frame: string) =>
+  decodeFrame(frame).pipe(
+    Effect.flatMap((value) =>
+      decodeEventValue(
+        ProviderShared.isRecord(value) && value.type === undefined && ProviderShared.isRecord(value.error)
+          ? { ...value, type: "error" }
+          : value,
+      ),
+    ),
+  )
+
 export interface ProviderAdapter {
   readonly id: string
   readonly name: string
+  readonly nativeTool?: (
+    native: NonNullable<ToolDefinition["native"]>,
+  ) => Effect.Effect<{ readonly type: string }, AIError>
   readonly lowerMedia?: (input: {
     readonly part: MediaPart
     readonly media: ProviderShared.NormalizedMedia
@@ -652,7 +683,8 @@ const lowerMessages = Effect.fn("OpenResponses.lowerMessages")(function* (
             type: "message" as const,
             ...(group.id === undefined ? {} : { id: group.id }),
             role: "assistant" as const,
-            status: metadata?.status,
+            // Replayed text is a finished input item, even if generation was cut short.
+            status: "completed",
             content: group.parts.map((part) => ({ type: "output_text" as const, text: part.text })),
             ...(group.phase === undefined ? {} : { phase: group.phase }),
           })),
@@ -819,11 +851,13 @@ export const fromRequestWithAdapter = Effect.fn("OpenResponses.fromRequestWithAd
       projected.tools.length === 0
         ? undefined
         : yield* Effect.forEach(projected.tools, (tool) =>
-            lowerTool(
-              adapter.name,
-              tool,
-              ToolSchemaProjection.modelCompatibility(tool.inputSchema, toolSchemaCompatibility),
-            ),
+            tool.native !== undefined && adapter.nativeTool
+              ? adapter.nativeTool(tool.native)
+              : lowerTool(
+                  adapter.name,
+                  tool,
+                  ToolSchemaProjection.modelCompatibility(tool.inputSchema, toolSchemaCompatibility),
+                ),
           ),
     tool_choice:
       allowedToolChoice(request) ??

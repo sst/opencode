@@ -77,10 +77,12 @@ const fixture = Effect.fn(function* () {
     const resolver = yield* ModelResolver.Service
     const resolved = yield* resolver.resolveModel(model)
     const service = yield* SessionModelRequest.Service
-    const prepared = yield* service.prepare({
-      kind: "primary",
-      scope: { session, agentID: scope.agent, model: resolved },
-      transcript: { system: [], messages: [Message.user("Hello")] },
+    const prepared = yield* service.primary({
+      session,
+      agent: scope.agent,
+      model: resolved,
+      system: [],
+      messages: [Message.user("Hello")],
     })
     return yield* LLMClient.stream(prepared.request, prepared.options).pipe(
       Stream.runCollect,
@@ -173,7 +175,7 @@ it.live("manual PAT uses its account and native compatibility rather than an SDK
         "context",
         (event) =>
           Effect.sync(() => {
-            event.generation.maxTokens = 1024
+            event.options.maxTokens = 1024
           }),
         { providerID },
       )

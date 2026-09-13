@@ -57,14 +57,14 @@ export const imageGeneration = (options: ImageGenerationOptions = {}) =>
     },
   })
 
-export interface Settings extends ProviderPackage.Settings {
-  readonly apiKey?: string
-  readonly baseURL?: string
-  readonly organization?: string
-  readonly project?: string
-  readonly queryParams?: Readonly<Record<string, string>>
-  readonly providerOptions?: OpenAIProviderOptionsInput
-}
+export type Settings = ProviderPackage.Settings &
+  OpenAIProviderOptionsInput & {
+    readonly apiKey?: string
+    readonly baseURL?: string
+    readonly organization?: string
+    readonly project?: string
+    readonly queryParams?: Readonly<Record<string, string>>
+  }
 
 const auth = (options: ProviderAuthOption<"optional">) => AuthOptions.bearer(options, "OPENAI_API_KEY")
 
@@ -116,19 +116,28 @@ export const configure = (input: Config = {}) => {
 
 export const provider = configure()
 
-const config = (settings: Settings): Config => {
+const config = ({
+  apiKey,
+  baseURL,
+  body,
+  headers: given,
+  organization,
+  project,
+  queryParams,
+  ...providerOptions
+}: Settings): Config => {
   const headers = {
-    ...(settings.organization === undefined ? {} : { "OpenAI-Organization": settings.organization }),
-    ...(settings.project === undefined ? {} : { "OpenAI-Project": settings.project }),
-    ...settings.headers,
+    ...(organization === undefined ? {} : { "OpenAI-Organization": organization }),
+    ...(project === undefined ? {} : { "OpenAI-Project": project }),
+    ...given,
   }
   return {
-    apiKey: settings.apiKey,
-    baseURL: settings.baseURL,
+    apiKey,
+    baseURL,
     headers: Object.keys(headers).length === 0 ? undefined : headers,
-    http: settings.body === undefined ? undefined : { body: { ...settings.body } },
-    providerOptions: settings.providerOptions,
-    queryParams: settings.queryParams === undefined ? undefined : { ...settings.queryParams },
+    http: body === undefined ? undefined : { body: { ...body } },
+    providerOptions,
+    queryParams: queryParams === undefined ? undefined : { ...queryParams },
   }
 }
 

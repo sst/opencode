@@ -280,10 +280,11 @@ test("groups exploration parts across assistant messages until a delimiter", () 
       kind: "exploration",
       pending: [],
       completed: true,
-      refs: [
-        { messageID: "assistant-1", partID: "read-1" },
-        { messageID: "assistant-1", partID: "glob-1" },
-        { messageID: "assistant-2", partID: "grep-1" },
+      size: 3,
+      children: [
+        partChild("assistant-1", "read-1"),
+        partChild("assistant-1", "glob-1"),
+        partChild("assistant-2", "grep-1"),
       ],
     },
     { type: "part", ref: { messageID: "assistant-2", partID: "text:0" } },
@@ -305,7 +306,8 @@ test("keeps non-exploration tools as individual part rows", () => {
       kind: "exploration",
       pending: [],
       completed: true,
-      refs: [{ messageID: "assistant-1", partID: "read-1" }],
+      size: 1,
+      children: [partChild("assistant-1", "read-1")],
     },
     { type: "part", ref: { messageID: "assistant-1", partID: "reasoning:0" } },
     {
@@ -313,7 +315,8 @@ test("keeps non-exploration tools as individual part rows", () => {
       kind: "exploration",
       pending: [],
       completed: false,
-      refs: [{ messageID: "assistant-1", partID: "grep-1" }],
+      size: 1,
+      children: [partChild("assistant-1", "grep-1")],
     },
   ])
 })
@@ -334,14 +337,16 @@ test("assigns stable kind ordinals within an assistant message", () => {
       type: "group",
       kind: "reasoning",
       completed: true,
-      refs: [{ messageID: "assistant-1", partID: "reasoning:0" }],
+      size: 1,
+      children: [partChild("assistant-1", "reasoning:0")],
     },
     { type: "part", ref: { messageID: "assistant-1", partID: "text:1" } },
     {
       type: "group",
       kind: "reasoning",
       completed: false,
-      refs: [{ messageID: "assistant-1", partID: "reasoning:1" }],
+      size: 1,
+      children: [partChild("assistant-1", "reasoning:1")],
     },
   ])
 })
@@ -361,17 +366,16 @@ test("groups adjacent reasoning parts until a visible boundary", () => {
       type: "group",
       kind: "reasoning",
       completed: true,
-      refs: [
-        { messageID: "assistant-1", partID: "reasoning:0" },
-        { messageID: "assistant-1", partID: "reasoning:1" },
-      ],
+      size: 2,
+      children: [partChild("assistant-1", "reasoning:0"), partChild("assistant-1", "reasoning:1")],
     },
     { type: "part", ref: { messageID: "assistant-1", partID: "text:0" } },
     {
       type: "group",
       kind: "reasoning",
       completed: false,
-      refs: [{ messageID: "assistant-1", partID: "reasoning:2" }],
+      size: 1,
+      children: [partChild("assistant-1", "reasoning:2")],
     },
   ])
 })
@@ -393,17 +397,16 @@ test("groups across empty assistant reasoning parts", () => {
       type: "group",
       kind: "reasoning",
       completed: true,
-      refs: [{ messageID: "assistant-1", partID: "reasoning:0" }],
+      size: 1,
+      children: [partChild("assistant-1", "reasoning:0")],
     },
     {
       type: "group",
       kind: "exploration",
       pending: [],
       completed: false,
-      refs: [
-        { messageID: "assistant-1", partID: "read-1" },
-        { messageID: "assistant-2", partID: "grep-1" },
-      ],
+      size: 2,
+      children: [partChild("assistant-1", "read-1"), partChild("assistant-2", "grep-1")],
     },
   ])
 })
@@ -425,7 +428,8 @@ test("completes exploration groups when another row follows", () => {
       kind: "exploration",
       pending: [],
       completed: true,
-      refs: [{ messageID: "assistant-1", partID: "read-1" }],
+      size: 1,
+      children: [partChild("assistant-1", "read-1")],
     },
     { type: "message", messageID: "user-1" },
     {
@@ -433,7 +437,8 @@ test("completes exploration groups when another row follows", () => {
       kind: "exploration",
       pending: [],
       completed: true,
-      refs: [{ messageID: "assistant-2", partID: "grep-1" }],
+      size: 1,
+      children: [partChild("assistant-2", "grep-1")],
     },
     { type: "assistant-footer", messageID: "assistant-2" },
   ])
@@ -468,10 +473,8 @@ test("hides synthetic messages without descriptions", () => {
       kind: "exploration",
       pending: [],
       completed: false,
-      refs: [
-        { messageID: "assistant-1", partID: "read-1" },
-        { messageID: "assistant-2", partID: "grep-1" },
-      ],
+      size: 2,
+      children: [partChild("assistant-1", "read-1"), partChild("assistant-2", "grep-1")],
     },
   ])
   expect(reduceSessionRows(messages, new Set(["synthetic-1"]))).toEqual(rows)
@@ -496,7 +499,8 @@ test("renders synthetic messages with descriptions", () => {
       kind: "exploration",
       pending: [],
       completed: true,
-      refs: [{ messageID: "assistant-1", partID: "read-1" }],
+      size: 1,
+      children: [partChild("assistant-1", "read-1")],
     },
     { type: "message", messageID: "synthetic-1" },
     {
@@ -504,10 +508,15 @@ test("renders synthetic messages with descriptions", () => {
       kind: "exploration",
       pending: [],
       completed: false,
-      refs: [{ messageID: "assistant-2", partID: "grep-1" }],
+      size: 1,
+      children: [partChild("assistant-2", "grep-1")],
     },
   ])
 })
+
+function partChild(messageID: string, partID: string) {
+  return { type: "entry" as const, entry: { type: "part" as const, ref: { messageID, partID } }, size: 1 as const }
+}
 
 test("renders a footer for a pre-output retry assistant after replay", () => {
   const message = assistant("assistant-retry", [])

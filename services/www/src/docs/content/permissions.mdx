@@ -2,135 +2,180 @@
 title: "Permissions"
 ---
 
-Permissions control whether an agent may perform an action on a resource. V2
-configuration uses the `permissions` field and an ordered array of rules.
+Permissions control whether an agent may perform an action on a resource.
 
-<Callout type="warning">
-  The V1 object syntax uses different field and action names. Do not use `permission`, `bash`, or `task` in V2
-  configuration; use `permissions`, `shell`, and `subagent`.
-</Callout>
+## Configure
 
-## Rule schema
-
-Each rule has three required string fields:
+A common setup is to ask before running shell commands, allow routine Git
+inspection, and always block pushes. Add these ordered rules to `opencode.jsonc`:
 
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
   "permissions": [
-    { "action": "*", "resource": "*", "effect": "ask" },
+    { "action": "shell", "resource": "*", "effect": "ask" },
+    { "action": "shell", "resource": "git status *", "effect": "allow" },
+    { "action": "shell", "resource": "git diff *", "effect": "allow" },
+    { "action": "shell", "resource": "git push *", "effect": "deny" },
+  ],
+}
+```
+
+The last matching rule wins, so the specific exceptions follow the broad rule.
+
+<Callout type="warning">
+  V1 uses different field and action names. In V2, use `permissions`, `shell`, and `subagent` instead of `permission`,
+  `bash`, and `task`.
+</Callout>
+
+## Rules
+
+Each rule requires three string fields:
+
+| Field      | Meaning                                                                    |
+| ---------- | -------------------------------------------------------------------------- |
+| `action`   | Tool permission action                                                     |
+| `resource` | Value being used, such as a path, command, URL, query, skill ID, or agent ID |
+| `effect`   | `allow`, `deny`, or `ask`                                                   |
+
+```jsonc
+{
+  "permissions": [
     { "action": "read", "resource": "*", "effect": "allow" },
     { "action": "read", "resource": "*.env", "effect": "deny" },
-    { "action": "shell", "resource": "git status *", "effect": "allow" },
-    { "action": "shell", "resource": "git push *", "effect": "deny" },
+  ],
+}
+```
+
+| Effect  | Result                              |
+| ------- | ----------------------------------- |
+| `allow` | Continue without prompting          |
+| `deny`  | Block the operation                 |
+| `ask`   | Wait for a decision from the client |
+
+If no rule matches, OpenCode uses `ask`.
+
+## Matching
+
+Actions and resources use simple whole-value wildcards:
+
+| Pattern | Match                                      |
+| ------- | ------------------------------------------ |
+| `*`     | Zero or more characters, including `/`    |
+| `?`     | Exactly one character                     |
+| Other   | The literal character                     |
+
+```jsonc
+{
+  "permissions": [
     { "action": "edit", "resource": "packages/docs/*.mdx", "effect": "allow" },
   ],
 }
 ```
 
-- `action` matches a tool permission action.
-- `resource` matches the value the tool is trying to use, such as a path,
-  command, URL, query, or agent ID.
-- `effect` is `"allow"`, `"deny"`, or `"ask"`.
+This pattern matches the entire normalized path. Backslashes are normalized to
+slashes, and matching is case-insensitive on Windows.
 
-`allow` proceeds without prompting, `deny` blocks the operation, and `ask`
-waits for a user decision. If no rule matches, the result is `ask`.
+A shell pattern ending in ` *` also matches the command without arguments:
 
-## Matching and order
+```jsonc
+{ "action": "shell", "resource": "git status *", "effect": "allow" }
+```
 
-Both `action` and `resource` support simple wildcards:
+This matches both `git status` and `git status --short`.
 
-- `*` matches zero or more characters, including `/`.
-- `?` matches exactly one character.
-- All other characters are literal.
+OpenCode combines rules in order and uses the last match. Lower-priority
+configuration is loaded first, global rules are appended next, and agent rules
+are appended last.
 
-Matches cover the entire value. Slashes are normalized, and matching is
-case-insensitive on Windows. For shell convenience, a pattern ending in
-`" *"` also matches the command without arguments: `"git status *"` matches
-both `git status` and `git status --short`.
+```jsonc
+{
+  "permissions": [
+    { "action": "read", "resource": "*", "effect": "allow" },
+    { "action": "read", "resource": "secrets/*", "effect": "deny" },
+  ],
+}
+```
 
-The **last matching rule wins**. Put broad rules first and exceptions later.
-Rules from lower-priority configuration files are loaded first. OpenCode then
-appends all global rules before agent-specific rules, so a matching agent rule
-overrides a global rule.
+Operations may check several resources, such as a patch that touches multiple
+files. Any `deny` denies the operation; otherwise any `ask` asks; otherwise the
+operation is allowed.
 
-Some operations check several resources at once, such as a patch touching
-multiple files. OpenCode denies the operation if any resource resolves to
-`deny`; otherwise it asks if any resolves to `ask`; otherwise it allows it.
+## Actions
 
-## Actions and resources
+V2 action names are strings, so plugins may define more actions. Built-in tools
+currently use these actions and resources:
 
-V2 action names are strings, so plugins may introduce additional actions. The
-current built-in actions use these resources:
+| Action               | Resource                                                                    |
+| -------------------- | --------------------------------------------------------------------------- |
+| `read`               | Location-relative internal path or canonical absolute external path         |
+| `edit`               | Target path for `edit`, `write`, and `patch`                                |
+| `glob`               | Requested glob pattern                                                      |
+| `grep`               | Requested regular expression, not the search path                           |
+| `shell`              | Scanner-produced command string; compound commands may produce several      |
+| `subagent`           | Target agent ID                                                             |
+| `skill`              | Skill ID                                                                    |
+| `question`           | `*`                                                                         |
+| `webfetch`           | Requested URL                                                               |
+| `websearch`          | Search query                                                                |
+| `external_directory` | Canonical external directory boundary, normally ending in `/*`              |
+| `<server>_<tool>`    | `*` for an MCP tool; unsupported characters in both names become `_`        |
+| `execute`            | `*`; controls Code Mode availability, while nested tools enforce their rules |
 
-| Action               | Resource matched                                                                                                 |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `read`               | Location-relative path for an internal file or directory; canonical absolute path for an external target         |
-| `edit`               | Target path for `edit`, `write`, and `patch`; all three tools share this action                                  |
-| `glob`               | The requested glob pattern                                                                                       |
-| `grep`               | The requested regular expression, not the search path                                                            |
-| `shell`              | The complete raw shell command string                                                                            |
-| `subagent`           | The target agent ID                                                                                              |
-| `skill`              | The skill ID                                                                                                     |
-| `question`           | `*`                                                                                                              |
-| `webfetch`           | The requested URL                                                                                                |
-| `websearch`          | The search query                                                                                                 |
-| `external_directory` | A canonical external directory boundary, normally ending in `/*`                                                 |
-| `<server>_<tool>`    | `*` for an MCP tool; unsupported characters in both names become `_`                                             |
-| `execute`            | `*`; controls availability of the Code Mode dispatcher, while each nested tool still enforces its own permission |
+For example, allow one skill and deny all other skills:
+
+```jsonc
+{
+  "permissions": [
+    { "action": "skill", "resource": "*", "effect": "deny" },
+    { "action": "skill", "resource": "effect", "effect": "allow" },
+  ],
+}
+```
 
 `doom_loop` and `lsp` are not current V2 Core permission actions.
 
-## External directories
+## Directories
 
-A path outside both the active Location and its non-root project worktree
-requires a separate `external_directory` decision before the tool's own `read`
-or `edit` decision. This applies to external paths used by `read`, `edit`,
-`write`, and `patch`, and to an external `shell` working directory.
+A path outside both the active Location and its non-root project worktree needs
+`external_directory` approval before its `read` or `edit` approval.
 
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
   "permissions": [
-    {
-      "action": "external_directory",
-      "resource": "~/projects/reference/*",
-      "effect": "allow",
-    },
-    {
-      "action": "read",
-      "resource": "~/projects/reference/*",
-      "effect": "allow",
-    },
-    {
-      "action": "edit",
-      "resource": "~/projects/reference/*",
-      "effect": "deny",
-    },
+    { "action": "external_directory", "resource": "~/projects/reference/*", "effect": "allow" },
+    { "action": "read", "resource": "~/projects/reference/*", "effect": "allow" },
+    { "action": "edit", "resource": "~/projects/reference/*", "effect": "deny" },
   ],
 }
 ```
 
-For `external_directory`, `read`, and `edit` resources, a leading `~`, `~/`,
-`$HOME`, or `$HOME/` is expanded when configuration loads. Shell resources are
-raw command text and are **not** home-expanded.
+This applies to external paths used by `read`, `edit`, `write`, and `patch`.
+Shell checks its external working directory and directories inferred by its
+scanner before checking `shell` resources.
+
+For `external_directory`, `read`, and `edit`, a leading `~`, `~/`, `$HOME`, or
+`$HOME/` is expanded when configuration loads:
+
+```jsonc
+{ "action": "read", "resource": "$HOME/reference/*", "effect": "allow" }
+```
+
+Shell resources remain raw command text and are not home-expanded.
 
 <Callout type="warning">
-  `shell` runs with the host user's filesystem, process, and network authority. Its resource is raw text, not a parsed
-  command. External command arguments produce only best-effort warnings; `external_directory` is enforced for the
-  working directory, not every path embedded in a command. Prefer a narrow shell allowlist over patterns intended to
-  identify every dangerous command.
+  `shell` runs with the host user's filesystem, process, and network authority. Directory inference from command text is
+  best effort, so prefer a narrow shell allowlist instead of patterns intended to recognize every dangerous command.
 </Callout>
 
-Relative mutation paths may traverse outside the active Location while
-remaining inside its project worktree. Paths outside both boundaries require
-`external_directory` approval. Explicit external paths are canonicalized before
-matching, so authorize only trusted directory boundaries.
+Relative mutation paths may leave the active Location while remaining inside
+its project worktree. Explicit external paths are canonicalized before matching,
+so authorize only trusted directory boundaries.
 
-## Experimental shell scanner
+## Scanner
 
-Set `experimental.portable_shell_scanner` to `true` to test the portable shell
-permission scanner. The default remains the tree-sitter scanner.
+Enable the experimental portable shell scanner with:
 
 ```jsonc
 {
@@ -141,60 +186,55 @@ permission scanner. The default remains the tree-sitter scanner.
 }
 ```
 
-When enabled, shell commands are analyzed only by the portable scanner.
-Tree-sitter is not used as a fallback or a second opinion. If the scanner
-cannot analyze a command, the shell tool reports a scanner error rather than
-silently retrying with Tree-sitter. These failures are experimental parser
-gaps to fix, not permission denials.
+The portable scanner replaces the default tree-sitter scanner; tree-sitter is
+not a fallback or second opinion. A command the portable scanner cannot analyze
+returns a scanner error, not a permission denial.
 
-The flag changes parser selection, not permission policy. Existing rules,
-saved approval patterns, and best-effort directory inference continue to apply.
-There is no additional approval mode or blanket unknown-directory restriction.
-With the flag disabled, the existing Tree-sitter path is unchanged.
+The flag changes only parser selection. Existing permission rules, saved
+approval patterns, and best-effort directory inference still apply. There is no
+extra approval mode or blanket restriction for unknown directories.
 
 ## Defaults
 
-Every agent, including custom agents, starts with ordered defaults that allow
-tools, ask for external directories, ask for `.env` reads, and allow
-`.env.example` reads. Shipped agents then add their own policies:
-
-| Agent                     | Effective default policy                                                                                                                |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `build`                   | Allows most actions; asks for external directories and `.env` reads; allows questions and entering plan mode; denies exiting plan mode  |
-| `plan`                    | Uses the same base, allows questions and exiting plan mode, and denies edits except OpenCode plan files                                 |
-| `general`                 | Uses the base policy but cannot launch another subagent; questions and plan transitions remain denied                                   |
-| `explore`                 | Denies everything except `read`, `glob`, `grep`, `webfetch`, and `websearch`; cannot launch subagents and asks for external directories |
-| Hidden maintenance agents | Deny all actions                                                                                                                        |
-
-The base read rules are ordered as follows:
+Every agent, including custom agents, starts with this ordered base policy:
 
 ```jsonc
 [
-  { "action": "read", "resource": "*", "effect": "allow" },
+  { "action": "*", "resource": "*", "effect": "allow" },
+  { "action": "external_directory", "resource": "*", "effect": "ask" },
   { "action": "read", "resource": "*.env", "effect": "ask" },
   { "action": "read", "resource": "*.env.*", "effect": "ask" },
   { "action": "read", "resource": "*.env.example", "effect": "allow" },
 ]
 ```
 
-OpenCode also permits its managed tool-output, shell-output, temporary, and
-global configuration directories. These exceptions apply only to the
-external-directory boundary for every agent; the underlying action still uses
-its own permission rules. The environment instructions identify the temporary
-directory available for work outside the workspace. Later global and
-agent-specific rules can override these defaults.
+Shipped agents append these policies:
 
-## Agent overrides
+| Agent        | Additional policy                                                              |
+| ------------ | ------------------------------------------------------------------------------ |
+| `build`      | Allows questions                                                               |
+| `plan`       | Allows questions; denies edits except files under `~/.opencode/plan`           |
+| `general`    | Denies questions and launching subagents                                       |
+| `explore`    | Denies everything except reads, globs, grep, web fetches, and web searches; asks for external directories and `.env` reads |
+| `title`      | Denies all actions                                                              |
+| `summary`    | Denies all actions                                                              |
+| `compaction` | Keeps the base policy                                                          |
 
-Configure shared policy at the top level and append narrower rules to a named
-agent under `agents.<id>.permissions`:
+OpenCode also allows external-directory access to its managed tool-output,
+shell-output, temporary, and global configuration directories. The underlying
+`read`, `edit`, or other action still uses its own rules. Later global and agent
+rules can override these defaults.
+
+## Agents
+
+Put shared rules at the top level and narrower rules under
+`agents.<id>.permissions`:
 
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
   "permissions": [
     { "action": "shell", "resource": "*", "effect": "ask" },
-    { "action": "shell", "resource": "git diff *", "effect": "allow" },
     { "action": "shell", "resource": "git status *", "effect": "allow" },
   ],
   "agents": {
@@ -203,33 +243,37 @@ agent under `agents.<id>.permissions`:
       "mode": "subagent",
       "permissions": [
         { "action": "edit", "resource": "*", "effect": "deny" },
-        { "action": "shell", "resource": "git diff *", "effect": "allow" },
-        { "action": "shell", "resource": "git status *", "effect": "allow" },
       ],
     },
   },
 }
 ```
 
-Agent rules do not replace the global array; they are appended after it. A
-custom subagent executes with its own permissions, not a permission subset
-derived from the parent agent.
+Agent rules are appended after global rules; they do not replace the global
+array. A custom subagent uses its own permissions, not a subset of its parent's
+permissions.
 
-## Approval choices
+## Approvals
 
-When an `ask` rule matches, clients can reply with:
+When a rule resolves to `ask`, clients can reply with:
 
-- **Allow once** (`once`): approve only the pending request.
-- **Allow always** (`always`): approve this request and save the patterns
-  proposed by the tool for the current project.
-- **Reject** (`reject`): reject the request. Rejecting also rejects other
-  pending permission requests in the same session; clients may attach feedback.
+| Choice       | Reply      | Result                                                               |
+| ------------ | ---------- | -------------------------------------------------------------------- |
+| Allow once   | `once`     | Approve only the pending request                                     |
+| Allow always | `always`   | Approve it and save the tool's proposed patterns for the project     |
+| Reject       | `reject`   | Reject it and every other pending permission request in that session |
 
-Saved approvals are durable and project-scoped. They are additional `allow`
-rules, but they can never override a configured `deny`. The proposed saved
-pattern may be broader than the displayed resource: several tools propose `*`,
-shell proposes command prefixes, and skills and subagents propose their
-IDs. Review the confirmation carefully and remove saved approvals that are no
-longer needed.
+For example, choosing **Allow always** for `git status --short` may save a
+shell prefix that covers later `git status` commands:
 
-Non-interactive clients must decide how to handle requests that require approval; explicit `deny` rules remain enforced.
+```text
+shell: git status * → allow
+```
+
+Saved approvals are durable, project-scoped `allow` rules. They never override
+a configured `deny`. Tools choose the proposed saved pattern: some propose `*`,
+shell proposes command prefixes, and skills and subagents propose their IDs.
+Review broad approvals and remove those no longer needed.
+
+Clients may attach feedback when rejecting. Non-interactive clients must decide
+how to handle approval requests; configured `deny` rules always remain enforced.

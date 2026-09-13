@@ -17,9 +17,11 @@ for (const tool of ["shell", "execute", "subagent"]) {
       for (const action of [undefined, "Complete input", "Run command", "Complete command"]) {
         if (action) await timeline.getByRole("button", { name: action, exact: true }).click()
         await expect(group).toHaveAttribute("data-timeline-part-ids", "tool_context_lifecycle,tool_shell_lifecycle")
-        await expect(
-          group.locator('[data-component="context-tool-group-trigger"] [data-slot="basic-tool-tool-title"]'),
-        ).toHaveText(/^2 /)
+        const usage = group.locator(
+          '[data-component="context-tool-group-trigger"] [data-slot="context-tool-group-usage"]',
+        )
+        await expect(usage.locator('[data-slot="context-tool-group-prefix"]')).toHaveText("Used")
+        await expect(usage.locator('[data-slot="context-tool-group-count"]')).toHaveText("2")
         await expect(timeline.locator('[data-timeline-row="AssistantPart"]')).toHaveCount(1)
         await expect(trigger).toHaveAttribute("aria-expanded", String(open))
         expect(await original!.evaluate((node) => node.isConnected)).toBe(true)
@@ -141,7 +143,7 @@ for (const open of [false, true]) {
       )
       await expect(
         group.locator('[data-component="context-tool-group-trigger"] [data-slot="basic-tool-tool-title"]'),
-      ).toHaveText("1 Shell")
+      ).toHaveText("Shell")
       await expect(timeline.locator('[data-timeline-row="Thinking"]')).toHaveCount(0)
       await expect(used).toHaveAttribute("aria-expanded", "true")
       if (!open) await thought.click()
@@ -190,7 +192,7 @@ for (const locale of ["de", "ar"] as const) {
     await expect(group.getByRole("button")).toHaveAccessibleName(/^Used 2 /)
     await expect(
       group.locator('[data-component="context-tool-group-trigger"] [data-slot="basic-tool-tool-title"]'),
-    ).toHaveText(/^2 /)
+    ).toHaveText(locale === "de" ? "Lesen, Glob" : "\u0642\u0631\u0627\u0621\u0629, Glob")
     await expect(page.locator("html")).toHaveAttribute("lang", locale)
   })
 }

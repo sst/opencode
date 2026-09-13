@@ -80,6 +80,7 @@ export function SessionWorkspaceMenu(props: {
     <Menu
       placement={props.placement ?? "bottom-end"}
       gutter={props.gutter ?? 4}
+      overflowPadding={24}
       modal={false}
       onOpenChange={onOpenChange}
     >
@@ -101,13 +102,13 @@ export function SessionWorkspaceMenu(props: {
               {language.t("workspace.new")}
             </Menu.Item>
             <Show when={workspaces().length > 0}>
-              <Menu.Sub gutter={0} overlap overflowPadding={8}>
+              <Menu.Sub gutter={0} overlap overflowPadding={24}>
                 <Menu.SubTrigger>
                   <Icon name="outline-worktree" />
                   {language.t("session.new.workspace.existing").replace(/(…|\.{3})$/, "")}
                 </Menu.SubTrigger>
                 <Menu.Portal>
-                  <Menu.SubContent class="max-h-[calc(100dvh-16px)] w-[200px] overflow-y-auto">
+                  <Menu.SubContent class="max-h-[66.667dvh] w-[200px] overflow-y-auto !pb-0 [&>[data-component=menu-v2-item]:last-child]:mb-0.5 [@media(max-height:600px)]:max-h-[calc(100dvh-48px)]">
                     <For each={workspaces()}>
                       {(workspace) => (
                         <Menu.Item disabled={!!store.selected || blocked()} onSelect={() => void move(workspace)}>

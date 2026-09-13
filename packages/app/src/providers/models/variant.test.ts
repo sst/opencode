@@ -64,14 +64,14 @@ describe("model variant", () => {
     expect(value).toBe("xhigh")
   })
 
-  test("wraps from configured last variant to first", () => {
+  test("cycles from configured last variant to default", () => {
     const value = cycleModelVariant({
       variants: ["low", "high", "xhigh"],
       selected: undefined,
       configured: "xhigh",
     })
 
-    expect(value).toBe("low")
+    expect(value).toBeUndefined()
   })
 
   test("cycles from an explicit default to the first variant", () => {
@@ -82,5 +82,23 @@ describe("model variant", () => {
     })
 
     expect(value).toBe("low")
+  })
+
+  test("prefers a saved variant to configuration, including explicit Default", () => {
+    const input = { variants: ["low", "high"], selected: undefined, configured: "high" }
+    expect(resolveModelVariant({ ...input, preferred: "low" })).toBe("low")
+    expect(resolveModelVariant({ ...input, preferred: "default" })).toBeUndefined()
+    expect(resolveModelVariant({ ...input, preferred: "low", selected: null })).toBeUndefined()
+    expect(resolveModelVariant({ ...input, preferred: "low", selected: "high" })).toBe("high")
+    expect(cycleModelVariant({ ...input, preferred: "high" })).toBeUndefined()
+    expect(cycleModelVariant({ ...input, preferred: "default" })).toBe("low")
+  })
+
+  test("normalizes unavailable selections instead of silently applying another variant", () => {
+    expect(resolveModelVariant({ variants: ["low"], selected: "high", configured: "low" })).toBeUndefined()
+    expect(
+      resolveModelVariant({ variants: ["low"], selected: undefined, preferred: "high", configured: "low" }),
+    ).toBeUndefined()
+    expect(cycleModelVariant({ variants: [], selected: undefined, configured: undefined })).toBeUndefined()
   })
 })

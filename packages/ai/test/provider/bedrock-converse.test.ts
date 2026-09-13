@@ -1,7 +1,7 @@
 import { EventStreamCodec } from "@smithy/eventstream-codec"
 import { fromUtf8, toUtf8 } from "@smithy/util-utf8"
 import { describe, expect } from "bun:test"
-import { Effect, Encoding, Ref, Stream } from "effect"
+import { Effect, Encoding, Ref, Schema, Stream } from "effect"
 import { HttpClientRequest } from "effect/unstable/http"
 import {
   CacheHint,
@@ -11,9 +11,11 @@ import {
   LLMEvent,
   LLMRequest,
   Message,
+  Tool,
   ToolCallPart,
   ToolChoice,
   ToolDefinition,
+  ToolRuntime,
 } from "../../src/index.js"
 import { LLMClient } from "../../src/route.js"
 import { compileRequest } from "../../src/route/client.js"
@@ -279,6 +281,52 @@ describe("Bedrock Converse route", () => {
       })
     }),
   )
+  ;["", " \t\r\n"].forEach((description) => {
+    it.effect(`omits blank tool description ${JSON.stringify(description)}`, () =>
+      Effect.gen(function* () {
+        const prepared = yield* compileRequest(
+          LLMRequest.update(baseRequest, {
+            tools: [
+              ToolDefinition.make({
+                name: "lookup",
+                description,
+                inputSchema: { type: "object", properties: { query: { type: "string" } } },
+              }),
+            ],
+          }),
+        )
+
+        expect(prepared.body.toolConfig.tools).toEqual([
+          {
+            toolSpec: {
+              name: "lookup",
+              inputSchema: { json: { type: "object", properties: { query: { type: "string" } } } },
+            },
+          },
+        ])
+        expect(prepared.body.toolConfig.tools[0].toolSpec).not.toHaveProperty("description")
+      }),
+    )
+  })
+
+  it.effect("preserves meaningful tool descriptions including surrounding whitespace", () =>
+    Effect.gen(function* () {
+      const description = " \tLookup data.\n"
+      const prepared = yield* compileRequest(
+        LLMRequest.update(baseRequest, {
+          tools: [
+            ToolDefinition.make({
+              name: "lookup",
+              description,
+              inputSchema: { type: "object" },
+            }),
+          ],
+        }),
+      )
+
+      expect(prepared.body.toolConfig.tools[0].toolSpec.description).toBe(description)
+    }),
+  )
 
   it.effect("keeps tools and omits the unsupported choice when tool choice is none", () =>
     Effect.gen(function* () {
@@ -348,6 +396,45 @@ describe("Bedrock Converse route", () => {
       })
     }),
   )
+  ;[
+    { name: "browser.tabs.open", expected: "browser_tabs_open" },
+    { name: "$lookup", expected: "_lookup" },
+    { name: "", expected: "_" },
+    { name: "   ", expected: "___" },
+    { name: "a".repeat(65), expected: "a".repeat(64) },
+    { name: "lookup_123-ABC", expected: "lookup_123-ABC" },
+    { name: "a".repeat(64), expected: "a".repeat(64) },
+  ].forEach((item) => {
+    it.effect(`replays historical tool name ${JSON.stringify(item.name)} within Bedrock constraints`, () =>
+      Effect.gen(function* () {
+        const call = ToolCallPart.make({ id: "call_unknown", name: item.name, input: { query: "weather" } })
+        const error = `No tool named "${item.name}" is currently available. Please use a tool from the available tool list.`
+        const request = LLM.request({
+          model,
+          cache: "none",
+          tools: [ToolDefinition.make({ name: "execute", description: "Run code", inputSchema: { type: "object" } })],
+          messages: [
+            Message.user("Check the weather"),
+            Message.assistant([call]),
+            Message.tool({ id: call.id, name: call.name, result: error, resultType: "error" }),
+            Message.user("Say OK"),
+          ],
+        })
+        const prepared = yield* compileRequest(request)
+
+        expect(prepared.body.messages[1].content).toEqual([
+          { toolUse: { toolUseId: call.id, name: item.expected, input: call.input } },
+        ])
+        expect(prepared.body.messages[2].content).toEqual([
+          { toolResult: { toolUseId: call.id, content: [{ text: error }], status: "error" } },
+          { text: "Say OK" },
+        ])
+        expect(prepared.body.toolConfig.tools.map((tool) => tool.toolSpec.name)).toEqual(["execute"])
+        expect(request.messages[1].content[0]).toEqual(call)
+        expect(call.name).toBe(item.name)
+      }),
+    )
+  })
 
   it.effect("removes empty keys recursively from outbound tool inputs without mutating history", () =>
     Effect.gen(function* () {
@@ -748,6 +835,57 @@ describe("Bedrock Converse route", () => {
         type: "finish",
         reason: { normalized: "tool-calls", raw: "tool_use" },
       })
+    }),
+  )
+
+  it.effect("rejects a provider-emitted dotted name before normalizing its replay", () =>
+    Effect.gen(function* () {
+      const response = yield* LLMClient.generate(baseRequest).pipe(
+        Effect.provide(
+          fixedBytes(
+            eventStreamBody(
+              [
+                "contentBlockStart",
+                { contentBlockIndex: 0, start: { toolUse: { toolUseId: "call_unknown", name: "browser.tabs.open" } } },
+              ],
+              ["contentBlockDelta", { contentBlockIndex: 0, delta: { toolUse: { input: "{}" } } }],
+              ["contentBlockStop", { contentBlockIndex: 0 }],
+              ["messageStop", { stopReason: "tool_use" }],
+            ),
+          ),
+        ),
+      )
+      const call = response.toolCalls[0]
+      if (!call) throw new Error("Expected a tool call")
+      expect(call.name).toBe("browser.tabs.open")
+      const dispatched = yield* ToolRuntime.dispatch(
+        {
+          browser_tabs_open: Tool.make({
+            description: "Open a tab",
+            parameters: Schema.Struct({}),
+            success: Schema.String,
+            execute: () => Effect.die("A normalized replay name must not select an executor"),
+          }),
+        },
+        call,
+      )
+      expect(dispatched.result).toEqual({
+        type: "error",
+        value:
+          'No tool named "browser.tabs.open" is currently available. Please use a tool from the available tool list.',
+      })
+
+      const prepared = yield* compileRequest(
+        LLM.request({
+          model,
+          cache: "none",
+          messages: [response.message, Message.tool({ id: call.id, name: call.name, result: dispatched.result })],
+        }),
+      )
+      expect(prepared.body.messages[0].content).toEqual([
+        { toolUse: { toolUseId: call.id, name: "browser_tabs_open", input: {} } },
+      ])
+      expect(response.toolCalls[0]?.name).toBe("browser.tabs.open")
     }),
   )
 
@@ -1458,7 +1596,13 @@ describe("Bedrock Converse route", () => {
         expect(headers.get("authorization")).toContain("Credential=AKIACHAINEXAMPLE/")
         expect(headers.get("authorization")).toContain("/ap-southeast-2/bedrock/aws4_request")
       }
-      expect(() => AmazonBedrock.configure({ auth: "sigv4", apiKey: "k" })).toThrow("does not accept apiKey")
+      expect(() => AmazonBedrock.configure({ auth: "sigv4", apiKey: "k" })).toThrow(
+        expect.objectContaining({
+          _tag: "ProviderConfiguration",
+          provider: "amazon-bedrock",
+          message: "Amazon Bedrock SigV4 auth does not accept apiKey",
+        }),
+      )
     }).pipe(
       withProcessEnv({
         ...noAmbientAWS,

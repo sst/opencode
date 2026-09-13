@@ -379,6 +379,7 @@ test.each(["once", "always", "reject"] as const)(
       miniSettings: {
         current: {
           thinking: "hide",
+          tools: "show",
           shell_output: "hide",
           turn_summary: "hide",
           footer: "show",

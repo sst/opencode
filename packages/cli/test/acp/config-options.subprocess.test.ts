@@ -50,11 +50,11 @@ describe("acp config option subprocess", () => {
     const effort = requireSelectOption((await newSession(acp, fixture.home)).configOptions, "effort")
 
     expect(effort.category).toBe("thought_level")
-    expect(effort.currentValue).toBe("low")
-    expect(flattenSelectOptions(effort).map((option) => option.value)).toEqual(["low", "high"])
+    expect(effort.currentValue).toBe("default")
+    expect(flattenSelectOptions(effort).map((option) => option.value)).toEqual(["low", "high", "default"])
   }, 60_000)
 
-  test("effort switch updates currentValue", async () => {
+  test("effort survives model synchronization and can be reset to default", async () => {
     await using fixture = await createAcpFixture()
     const acp = fixture.spawn()
     await initialize(acp)
@@ -70,5 +70,23 @@ describe("acp config option subprocess", () => {
     )
 
     expect(selectConfigOption(updated.configOptions, "effort")?.currentValue).toBe(nextEffort)
+
+    const synchronized = expectOk(
+      await acp.request<SetSessionConfigOptionResponse>("session/set_config_option", {
+        sessionId: session.sessionId,
+        configId: "model",
+        value: requireSelectOption(session.configOptions, "model").currentValue,
+      }),
+    )
+    expect(selectConfigOption(synchronized.configOptions, "effort")?.currentValue).toBe(nextEffort)
+
+    const reset = expectOk(
+      await acp.request<SetSessionConfigOptionResponse>("session/set_config_option", {
+        sessionId: session.sessionId,
+        configId: "effort",
+        value: "default",
+      }),
+    )
+    expect(selectConfigOption(reset.configOptions, "effort")?.currentValue).toBe("default")
   }, 60_000)
 })

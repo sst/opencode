@@ -2,7 +2,7 @@ import type { RouteDefaultsInput } from "../route/client.js"
 import { Auth } from "../route/auth.js"
 import type { ProviderAuthOption } from "../route/auth-options.js"
 import type { ProviderPackage } from "../provider-package.js"
-import { ProviderID, type ModelID } from "../schema/index.js"
+import { ProviderConfigurationError, ProviderID, type ModelID } from "../schema/index.js"
 import { AnthropicMessages } from "../protocols/anthropic-messages.js"
 import { AnthropicCompatible } from "./anthropic-compatible.js"
 
@@ -21,12 +21,12 @@ export type Config = RouteDefaultsInput &
   }
 
 export type Settings = ProviderPackage.Settings &
+  AnthropicMessages.ProviderOptionsInput &
   (
     | { readonly apiKey?: string; readonly authToken?: never }
     | { readonly apiKey?: never; readonly authToken?: string }
   ) & {
     readonly baseURL?: string
-    readonly providerOptions?: AnthropicMessages.ProviderOptionsInput
   }
 
 const auth = (options: ProviderAuthOption<"optional">) => {
@@ -54,15 +54,18 @@ export const configure = (input: Config = {}) => {
 export const provider = configure()
 export const model: ProviderPackage.Definition<Settings, AnthropicMessages.ProviderOptionsInput>["model"] = (
   modelID,
-  settings,
+  { apiKey, authToken, baseURL, body, headers, ...providerOptions },
 ) => {
-  if (settings.apiKey !== undefined && settings.authToken !== undefined)
-    throw new Error("Anthropic apiKey cannot be combined with authToken")
+  if (apiKey !== undefined && authToken !== undefined)
+    throw new ProviderConfigurationError({
+      provider: id,
+      message: "Anthropic apiKey cannot be combined with authToken",
+    })
   return configure({
-    ...(settings.authToken === undefined ? { apiKey: settings.apiKey } : { auth: Auth.bearer(settings.authToken) }),
-    baseURL: settings.baseURL,
-    headers: settings.headers === undefined ? undefined : { ...settings.headers },
-    http: settings.body === undefined ? undefined : { body: { ...settings.body } },
-    providerOptions: settings.providerOptions,
+    ...(authToken === undefined ? { apiKey: apiKey } : { auth: Auth.bearer(authToken) }),
+    baseURL,
+    headers: headers === undefined ? undefined : { ...headers },
+    http: body === undefined ? undefined : { body: { ...body } },
+    providerOptions,
   }).model(modelID)
 }

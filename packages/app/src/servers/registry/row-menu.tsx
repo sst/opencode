@@ -5,6 +5,7 @@ import { type Component, Show } from "solid-js"
 import type { ServerActionsController } from "@/servers/registry/controller"
 import { useLanguage } from "@/runtime/i18n/language"
 import { ServerConnection } from "@/runtime/server/registry"
+import { SshMenu } from "../ssh/menu"
 
 export const ServerRowMenu: Component<{
   server: ServerConnection.Any
@@ -15,6 +16,7 @@ export const ServerRowMenu: Component<{
 }> = (props) => {
   const language = useLanguage()
   const key = ServerConnection.key(props.server)
+  if (props.server.type === "ssh" && props.server.id) return <SshMenu id={props.server.id} domain={props.domain} />
   return (
     <ServerRowMenuView
       server={props.server}
@@ -43,7 +45,7 @@ export function serverMenuLabels(language: ReturnType<typeof useLanguage>) {
     edit: language.t("dialog.server.menu.edit"),
     default: language.t("dialog.server.menu.default"),
     defaultRemove: language.t("dialog.server.menu.defaultRemove"),
-    delete: language.t("dialog.server.menu.delete"),
+    remove: language.t("dialog.server.menu.remove"),
     hide: language.t("dialog.server.menu.hide"),
     show: language.t("dialog.server.menu.show"),
   }
@@ -104,7 +106,7 @@ export const ServerRowMenuView: Component<{
             </Show>
             <Show when={props.canRemove}>
               <Menu.Separator />
-              <Menu.Item onSelect={props.onRemove}>{props.labels.delete}</Menu.Item>
+              <Menu.Item onSelect={props.onRemove}>{props.labels.remove}</Menu.Item>
             </Show>
           </Menu.Group>
         </Menu.Content>

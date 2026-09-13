@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "metadata": {
+    "tags": [
+      "prefix:alibaba-chat",
+      "provider:alibaba",
+      "protocol:alibaba-chat",
+      "region:ap-southeast-1",
+      "thinking",
+      "usage"
+    ],
+    "name": "alibaba-chat/qwen-3-7-plus-streams-thinking-disabled",
+    "recordedAt": "2026-09-08T03:10:42.782Z"
+  },
+  "interactions": [
+    {
+      "transport": "http",
+      "request": {
+        "method": "POST",
+        "url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"model\":\"qwen3.7-plus\",\"messages\":[{\"role\":\"user\",\"content\":\"What is 173 multiplied by 219? Reply with only the final integer.\"}],\"stream\":true,\"stream_options\":{\"include_usage\":true},\"max_completion_tokens\":4096,\"enable_thinking\":false}"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/event-stream;charset=utf-8"
+        },
+        "body": "data: {\"model\":\"qwen3.7-plus\",\"id\":\"chatcmpl-047bcb67-b193-9a4f-9d77-ea0325be6d7c\",\"created\":1788837041,\"object\":\"chat.completion.chunk\",\"usage\":null,\"choices\":[{\"logprobs\":null,\"index\":0,\"delta\":{\"content\":\"\",\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"model\":\"qwen3.7-plus\",\"id\":\"chatcmpl-047bcb67-b193-9a4f-9d77-ea0325be6d7c\",\"choices\":[{\"delta\":{\"content\":\"3\"},\"index\":0,\"finish_reason\":null,\"logprobs\":null}],\"created\":1788837041,\"object\":\"chat.completion.chunk\",\"usage\":null}\n\ndata: {\"model\":\"qwen3.7-plus\",\"id\":\"chatcmpl-047bcb67-b193-9a4f-9d77-ea0325be6d7c\",\"choices\":[{\"delta\":{\"content\":\"7887\"},\"index\":0,\"finish_reason\":null,\"logprobs\":null}],\"created\":1788837041,\"object\":\"chat.completion.chunk\",\"usage\":null}\n\ndata: {\"model\":\"qwen3.7-plus\",\"id\":\"chatcmpl-047bcb67-b193-9a4f-9d77-ea0325be6d7c\",\"choices\":[{\"delta\":{\"content\":\"\"},\"index\":0,\"finish_reason\":\"stop\",\"logprobs\":null}],\"created\":1788837041,\"object\":\"chat.completion.chunk\",\"usage\":null}\n\ndata: {\"choices\":[],\"created\":1788837041,\"id\":\"chatcmpl-047bcb67-b193-9a4f-9d77-ea0325be6d7c\",\"model\":\"qwen3.7-plus\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":5,\"prompt_tokens\":32,\"prompt_tokens_details\":{\"cached_tokens\":0,\"text_tokens\":32},\"total_tokens\":37}}\n\ndata: [DONE]\n\n"
+      }
+    }
+  ]
+}

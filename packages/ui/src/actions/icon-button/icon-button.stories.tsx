@@ -3,11 +3,12 @@ import { IconButton } from "./icon-button"
 import { Icon } from "@opencode/ui/icon"
 
 const docs = `### Overview
-Square icon-only button with three visual variants and three sizes.
+Square icon-only button with visual variants and three sizes.
 
 ### API
 - \`icon\`: Icon content.
-- \`variant\`: "neutral" | "contrast" | "ghost".
+- \`variant\`: "neutral" | "contrast" | "submit" | "ghost".
+- \`submit\` shares the contrast styling with regular Composer submit buttons.
 - \`size\`: "small" | "normal" | "large".
 - Inherits Kobalte Button props and native button attributes.
 
@@ -41,7 +42,7 @@ export default {
     },
     variant: {
       control: "select",
-      options: ["neutral", "contrast", "ghost"],
+      options: ["neutral", "contrast", "submit", "ghost"],
     },
     size: {
       control: "select",
@@ -57,6 +58,7 @@ export const Variants = {
     <div style={{ display: "flex", gap: "12px", "align-items": "center", "flex-wrap": "wrap" }}>
       <IconButton icon={<Icon name="plus" />} variant="neutral" />
       <IconButton icon={<Icon name="plus" />} variant="contrast" />
+      <IconButton icon={<Icon name="arrow-up" />} variant="submit" />
       <IconButton icon={<Icon name="plus" />} variant="ghost" />
     </div>
   ),
@@ -74,7 +76,7 @@ export const Sizes = {
 
 export const AllStates = {
   render: () => {
-    const variants = ["neutral", "contrast", "ghost"] as const
+    const variants = ["neutral", "contrast", "submit", "ghost"] as const
     const states = ["default", "hover", "pressed", "focus", "disabled"] as const
 
     return (

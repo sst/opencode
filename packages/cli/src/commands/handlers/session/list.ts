@@ -47,7 +47,7 @@ const handler = Effect.fn("cli.session.list")(function* (
           null,
           2,
         )
-      : formatTable(page.data)) + EOL
+      : formatList(page.data)) + EOL
   const write = Effect.tryPromise(
     () =>
       new Promise<void>((resolve, reject) => {
@@ -96,18 +96,14 @@ export default Runtime.handler(Commands.commands.session.commands.list, (input) 
   ),
 )
 
-function formatTable(sessions: ReadonlyArray<SessionInfo>) {
-  const rows = sessions.map((session) => ({
-    id: session.id,
-    title: (session.title ?? "Untitled session").replace(/[\r\n\t]/g, " "),
-    updated: new Date(session.time.updated).toLocaleString(),
-  }))
-  const idWidth = Math.max(20, ...rows.map((row) => row.id.length))
-  const titleWidth = Math.max(25, ...rows.map((row) => row.title.length))
-  const header = `${"Session ID".padEnd(idWidth)}  ${"Title".padEnd(titleWidth)}  Updated`
-  return [
-    header,
-    "─".repeat(header.length),
-    ...rows.map((row) => `${row.id.padEnd(idWidth)}  ${row.title.padEnd(titleWidth)}  ${row.updated}`),
-  ].join(EOL)
+function formatList(sessions: ReadonlyArray<SessionInfo>) {
+  return sessions
+    .map((session) =>
+      [
+        session.id,
+        (session.title ?? "Untitled session").replace(/[\r\n\t]/g, " "),
+        new Date(session.time.updated).toLocaleString(),
+      ].join("\t"),
+    )
+    .join(EOL)
 }

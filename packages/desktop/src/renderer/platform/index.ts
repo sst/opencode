@@ -79,6 +79,7 @@ export function createDesktopPlatform(
       await api.setDefaultServerUrl(url)
     },
     wslServers: os === "windows" ? api.wslServers : undefined,
+    sshServers: api.sshServers,
     webviewZoom,
     windowFullscreen,
     getPinchZoomEnabled: () => api.getPinchZoomEnabled(),

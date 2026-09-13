@@ -69,7 +69,9 @@ for (const model of [
       dynamicResponse(({ request, text, respond }) =>
         Effect.sync(() => {
           const body = JSON.parse(text)
-          expect(request.headers["anthropic-beta"]).toBe("existing-beta,compact-2026-01-12")
+          expect(request.headers["anthropic-beta"]).toBe(
+            "existing-beta,interleaved-thinking-2025-05-14,compact-2026-01-12",
+          )
           if (body.messages.length === 1) {
             expect(body.context_management.edits).toEqual([
               {

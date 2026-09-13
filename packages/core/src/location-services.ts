@@ -1,8 +1,9 @@
-import { Duration, Effect, Exit, Layer, LayerMap, MutableHashMap, Option } from "effect"
+import { Context, Duration, Effect, Exit, Layer, LayerMap, MutableHashMap, Option } from "effect"
 import { LayerNode } from "@opencode/util/effect/layer-node"
 import { Instance } from "./instance.js"
 import { Location } from "./location.js"
 import { LocationServiceMap } from "./location-service-map.js"
+import { Rpc } from "./rpc.js"
 
 export { LocationServiceMap } from "./location-service-map.js"
 
@@ -16,11 +17,11 @@ export function buildLocationServiceMap(
     LocationServiceMap.Service,
     Effect.gen(function* () {
       const owner = yield* Effect.scope
-      const booting = MutableHashMap.empty<Location.Ref, object>()
+      const builds = MutableHashMap.empty<Location.Ref, { close?: Effect.Effect<void> }>()
       const inner: LayerMap.LayerMap<Location.Ref, LocationServices> = yield* LayerMap.make(
         (ref: Location.Ref) => {
-          const build = {}
-          MutableHashMap.set(booting, ref, build)
+          const build: { close?: Effect.Effect<void> } = {}
+          MutableHashMap.set(builds, ref, build)
           return Layer.fromBuild((memoMap, scope) =>
             Effect.suspend(() =>
               Layer.buildWithMemoMap(Instance.layer(ref, { replacements: bindings }), memoMap, scope),
@@ -28,8 +29,12 @@ export function buildLocationServiceMap(
               Effect.onExit((exit) => {
                 const finish = Effect.suspend(() => {
                   // An explicitly invalidated build must not evict its replacement.
-                  if (Option.getOrUndefined(MutableHashMap.get(booting, ref)) !== build) return Effect.void
-                  MutableHashMap.remove(booting, ref)
+                  if (Option.getOrUndefined(MutableHashMap.get(builds, ref)) !== build) return Effect.void
+                  if (Exit.isSuccess(exit)) {
+                    build.close = Context.get(exit.value, Rpc.Service).close
+                    return Effect.void
+                  }
+                  MutableHashMap.remove(builds, ref)
                   // Evict once per failed build, before its result reaches borrowers.
                   return Exit.isFailure(exit) ? inner.invalidate(ref) : Effect.void
                 })
@@ -54,8 +59,11 @@ export function buildLocationServiceMap(
         invalidate: (ref: Location.Ref) =>
           Effect.suspend(() => {
             const key = LocationServiceMap.canonical(ref)
-            MutableHashMap.remove(booting, key)
-            return inner.invalidate(key)
+            const build = Option.getOrUndefined(MutableHashMap.get(builds, key))
+            MutableHashMap.remove(builds, key)
+            // Detach routing first, then end pending RPCs that still borrow the old graph.
+            // Do not await a boot here: failed/in-flight builds have their own cleanup path.
+            return inner.invalidate(key).pipe(Effect.andThen(build?.close ?? Effect.void))
           }),
       }
       // Cached instances borrow their owner instead of retaining its Layer scope.

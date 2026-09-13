@@ -1,5 +1,23 @@
 import { expect, story } from "../../storybook/playwright/story"
 
+story("requests live output only when the shell is expanded", async ({ mount }) => {
+  const root = await mount("current-session-terminal-work--live-user-command", { args: { expanded: false } })
+  const shell = root.locator('[data-component="session-shell-message"]')
+  const trigger = shell.locator('[data-slot="collapsible-trigger"]')
+  await expect(trigger).toHaveAttribute("aria-expanded", "false")
+  await expect(root.getByLabel("Output requests")).toHaveText("0")
+  await root.getByRole("button", { name: "Update output", exact: true }).click()
+  await expect(root.getByLabel("Output requests")).toHaveText("0")
+  await trigger.click()
+  await expect(shell.locator('[data-slot="bash-result"]')).toHaveText("ready\nnext line\n")
+  await expect(root.getByLabel("Output requests")).toHaveText(/^[1-9]\d*$/)
+  await trigger.click()
+  await expect(shell.locator('[data-component="bash-output"]')).toHaveCount(0)
+  await root.getByRole("button", { name: "Update output", exact: true }).click()
+  await trigger.click()
+  await expect(shell.locator('[data-slot="bash-result"]')).toHaveText("ready\nnext line\nnext line\n")
+})
+
 story("streams user shell output and retains the saved completion", async ({ mount }) => {
   const root = await mount("current-session-terminal-work--live-user-command")
   const shell = root.locator('[data-component="session-shell-message"]')

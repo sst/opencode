@@ -1040,7 +1040,7 @@ describe("confined generators", () => {
         function* pair() {
           try {
             events.push("first")
-            yield (function* () {})()
+            yield Promise.resolve(1)
             events.push("second")
             yield 2
           } finally { events.push("pair close") }

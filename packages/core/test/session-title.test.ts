@@ -1,5 +1,14 @@
 import { beforeEach, expect } from "bun:test"
-import { AIError, LLMClient, LLMEvent, LanguageModel, TransportError, type LLMRequest } from "@opencode/ai"
+import {
+  AIError,
+  LLMClient,
+  LLMEvent,
+  LanguageModel,
+  Message,
+  SystemPart,
+  TransportError,
+  type LLMRequest,
+} from "@opencode/ai"
 import { OpenAIChat } from "@opencode/ai/protocols"
 import { Agent } from "@opencode/core/agent"
 import { Catalog } from "@opencode/core/catalog"
@@ -229,6 +238,62 @@ it.effect("generates a title from the sole user message and renames the session"
     expect(renamed?.title).toBe("Generated Title")
     expect(renamed?.tokens).toEqual({ input: 10, output: 4, reasoning: 2, cache: { read: 3, write: 2 } })
     expect(renamed?.cost).toBeCloseTo(0.0000233)
+  }),
+)
+
+it.effect("runs title hooks instead of context hooks", () =>
+  Effect.gen(function* () {
+    yield* enableTitleAgent
+    const sessionID = Session.ID.make("ses_title_hook")
+    yield* insertSession(sessionID)
+    yield* prompt(sessionID, "Redact this message")
+
+    const hooks = yield* PluginHooks.Service
+    let contexts = 0
+    yield* hooks.register("session", "context", () => Effect.sync(() => contexts++))
+    yield* hooks.register("session", "title", (event) =>
+      Effect.sync(() => {
+        expect(event.sessionID).toBe(sessionID)
+        expect(event.system.map((part) => part.text)).toEqual(["You are a title generator."])
+        event.system.push(SystemPart.make("Prefer short titles."))
+        event.messages = [Message.user("[redacted]")]
+        event.options.maxTokens = 32
+        event.options.reasoningEffort = "low"
+      }),
+    )
+
+    const title = yield* SessionTitle.Service
+    yield* title.generate(sessionID)
+
+    expect(contexts).toBe(0)
+    expect(requests).toHaveLength(1)
+    expect(requests[0]?.system.map((part) => part.text)).toEqual(["You are a title generator.", "Prefer short titles."])
+    expect(JSON.stringify(requests[0]?.messages)).not.toContain("Redact this message")
+    expect(requests[0]?.generation).toEqual(expect.objectContaining({ maxTokens: 32 }))
+    expect(requests[0]?.providerOptions).toEqual({ reasoningEffort: "low" })
+  }),
+)
+
+it.effect("uses a hook-provided title without a model request", () =>
+  Effect.gen(function* () {
+    yield* enableTitleAgent
+    const sessionID = Session.ID.make("ses_title_result")
+    yield* insertSession(sessionID)
+    yield* prompt(sessionID, "Hello")
+
+    const hooks = yield* PluginHooks.Service
+    yield* hooks.register("session", "title", (event) =>
+      Effect.sync(() => {
+        event.result = "Plugin Title"
+      }),
+    )
+
+    const title = yield* SessionTitle.Service
+    yield* title.generate(sessionID)
+
+    expect(requests).toHaveLength(0)
+    const store = yield* SessionStore.Service
+    expect((yield* store.get(sessionID))?.title).toBe("Plugin Title")
   }),
 )
 

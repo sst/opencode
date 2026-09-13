@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "metadata": {
+    "tags": [
+      "prefix:alibaba-messages",
+      "provider:alibaba",
+      "protocol:alibaba-messages",
+      "region:ap-southeast-1",
+      "structured-output"
+    ],
+    "name": "alibaba-messages/qwen-3-8-max-follows-a-json-schema",
+    "recordedAt": "2026-09-08T03:11:30.530Z"
+  },
+  "interactions": [
+    {
+      "transport": "http",
+      "request": {
+        "method": "POST",
+        "url": "https://dashscope-intl.aliyuncs.com/apps/anthropic/v1/messages",
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"model\":\"qwen3.8-max\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Return a JSON object with one key \\\"city\\\" set to the capital city of France.\"}]}],\"stream\":true,\"max_tokens\":1024,\"thinking\":{\"type\":\"disabled\"},\"output_config\":{\"format\":{\"type\":\"json_schema\",\"schema\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"],\"additionalProperties\":false}}}}"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/event-stream"
+        },
+        "body": "event:ping\ndata:{\"type\":\"ping\"}\n\nevent:message_start\ndata:{\"message\":{\"model\":\"qwen3.8-max\",\"id\":\"msg_16e067c1-984b-94d3-9abb-11792d794271\",\"role\":\"assistant\",\"type\":\"message\",\"content\":[],\"usage\":{\"input_tokens\":18,\"output_tokens\":0}},\"type\":\"message_start\"}\n\nevent:content_block_start\ndata:{\"type\":\"content_block_start\",\"content_block\":{\"type\":\"text\",\"text\":\"\"},\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"text_delta\",\"text\":\"{\\\"\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"text_delta\",\"text\":\"city\\\":\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"type\":\"text_delta\",\"text\":\" \\\"Paris\\\"}\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_stop\ndata:{\"type\":\"content_block_stop\",\"index\":0}\n\nevent:message_delta\ndata:{\"delta\":{\"stop_reason\":\"end_turn\"},\"type\":\"message_delta\",\"usage\":{\"output_tokens\":6,\"cache_creation_input_tokens\":0,\"input_tokens\":32,\"cache_read_input_tokens\":0,\"prompt_tokens_details\":{\"cached_tokens\":0}}}\n\nevent:message_stop\ndata:{\"type\":\"message_stop\"}\n\n"
+      }
+    }
+  ]
+}

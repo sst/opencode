@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { SessionNotFoundError } from "@opencode/client/promise"
+import type { FileNotFoundError, SessionNotFoundError } from "@opencode/client/promise"
 import type { ConfigInvalidError, ProviderModelNotFoundError } from "./errors"
 import { formatServerError, isSessionNotFoundError, parseReadableConfigInvalidError } from "./errors"
 
@@ -85,6 +85,16 @@ describe("formatServerError", () => {
     expect(formatServerError(new Error("Request failed with status 503"), language.t)).toBe(
       "Request failed with status 503",
     )
+  })
+
+  test("returns typed server error messages", () => {
+    const error = {
+      _tag: "FileNotFoundError",
+      path: "deleted.txt",
+      message: "File not found: deleted.txt",
+    } satisfies FileNotFoundError
+
+    expect(formatServerError(error, language.t)).toBe("File not found: deleted.txt")
   })
 
   test("returns provided string errors", () => {

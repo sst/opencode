@@ -2,52 +2,62 @@
 title: "Commands"
 ---
 
-Custom commands turn a named prompt template into a reusable command.
+Create `.opencode/commands/review.md` to turn a prompt into `/review`:
 
-## Configure with Markdown
-
-OpenCode discovers `.md` command files in `commands/` directories:
-
-```text
-~/.config/opencode/commands/       # Global
-.opencode/commands/                # Project
+```md title=".opencode/commands/review.md"
+Review $ARGUMENTS for bugs and missing tests.
 ```
 
-Files may be nested; for example, `.opencode/commands/team/review.md` defines
-the command `team/review`. Files with other extensions, including `.mdx`, are not
-discovered.
+Run it from the TUI with a target:
+
+```text
+/review src/auth.ts
+```
+
+OpenCode submits `Review src/auth.ts for bugs and missing tests.` as a user prompt.
+
+## Markdown
+
+Put global commands in `~/.config/opencode/commands/` and project commands in `.opencode/commands/`.
+
+```text
+~/.config/opencode/commands/review.md
+.opencode/commands/review.md
+```
+
+Only `.md` files are discovered. Nested paths become command names with `/` separators:
+
+```md title=".opencode/commands/team/review.md"
+Review $ARGUMENTS using the team's checklist.
+```
+
+Run the nested command as `/team/review src/auth.ts`. The legacy singular directories `command/` are also discovered,
+but use `commands/` for new files.
+
+Add YAML frontmatter when the command needs metadata. The trimmed Markdown body is always the prompt template.
 
 ```md title=".opencode/commands/review.md"
 ---
-description: Review code for correctness and missing tests
+description: Review code for correctness
 agent: plan
 model: anthropic/claude-sonnet-4-5#high
 ---
 
-Review $ARGUMENTS. Report bugs first, then missing tests.
+Review $ARGUMENTS. Report bugs first.
 ```
 
-The file body, with surrounding whitespace removed, is the command template.
-JSON and Markdown commands share one registry. Project definitions take
-precedence over global definitions, and a later definition can override a
-built-in or earlier command with the same name. Changes are reloaded
-automatically.
+## JSON
 
-## Configure with JSON
-
-Add commands under the `commands` key in any OpenCode JSON or JSONC
-[configuration file](/config). Each entry's key is the command name and
-`template` is required.
+Define commands under `commands` in any OpenCode JSON or JSONC [configuration file](/config). Each command requires a
+`template`.
 
 ```jsonc title="opencode.jsonc"
 {
   "$schema": "https://opencode.ai/config.json",
   "commands": {
     "review": {
-      "description": "Review code for correctness and missing tests",
-      "template": "Review $ARGUMENTS. Report bugs first, then missing tests.",
-      "agent": "plan",
-      "model": "anthropic/claude-sonnet-4-5#high",
+      "description": "Review code for correctness",
+      "template": "Review $ARGUMENTS. Report bugs first.",
     },
   },
 }
@@ -55,107 +65,196 @@ Add commands under the `commands` key in any OpenCode JSON or JSONC
 
 ## Fields
 
-| Field         | Required  | Behavior                                                                          |
-| ------------- | --------- | --------------------------------------------------------------------------------- |
-| `template`    | JSON only | Prompt template. In a Markdown command, the file body supplies it.                |
-| `description` | No        | Text shown with the command in command listings and discovery.                    |
-| `agent`       | No        | Agent that runs the command.                                                      |
-| `model`       | No        | Model override in `provider/model` or `provider/model#variant` format.            |
-| `subagent`    | No        | Run in a background child session, or use `false` to stay in the current session. |
-| `subtask`     | No        | Deprecated alias for `subagent`.                                                  |
+Markdown frontmatter and JSON entries accept the same fields, except that Markdown gets `template` from the file body.
 
-The optional fields can be used in JSON or YAML frontmatter. Do not put
-`template` in frontmatter because the Markdown body always supplies it.
+| Field | Required | Behavior |
+| --- | --- | --- |
+| `template` | JSON only | Prompt template. |
+| `description` | No | Text shown in command lists and discovery. |
+| `agent` | No | Agent selected when the command runs. |
+| `model` | No | Model override in `provider/model` or `provider/model#variant` format. |
+| `subagent` | No | `true` runs in a background child session; `false` forces the current session. |
+| `subtask` | No | Deprecated alias for `subagent`. |
+
+For example, this JSON command sets every current optional field:
+
+```jsonc title="opencode.jsonc"
+{
+  "commands": {
+    "audit": {
+      "template": "Audit $ARGUMENTS.",
+      "description": "Audit a package",
+      "agent": "general",
+      "model": "anthropic/claude-sonnet-4-5#high",
+      "subagent": true,
+    },
+  },
+}
+```
+
+Do not put `template` in Markdown frontmatter; the body supplies it.
 
 ## Arguments
 
-Use `$ARGUMENTS` for the complete argument string:
+Use `$ARGUMENTS` for the complete argument string exactly as entered.
 
 ```md title=".opencode/commands/component.md"
----
-description: Create a component
----
-
 Create a typed React component named $ARGUMENTS.
 ```
 
-Use `$1`, `$2`, and higher numbers for parsed positional arguments. Single and
-double quotes group text containing spaces and are removed during parsing.
+For `/component Account Settings`, the placeholder becomes `Account Settings`.
+
+## Positions
+
+Use `$1`, `$2`, and higher numbers for parsed positional arguments. Single or double quotes group words and are removed.
 
 ```md title=".opencode/commands/check.md"
----
-description: Check one area with a specific focus
----
-
 Check $1. Focus on $2.
 ```
 
-The highest-numbered positional placeholder present in the template consumes
-that argument and all remaining arguments. For example, if a template contains
-only `$1`, then `$1` receives the full parsed argument list. Missing positions
-become empty strings.
+For `/check src/auth.ts "error handling"`, `$1` becomes `src/auth.ts` and `$2` becomes `error handling`.
 
-If a template contains neither positional placeholders nor `$ARGUMENTS`,
-OpenCode appends non-empty arguments to the template after a blank line.
+The highest-numbered placeholder consumes its argument and everything after it. Missing positions become empty strings.
 
-## Shell interpolation
+```md title=".opencode/commands/compare.md"
+Compare $1 with $2.
+```
 
-Wrap a shell command in `!` followed by backticks to insert its output before
-the prompt is submitted:
+For `/compare api stable branch`, OpenCode submits `Compare api with stable branch.`
+
+## Fallback
+
+When a template has no `$ARGUMENTS` or positional placeholder, OpenCode appends non-empty arguments after a blank line.
+
+```md title=".opencode/commands/explain.md"
+Explain this code clearly.
+```
+
+For `/explain src/cache.ts`, the prompt becomes:
+
+```text
+Explain this code clearly.
+
+src/cache.ts
+```
+
+## Shell
+
+Wrap a shell command in `!` followed by backticks to insert its output before the prompt is submitted.
 
 ```md title=".opencode/commands/review-diff.md"
----
-description: Review the current diff
----
-
 Review this diff:
 
 !`git diff --stat && git diff`
 ```
 
-OpenCode runs each interpolation with the configured shell in the active
-project location and inserts its combined output into the template. Argument
-interpolation happens first, so avoid placing untrusted arguments inside shell
-interpolations.
+OpenCode runs each block with the configured shell in the active project location and inserts its combined output.
+Argument placeholders are expanded first:
+
+```md title=".opencode/commands/history.md"
+Summarize these commits:
+
+!`git log --oneline -$1`
+```
+
+For `/history 5`, the shell receives `git log --oneline -5`. Do not place untrusted arguments inside shell blocks.
 
 <Callout type="warning">
-  Shell interpolations run when the command is evaluated, outside the agent's tool permission flow. Only use commands
-  from sources you trust.
+  Shell blocks run when OpenCode evaluates the command, outside the agent's tool permission flow. Only use commands from
+  sources you trust.
 </Callout>
 
-No other template interpolation is performed. In particular, an `@path`
-written into a stored template remains ordinary prompt text; V2 does not
-automatically attach that file.
+## Attachments
 
-## Agent, model, and execution
+Stored templates do not expand `@path`; it remains ordinary prompt text.
 
-Commands evaluate their arguments and shell blocks before submitting a durable
-user prompt. Commands run in the current session unless background delegation
-is enabled as described below.
+```md title=".opencode/commands/readme.md"
+Review @README.md.
+```
 
-For current-session commands, `agent` overrides the active agent when the command is invoked
-and becomes the session's active agent. If `model` is set, it overrides the
-model. Otherwise, a model configured on the command's agent takes precedence
-over the model active at invocation.
+To attach a file, add it through the composer when invoking the command. OpenCode preserves those composer attachments
+when it submits the expanded prompt.
 
-### Background subagents
+## Execution
 
-Set `subagent: true` to run a command in a background child session. The parent
-keeps its agent and model, stays available for other work, and receives the
-child's result or failure when it finishes.
+Commands expand arguments and shell blocks before submitting a durable user prompt. They run in the current session by
+default.
 
-```md title=".opencode/commands/review.md"
+```md title=".opencode/commands/plan.md"
 ---
-description: Review changes in the background
+agent: plan
+---
+
+Plan $ARGUMENTS.
+```
+
+Running `/plan migration` switches the current session to `plan` before submitting the prompt.
+
+Model selection follows these rules:
+
+1. A command `model` overrides every other model.
+2. Otherwise, the selected command agent's configured model overrides the model active at invocation.
+3. Otherwise, the current session model remains active.
+
+For example, this command selects both its agent and an explicit model:
+
+```md title=".opencode/commands/design.md"
+---
+agent: plan
+model: openai/gpt-5#high
+---
+
+Design $ARGUMENTS.
+```
+
+## Background
+
+Set `subagent: true` to run a command in a background child session.
+
+```md title=".opencode/commands/audit.md"
+---
+description: Audit changes
 agent: general
 subagent: true
 ---
 
-Review $ARGUMENTS for bugs and missing tests.
+Audit $ARGUMENTS for bugs and missing tests.
 ```
 
-- `true` forces child execution, including for an agent with `mode: primary`.
-- `false` forces execution in the current session.
-- When omitted, a command targeting an agent with `mode: subagent` runs in the background.
-- The child uses the command's model override, then the selected agent's model, then the parent's model.
-- Legacy `subtask` is still accepted in JSON and Markdown. If both fields are present, `subagent` takes precedence.
+The parent stays available and keeps its agent and model. OpenCode sends the child's result or failure back to the parent
+when the child finishes.
+
+| Value | Behavior |
+| --- | --- |
+| `true` | Always use a child, even when the selected agent has `mode: primary`. |
+| `false` | Always use the current session, even when the selected agent has `mode: subagent`. |
+| Omitted | Use a child only when the selected agent has `mode: subagent`. |
+
+The child uses the command model, then the selected agent's model, then the parent's model. Legacy `subtask` remains
+accepted; if both fields are present, `subagent` wins.
+
+```yaml
+subagent: false
+subtask: true
+```
+
+This example runs in the current session because `subagent` takes precedence.
+
+## Loading
+
+Markdown and JSON commands share one registry. Later sources replace earlier commands with the same name.
+
+```text
+~/.config/opencode/commands/review.md   # Lower priority
+.opencode/commands/review.md           # Replaces the global command
+```
+
+Project sources take precedence over global sources, and nearer project sources take precedence over ancestor sources.
+A custom definition can also replace an earlier built-in command. OpenCode reloads command files and configuration changes
+automatically.
+
+```md title=".opencode/commands/review.md"
+Review only the staged changes: !`git diff --cached`
+```
+
+Saving this file updates `/review` without restarting OpenCode.

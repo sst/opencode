@@ -23,7 +23,13 @@ export interface DispatchResult extends ToolSettlement {
 export const dispatch = (tools: Tools, call: ToolCallPart): Effect.Effect<DispatchResult> => {
   const name = call.namespace === undefined ? call.name : `${call.namespace}.${call.name}`
   const tool = tools[name]
-  if (!tool) return Effect.succeed(result(call, { type: "error", value: `Unknown tool: ${name}` }))
+  if (!tool)
+    return Effect.succeed(
+      result(call, {
+        type: "error",
+        value: `No tool named "${name}" is currently available. Please use a tool from the available tool list.`,
+      }),
+    )
   if (!tool.execute)
     return Effect.succeed(result(call, { type: "error", value: `Tool has no execute handler: ${name}` }))
 

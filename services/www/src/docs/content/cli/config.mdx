@@ -134,6 +134,22 @@ Configure notifications and sounds:
 | `sound_pack`    | string                 | Selects the active sound pack.                                                                       |
 | `sounds`        | object                 | Overrides files for `default`, `question`, `permission`, `error`, `done`, or `subagent_done` events. |
 
+## Session
+
+Choose whether the TUI prompts before granting permission requests:
+
+```json title="cli.json"
+{
+  "session": {
+    "permissions": "prompt"
+  }
+}
+```
+
+| Field         | Values                   | Description                                                             |
+| ------------- | ------------------------ | ----------------------------------------------------------------------- |
+| `permissions` | `prompt` or `autoaccept` | Prompts for permission requests or accepts every request automatically. |
+
 ## Diffs
 
 Configure diff presentation:

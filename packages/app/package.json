@@ -1,6 +1,6 @@
 {
   "name": "@opencode/app",
-  "version": "1.18.15",
+  "version": "2.0.3",
   "description": "",
   "type": "module",
   "exports": {
@@ -10,6 +10,7 @@
     "./i18n/desktop-native": "./src/runtime/i18n/desktop-native.ts",
     "./updater": "./src/shell/updates/types.ts",
     "./wsl/types": "./src/servers/wsl/types.ts",
+    "./ssh": "./src/servers/ssh/types.ts",
     "./vite": "./vite.js",
     "./index.css": "./src/index.css"
   },
@@ -83,6 +84,7 @@
     "@solidjs/router": "catalog:",
     "@tanstack/solid-query": "5.91.4",
     "@tanstack/solid-virtual": "catalog:",
+    "core-js": "3.50.0",
     "effect": "catalog:",
     "fuzzysort": "catalog:",
     "ghostty-web": "github:anomalyco/ghostty-web#83c0a07b8628b748aed073b232cb4b52a6ca11c1",

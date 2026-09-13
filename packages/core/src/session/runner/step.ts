@@ -46,7 +46,7 @@ interface Input {
   readonly assistantMessageID: SessionMessage.ID
   readonly agent: Agent.ID
   readonly model: SessionRunnerModel.Resolved
-  readonly prepared: SessionModelRequest.Prepared
+  readonly prepared: Omit<SessionModelRequest.Prepared, "event">
   readonly retry: (
     cause: AIError,
     error: SessionError.Error,

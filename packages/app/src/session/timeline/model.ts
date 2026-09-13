@@ -11,17 +11,17 @@ export {
   selectVisibleSessionUserMessages as selectVisibleUserMessages,
 } from "../session-domain"
 
-export function createTimelineModel(input: { session: Pick<SessionModel, "identity" | "history"> }) {
+export function createTimelineModel(input: { session: Pick<SessionModel, "identity" | "history" | "ownership"> }) {
   const data = useData()
 
   const [resource] = createResource(
     () => input.session.identity.sessionID(),
     async (id) => {
       if (!id) return
-      const key = input.session.identity.sessionKey()
+      const owner = input.session.ownership.capture()
       await Promise.all([data.session.message.sync(id), data.session.pending.sync(id)])
       await enrichLeadingTurn({
-        current: () => input.session.identity.sessionKey() === key,
+        current: owner.current,
         messages: () => data.session.message.list(id),
         more: () => data.session.message.more(id),
         loading: () => data.session.message.loading(id),
@@ -29,12 +29,13 @@ export function createTimelineModel(input: { session: Pick<SessionModel, "identi
         pause: () => new Promise((resolve) => setTimeout(resolve, leadingTurnPageDelay)),
         maxPages: leadingTurnPageLimit,
       }).catch(() => undefined)
+      return id
     },
   )
   const ready = createMemo(() => {
     const id = input.session.identity.sessionID()
     // Enrich the partial leading group without withholding the already loaded tail.
-    return !id || data.session.message.list(id).length > 0 || !resource.loading
+    return !id || data.session.message.list(id).length > 0 || (!resource.loading && resource.latest === id)
   })
   const more = () => {
     const id = input.session.identity.sessionID()

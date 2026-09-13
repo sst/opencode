@@ -3,8 +3,8 @@ import {
   clampSessionTabsWidth,
   sessionTabsFitVertically,
   SESSION_SIDEBAR_MAX_WIDTH,
-  SESSION_SIDEBAR_MIN_WIDTH,
   SESSION_SIDEBAR_WIDTH,
+  SESSION_TABS_COMPACT_WIDTH,
 } from "../../src/ui/layout"
 
 test("vertical tabs match the session sidebar and preserve compact content width", () => {
@@ -19,8 +19,13 @@ test("vertical tabs account for a resized width", () => {
 })
 
 test("vertical tab width preserves minimum rail and content widths", () => {
-  expect(clampSessionTabsWidth(10, 120)).toBe(SESSION_SIDEBAR_MIN_WIDTH)
+  expect(clampSessionTabsWidth(0, 120)).toBe(SESSION_TABS_COMPACT_WIDTH)
+  expect(clampSessionTabsWidth(11, 120)).toBe(11)
+  expect(clampSessionTabsWidth(12, 120)).toBe(12)
   expect(clampSessionTabsWidth(50, 120)).toBe(50)
   expect(clampSessionTabsWidth(100, 120)).toBe(SESSION_SIDEBAR_MAX_WIDTH)
   expect(clampSessionTabsWidth(100, 100)).toBe(56)
+  expect(clampSessionTabsWidth(42, 54)).toBe(10)
+  expect(sessionTabsFitVertically(49, SESSION_TABS_COMPACT_WIDTH)).toBe(true)
+  expect(sessionTabsFitVertically(48, SESSION_TABS_COMPACT_WIDTH)).toBe(false)
 })

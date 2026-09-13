@@ -1,6 +1,5 @@
 import { createSimpleContext } from "@opencode/ui/context"
 import { Accessor, createEffect, createMemo, createResource, createRoot, getOwner } from "solid-js"
-import { createStore } from "solid-js/store"
 import { createServerProjects, RECENTLY_CLOSED_DISPLAY_LIMIT, ServerConnection, useServers } from "./registry"
 import { pathKey } from "@/workspaces/path-key"
 import { useServerHealth } from "@/runtime/server/health"
@@ -10,12 +9,15 @@ import { createData } from "@opencode/client/solid"
 import type { ServerScope } from "@/runtime/server/scope"
 import { createPermissionAutoApprover } from "@/session/requests/auto-approve"
 import { createServerNotificationState } from "@/shell/notifications/notification"
+import { createNotificationCoordinator } from "@/shell/notifications/coordinator"
 import { Persist, persisted } from "@/runtime/persistence/storage"
 import { createDesktopData } from "./data"
 import { ModelState } from "./persistence"
 import { useLanguage } from "@/runtime/i18n/language"
 import { showToast } from "@/shell/notifications/toast"
 import { formatServerError } from "./errors"
+import { useSettings } from "@/settings/model"
+import { timelinePreset } from "@opencode/session-ui/timeline/detail"
 
 export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext({
   name: "Global",
@@ -25,23 +27,8 @@ export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext(
       () => server.list,
       () => true,
     )
-    const [store, setStore] = createStore({
-      settings: {
-        serverKey: undefined as ServerConnection.Key | undefined,
-      },
-    })
     const models = createGlobalModels()
-
-    const settingsServer = createMemo(() => {
-      const list = server.list
-      return list.find((conn) => ServerConnection.key(conn) === store.settings.serverKey) ?? list[0]
-    })
-
-    createEffect(() => {
-      const conn = settingsServer()
-      const key = conn ? ServerConnection.key(conn) : undefined
-      if (store.settings.serverKey !== key) setStore("settings", "serverKey", key)
-    })
+    const notificationCoordinator = createNotificationCoordinator()
 
     const serverCtxs = new Map<ServerConnection.Key, ReturnType<typeof createServerController>>()
     const serverCtxDisposers = new Map<ServerConnection.Key, () => void>()
@@ -55,7 +42,7 @@ export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext(
       if (existing) return existing
       const serverCtx = createRoot((dispose) => {
         serverCtxDisposers.set(key, dispose)
-        return createServerController(conn, server.scope(key), server.projects.forServer(key))
+        return createServerController(conn, server.scope(key), server.projects.forServer(key), notificationCoordinator)
       }, owner)
       serverCtxs.set(key, serverCtx)
       return serverCtx
@@ -81,17 +68,6 @@ export const { use: useGlobal, provider: GlobalProvider } = createSimpleContext(
       servers: {
         list: () => server.list,
         health: serverHealth,
-      },
-      settings: {
-        server: {
-          get key() {
-            return store.settings.serverKey
-          },
-          selected: settingsServer,
-          set(key: ServerConnection.Key) {
-            if (store.settings.serverKey !== key) setStore("settings", "serverKey", key)
-          },
-        },
       },
       models,
       ensureServerCtx(conn: ServerConnection.Any) {
@@ -129,12 +105,15 @@ function createServerController(
   conn: ServerConnection.Any,
   scope: ServerScope,
   projects: ReturnType<typeof createServerProjects>,
+  notificationCoordinator: ReturnType<typeof createNotificationCoordinator>,
 ) {
   const language = useLanguage()
+  const settings = useSettings()
   const connKey = ServerConnection.key(conn)
   const sdk = createServerSdkContext(conn, scope)
   const source = createData({
     api: () => sdk.api,
+    initialMessageLimit: () => (timelinePreset(settings.general.timelineDetail())?.id === "compact" ? 40 : 20),
     event: {
       on: sdk.event.on,
       listen: (handler) => sdk.event.listen((event) => handler({ name: event.type, details: event })),
@@ -155,7 +134,7 @@ function createServerController(
   })
   const sync = createServerSyncContext(sdk, data)
   createPermissionAutoApprover({ sdk, data })
-  const notification = createServerNotificationState({ sdk, data, key: connKey })
+  const notification = createServerNotificationState({ sdk, data, key: connKey, coordinator: notificationCoordinator })
 
   function enrich(project: { worktree: string; expanded: boolean }) {
     const [childStore] = sync.child(project.worktree, { bootstrap: false })

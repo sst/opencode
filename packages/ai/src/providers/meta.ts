@@ -79,11 +79,11 @@ export type LanguageModelOptions = Omit<RouteDefaultsInput, "providerOptions"> &
     readonly providerOptions?: ProviderOptionsInput
   }
 
-export interface Settings extends ProviderPackage.Settings {
-  readonly apiKey?: string
-  readonly baseURL?: string
-  readonly providerOptions?: ProviderOptionsInput
-}
+export type Settings = ProviderPackage.Settings &
+  ProviderOptionsInput & {
+    readonly apiKey?: string
+    readonly baseURL?: string
+  }
 
 const responsesRoute = Route.make({
   id: "meta-responses",
@@ -169,13 +169,13 @@ export const chatModel: ProviderPackage.Definition<Settings, OpenResponsesProvid
 export const messagesModel: ProviderPackage.Definition<Settings, MessagesOptionsInput>["model"] = (modelID, settings) =>
   fromSettings(settings).messages(modelID)
 
-function fromSettings(settings: Settings) {
+function fromSettings({ apiKey, baseURL, body, headers, ...providerOptions }: Settings) {
   return configure({
-    apiKey: settings.apiKey,
-    baseURL: settings.baseURL,
-    headers: settings.headers,
-    http: settings.body === undefined ? undefined : { body: { ...settings.body } },
-    providerOptions: settings.providerOptions,
+    apiKey,
+    baseURL,
+    headers,
+    http: body === undefined ? undefined : { body: { ...body } },
+    providerOptions,
   })
 }
 

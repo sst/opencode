@@ -91,6 +91,15 @@ export class ProjectNotFoundError extends Schema.TaggedError<ProjectNotFoundErro
   { httpApiStatus: 404 },
 ) {}
 
+export class FileNotFoundError extends Schema.TaggedError<FileNotFoundError>()(
+  "FileNotFoundError",
+  {
+    path: Schema.String,
+    message: Schema.String,
+  },
+  { httpApiStatus: 404 },
+) {}
+
 export class AgentNotFoundError extends Schema.TaggedError<AgentNotFoundError>()(
   "AgentNotFoundError",
   {

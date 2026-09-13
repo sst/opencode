@@ -1,0 +1,426 @@
+built-ins/Array/prototype/at/index-argument-tointeger.js  # Array.at expects index to be a number.
+built-ins/Array/prototype/at/index-non-numeric-argument-tointeger.js  # Array.at expects index to be a number.
+built-ins/Array/prototype/concat/S15.4.4.4_A2_T1.js  # Array.prototype.concat called on incompatible receiver a data object.
+built-ins/Array/prototype/concat/S15.4.4.4_A2_T2.js  # Array.prototype.concat called on incompatible receiver a data object.
+built-ins/Array/prototype/concat/S15.4.4.4_A3_T1.js  # arr.hasOwnProperty("1") must return true Expected SameValue(«false», «true») to be true
+built-ins/Array/prototype/concat/S15.4.4.4_A3_T2.js  # b.hasOwnProperty("2") must return true Expected SameValue(«false», «true») to be true
+built-ins/Array/prototype/concat/S15.4.4.4_A3_T3.js  # b.hasOwnProperty("2") must return true Expected SameValue(«false», «true») to be true
+built-ins/Array/prototype/concat/create-ctor-non-object.js  # a.concat() throws a TypeError exception Expected a TypeError to be thrown but no exception was throw
+built-ins/Array/prototype/copyWithin/coerced-values-end.js  # Array.copyWithin expects end to be a number.
+built-ins/Array/prototype/copyWithin/coerced-values-start-change-target.js  # Array.copyWithin expects start to be a number.
+built-ins/Array/prototype/copyWithin/coerced-values-start.js  # Array.copyWithin expects start to be a number.
+built-ins/Array/prototype/copyWithin/coerced-values-target.js  # Array.copyWithin expects target index to be a number.
+built-ins/Array/prototype/copyWithin/return-abrupt-from-end.js  # Expected a Test262Error but got a TypeError
+built-ins/Array/prototype/copyWithin/return-abrupt-from-start.js  # Expected a Test262Error but got a TypeError
+built-ins/Array/prototype/copyWithin/return-abrupt-from-target.js  # Expected a Test262Error but got a TypeError
+built-ins/Array/prototype/entries/iteration-mutable.js  # .next is not a function.
+built-ins/Array/prototype/entries/iteration.js  # .next is not a function.
+built-ins/Array/prototype/every/15.4.4.16-7-6.js  # res Expected SameValue(«true», «false») to be true
+built-ins/Array/prototype/every/15.4.4.16-7-c-i-8.js  # [, , , ].every(callbackfn) Expected SameValue(«true», «false») to be true
+built-ins/Array/prototype/every/15.4.4.16-8-10.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/every/15.4.4.16-8-13.js  # Property key must be a string or number, or Symbol.asyncIterator/Symbol.iterator.
+built-ins/Array/prototype/every/15.4.4.16-8-2.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/every/15.4.4.16-8-3.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/every/15.4.4.16-8-4.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/every/15.4.4.16-8-5.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/every/15.4.4.16-8-6.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/every/15.4.4.16-8-7.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/every/15.4.4.16-8-8.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/fill/coerced-indexes.js  # Array.fill expects start to be a number.
+built-ins/Array/prototype/fill/return-abrupt-from-end.js  # Expected a Test262Error but got a TypeError
+built-ins/Array/prototype/fill/return-abrupt-from-start.js  # Expected a Test262Error but got a TypeError
+built-ins/Array/prototype/filter/15.4.4.20-10-3.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/filter/15.4.4.20-10-4.js  # Property key must be a string or number, or Symbol.asyncIterator/Symbol.iterator.
+built-ins/Array/prototype/filter/15.4.4.20-6-2.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/filter/15.4.4.20-6-3.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/filter/15.4.4.20-6-4.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/filter/15.4.4.20-6-5.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/filter/15.4.4.20-6-6.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/filter/15.4.4.20-6-7.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/filter/15.4.4.20-6-8.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/filter/15.4.4.20-9-6.js  # resArr.length Expected SameValue(«3», «4») to be true
+built-ins/Array/prototype/filter/15.4.4.20-9-c-i-8.js  # newArr.length Expected SameValue(«0», «1») to be true
+built-ins/Array/prototype/filter/create-ctor-non-object.js  # null value Expected a TypeError to be thrown but no exception was thrown at all
+built-ins/Array/prototype/flat/non-numeric-depth-should-not-throw.js  # Array.flat expects depth to be a number.
+built-ins/Array/prototype/flat/non-object-ctor-throws.js  # null value Expected a TypeError to be thrown but no exception was thrown at all
+built-ins/Array/prototype/forEach/15.4.4.18-7-5.js  # callCnt Expected SameValue(«4», «5») to be true
+built-ins/Array/prototype/forEach/15.4.4.18-7-c-i-8.js  # testResult !== true
+built-ins/Array/prototype/forEach/15.4.4.18-8-10.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/forEach/15.4.4.18-8-12.js  # Property key must be a string or number, or Symbol.asyncIterator/Symbol.iterator.
+built-ins/Array/prototype/forEach/15.4.4.18-8-2.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/forEach/15.4.4.18-8-3.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/forEach/15.4.4.18-8-4.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/forEach/15.4.4.18-8-5.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/forEach/15.4.4.18-8-6.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/forEach/15.4.4.18-8-7.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/forEach/15.4.4.18-8-8.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/forEach/15.4.4.18-8-9.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/includes/length-zero-returns-false.js  # Array.includes expects a value and optional start index.
+built-ins/Array/prototype/includes/no-arg.js  # Array.includes expects a value and optional start index.
+built-ins/Array/prototype/includes/return-abrupt-tointeger-fromindex.js  # Expected a Test262Error but got a TypeError
+built-ins/Array/prototype/includes/tointeger-fromindex.js  # Array.includes expects start index to be a number.
+built-ins/Array/prototype/indexOf/15.4.4.14-5-1.js  # Array.indexOf expects start index to be a number.
+built-ins/Array/prototype/indexOf/15.4.4.14-5-15.js  # Array.indexOf expects start index to be a number.
+built-ins/Array/prototype/indexOf/15.4.4.14-5-16.js  # Array.indexOf expects start index to be a number.
+built-ins/Array/prototype/indexOf/15.4.4.14-5-17.js  # Array.indexOf expects start index to be a number.
+built-ins/Array/prototype/indexOf/15.4.4.14-5-18.js  # Array.indexOf expects start index to be a number.
+built-ins/Array/prototype/indexOf/15.4.4.14-5-19.js  # Array.indexOf expects start index to be a number.
+built-ins/Array/prototype/indexOf/15.4.4.14-5-20.js  # Array.indexOf expects start index to be a number.
+built-ins/Array/prototype/indexOf/15.4.4.14-5-21.js  # Array.indexOf expects start index to be a number.
+built-ins/Array/prototype/indexOf/15.4.4.14-5-22.js  # Array.indexOf expects start index to be a number.
+built-ins/Array/prototype/indexOf/15.4.4.14-5-23.js  # Array.indexOf expects start index to be a number.
+built-ins/Array/prototype/indexOf/15.4.4.14-5-24.js  # toStringAccessed
+built-ins/Array/prototype/indexOf/15.4.4.14-5-25.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/indexOf/15.4.4.14-5-3.js  # Array.indexOf expects start index to be a number.
+built-ins/Array/prototype/indexOf/15.4.4.14-5-5.js  # Array.indexOf expects start index to be a number.
+built-ins/Array/prototype/indexOf/15.4.4.14-9-7.js  # Array assignment result contains a circular value.
+built-ins/Array/prototype/indexOf/15.4.4.14-9-a-3.js  # Array.indexOf expects start index to be a number.
+built-ins/Array/prototype/indexOf/15.4.4.14-9-a-6.js  # Array.indexOf expects start index to be a number.
+built-ins/Array/prototype/indexOf/15.4.4.14-9-b-i-7.js  # [, , , ].indexOf(true) Expected SameValue(«-1», «0») to be true
+built-ins/Array/prototype/indexOf/length-zero-returns-minus-one.js  # Array.indexOf expects start index to be a number.
+built-ins/Array/prototype/join/S15.4.4.5_A1.2_T2.js  # Array.join expects zero arguments or one string separator.
+built-ins/Array/prototype/join/S15.4.4.5_A2_T1.js  # Array.prototype.join called on incompatible receiver a data object.
+built-ins/Array/prototype/join/S15.4.4.5_A2_T4.js  # Array.prototype.join called on incompatible receiver a data object.
+built-ins/Array/prototype/join/S15.4.4.5_A3.1_T1.js  # Array.join expects zero arguments or one string separator.
+built-ins/Array/prototype/join/S15.4.4.5_A3.1_T2.js  # Array.join expects zero arguments or one string separator.
+built-ins/Array/prototype/join/S15.4.4.5_A3.2_T2.js  # x.join() must return "*" Expected SameValue(«"[object Object]"», «"*"») to be true
+built-ins/Array/prototype/join/S15.4.4.5_A4_T3.js  # Array.prototype.join called on incompatible receiver a data object.
+built-ins/Array/prototype/join/S15.4.4.5_A5_T1.js  # #1: Array.prototype[1] = 1; x = [0]; x.length = 2; x.join() === "0,1". Actual: 0,
+built-ins/Array/prototype/keys/iteration-mutable.js  # .next is not a function.
+built-ins/Array/prototype/keys/iteration.js  # .next is not a function.
+built-ins/Array/prototype/lastIndexOf/15.4.4.15-5-1.js  # Array.lastIndexOf expects start index to be a number.
+built-ins/Array/prototype/lastIndexOf/15.4.4.15-5-15.js  # Array.lastIndexOf expects start index to be a number.
+built-ins/Array/prototype/lastIndexOf/15.4.4.15-5-16.js  # Array.lastIndexOf expects start index to be a number.
+built-ins/Array/prototype/lastIndexOf/15.4.4.15-5-17.js  # Array.lastIndexOf expects start index to be a number.
+built-ins/Array/prototype/lastIndexOf/15.4.4.15-5-18.js  # Array.lastIndexOf expects start index to be a number.
+built-ins/Array/prototype/lastIndexOf/15.4.4.15-5-19.js  # Array.lastIndexOf expects start index to be a number.
+built-ins/Array/prototype/lastIndexOf/15.4.4.15-5-20.js  # Array.lastIndexOf expects start index to be a number.
+built-ins/Array/prototype/lastIndexOf/15.4.4.15-5-21.js  # Array.lastIndexOf expects start index to be a number.
+built-ins/Array/prototype/lastIndexOf/15.4.4.15-5-22.js  # Array.lastIndexOf expects start index to be a number.
+built-ins/Array/prototype/lastIndexOf/15.4.4.15-5-23.js  # Array.lastIndexOf expects start index to be a number.
+built-ins/Array/prototype/lastIndexOf/15.4.4.15-5-24.js  # toStringAccessed
+built-ins/Array/prototype/lastIndexOf/15.4.4.15-5-25.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/lastIndexOf/15.4.4.15-5-3.js  # Array.lastIndexOf expects start index to be a number.
+built-ins/Array/prototype/lastIndexOf/15.4.4.15-5-4.js  # a.lastIndexOf(2,undefined) Expected SameValue(«1», «-1») to be true
+built-ins/Array/prototype/lastIndexOf/15.4.4.15-5-5.js  # Array.lastIndexOf expects start index to be a number.
+built-ins/Array/prototype/lastIndexOf/15.4.4.15-8-7.js  # Array assignment result contains a circular value.
+built-ins/Array/prototype/lastIndexOf/15.4.4.15-8-a-3.js  # Array.lastIndexOf expects start index to be a number.
+built-ins/Array/prototype/lastIndexOf/15.4.4.15-8-a-6.js  # Array.lastIndexOf expects start index to be a number.
+built-ins/Array/prototype/lastIndexOf/15.4.4.15-8-b-i-7.js  # [, , , ].lastIndexOf(true) Expected SameValue(«-1», «0») to be true
+built-ins/Array/prototype/lastIndexOf/length-zero-returns-minus-one.js  # Array.lastIndexOf expects start index to be a number.
+built-ins/Array/prototype/map/15.4.4.19-8-6.js  # resArr[4] Expected SameValue(«undefined», «1») to be true
+built-ins/Array/prototype/map/15.4.4.19-8-c-i-8.js  # newArr[1] Expected SameValue(«13», «true») to be true
+built-ins/Array/prototype/map/15.4.4.19-9-3.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/map/15.4.4.19-9-4.js  # Property key must be a string or number, or Symbol.asyncIterator/Symbol.iterator.
+built-ins/Array/prototype/map/create-ctor-non-object.js  # null value Expected a TypeError to be thrown but no exception was thrown at all
+built-ins/Array/prototype/pop/S15.4.4.6_A2_T1.js  # Array.prototype.pop called on incompatible receiver a data object.
+built-ins/Array/prototype/pop/S15.4.4.6_A2_T4.js  # Array.prototype.pop called on incompatible receiver a data object.
+built-ins/Array/prototype/pop/S15.4.4.6_A3_T1.js  # Array.prototype.pop called on incompatible receiver a data object.
+built-ins/Array/prototype/pop/S15.4.4.6_A3_T2.js  # Array.prototype.pop called on incompatible receiver a data object.
+built-ins/Array/prototype/pop/S15.4.4.6_A3_T3.js  # Array.prototype.pop called on incompatible receiver a data object.
+built-ins/Array/prototype/pop/S15.4.4.6_A4_T1.js  # #1: Array.prototype[1] = 1; x = [0]; x.length = 2; x.pop() === 1. Actual: undefined
+built-ins/Array/prototype/pop/S15.4.4.6_A4_T2.js  # Array.prototype.pop called on incompatible receiver a data object.
+built-ins/Array/prototype/push/S15.4.4.7_A2_T1.js  # Array.prototype.push called on incompatible receiver a data object.
+built-ins/Array/prototype/push/S15.4.4.7_A2_T3.js  # Array.prototype.push called on incompatible receiver a data object.
+built-ins/Array/prototype/push/S15.4.4.7_A3.js  # The value of x[4294967295] is expected to be "x" Expected SameValue(«undefined», «"x"») to be true
+built-ins/Array/prototype/push/S15.4.4.7_A4_T1.js  # Array.prototype.push called on incompatible receiver a data object.
+built-ins/Array/prototype/push/S15.4.4.7_A4_T2.js  # Array.prototype.push called on incompatible receiver a data object.
+built-ins/Array/prototype/push/S15.4.4.7_A4_T3.js  # Array.prototype.push called on incompatible receiver a data object.
+built-ins/Array/prototype/push/S15.4.4.7_A5_T1.js  # Array.prototype.push called on incompatible receiver a data object.
+built-ins/Array/prototype/reduce/15.4.4.21-10-3.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduce/15.4.4.21-10-4.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduce/15.4.4.21-10-6.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduce/15.4.4.21-10-7.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduce/15.4.4.21-10-8.js  # Property key must be a string or number, or Symbol.asyncIterator/Symbol.iterator.
+built-ins/Array/prototype/reduce/15.4.4.21-5-2.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduce/15.4.4.21-5-3.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduce/15.4.4.21-5-4.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduce/15.4.4.21-5-5.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduce/15.4.4.21-5-6.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduce/15.4.4.21-5-7.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduce/15.4.4.21-5-8.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduce/15.4.4.21-7-2.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduce/15.4.4.21-7-3.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduce/15.4.4.21-7-4.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduce/15.4.4.21-7-5.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduce/15.4.4.21-7-6.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduce/15.4.4.21-7-7.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduce/15.4.4.21-7-8.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduce/15.4.4.21-7-9.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduce/15.4.4.21-8-b-iii-1-8.js  # Array.reduce of an empty array with no initial value.
+built-ins/Array/prototype/reduce/15.4.4.21-8-c-4.js  # Array.reduce of an empty array with no initial value.
+built-ins/Array/prototype/reduce/15.4.4.21-9-6.js  # res Expected SameValue(«"123"», «"1235"») to be true
+built-ins/Array/prototype/reduce/15.4.4.21-9-c-i-8.js  # testResult !== true
+built-ins/Array/prototype/reduceRight/15.4.4.22-10-3.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduceRight/15.4.4.22-10-4.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduceRight/15.4.4.22-10-6.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduceRight/15.4.4.22-10-7.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduceRight/15.4.4.22-10-8.js  # Property key must be a string or number, or Symbol.asyncIterator/Symbol.iterator.
+built-ins/Array/prototype/reduceRight/15.4.4.22-5-2.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduceRight/15.4.4.22-5-3.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduceRight/15.4.4.22-5-4.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduceRight/15.4.4.22-5-5.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduceRight/15.4.4.22-5-6.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduceRight/15.4.4.22-5-7.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduceRight/15.4.4.22-5-8.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduceRight/15.4.4.22-7-2.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduceRight/15.4.4.22-7-3.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduceRight/15.4.4.22-7-4.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduceRight/15.4.4.22-7-5.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduceRight/15.4.4.22-7-6.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduceRight/15.4.4.22-7-7.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduceRight/15.4.4.22-7-8.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduceRight/15.4.4.22-7-9.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/reduceRight/15.4.4.22-8-b-iii-1-8.js  # Array.reduceRight of an empty array with no initial value.
+built-ins/Array/prototype/reduceRight/15.4.4.22-8-c-4.js  # Array.reduceRight of an empty array with no initial value.
+built-ins/Array/prototype/reduceRight/15.4.4.22-9-6.js  # res Expected SameValue(«"91"», «"151"») to be true
+built-ins/Array/prototype/reduceRight/15.4.4.22-9-c-i-8.js  # testResult !== true
+built-ins/Array/prototype/reverse/S15.4.4.8_A2_T1.js  # Array.prototype.reverse called on incompatible receiver a data object.
+built-ins/Array/prototype/reverse/S15.4.4.8_A3_T3.js  # Array.prototype.reverse called on incompatible receiver a data object.
+built-ins/Array/prototype/reverse/S15.4.4.8_A4_T1.js  # #1: Array.prototype[1] = 1; x = [0]; x.length = 2; x.reverse(); x[0] === 1. Actual: undefined
+built-ins/Array/prototype/reverse/S15.4.4.8_A4_T2.js  # Array.prototype.reverse called on incompatible receiver a data object.
+built-ins/Array/prototype/shift/S15.4.4.9_A2_T1.js  # Array.prototype.shift called on incompatible receiver a data object.
+built-ins/Array/prototype/shift/S15.4.4.9_A2_T4.js  # Array.prototype.shift called on incompatible receiver a data object.
+built-ins/Array/prototype/shift/S15.4.4.9_A2_T5.js  # Array.prototype.shift called on incompatible receiver a data object.
+built-ins/Array/prototype/shift/S15.4.4.9_A3_T3.js  # Array.prototype.shift called on incompatible receiver a data object.
+built-ins/Array/prototype/shift/S15.4.4.9_A4_T1.js  # #2: Array.prototype[1] = 1; x = [0]; x.length = 2; x.shift(); x[0] === 1. Actual: undefined
+built-ins/Array/prototype/shift/S15.4.4.9_A4_T2.js  # Array.prototype.shift called on incompatible receiver a data object.
+built-ins/Array/prototype/slice/S15.4.4.10_A2.1_T5.js  # Array.slice expects start to be a number.
+built-ins/Array/prototype/slice/S15.4.4.10_A2.2_T5.js  # Array.slice expects end to be a number.
+built-ins/Array/prototype/slice/S15.4.4.10_A2_T1.js  # Array.prototype.slice called on incompatible receiver a data object.
+built-ins/Array/prototype/slice/S15.4.4.10_A2_T2.js  # Array.prototype.slice called on incompatible receiver a data object.
+built-ins/Array/prototype/slice/S15.4.4.10_A2_T3.js  # Array.prototype.slice called on incompatible receiver a data object.
+built-ins/Array/prototype/slice/S15.4.4.10_A2_T4.js  # Array.prototype.slice called on incompatible receiver a data object.
+built-ins/Array/prototype/slice/S15.4.4.10_A2_T5.js  # Array.prototype.slice called on incompatible receiver a data object.
+built-ins/Array/prototype/slice/S15.4.4.10_A2_T6.js  # Array.prototype.slice called on incompatible receiver a data object.
+built-ins/Array/prototype/slice/S15.4.4.10_A3_T1.js  # Expected a RangeError but got a TypeError
+built-ins/Array/prototype/slice/S15.4.4.10_A3_T2.js  # Expected a RangeError but got a TypeError
+built-ins/Array/prototype/slice/S15.4.4.10_A3_T3.js  # Array.prototype.slice called on incompatible receiver a data object.
+built-ins/Array/prototype/slice/S15.4.4.10_A4_T1.js  # #3: Array.prototype[1] = 1; x = [0]; x.length = 2; var arr = x.slice(); arr.hasOwnProperty('…') === 
+built-ins/Array/prototype/slice/create-ctor-non-object.js  # null value Expected a TypeError to be thrown but no exception was thrown at all
+built-ins/Array/prototype/some/15.4.4.17-7-6.js  # res Expected SameValue(«false», «true») to be true
+built-ins/Array/prototype/some/15.4.4.17-7-c-i-8.js  # [, ].some(callbackfn) !== true
+built-ins/Array/prototype/some/15.4.4.17-8-10.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/some/15.4.4.17-8-13.js  # Property key must be a string or number, or Symbol.asyncIterator/Symbol.iterator.
+built-ins/Array/prototype/some/15.4.4.17-8-2.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/some/15.4.4.17-8-3.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/some/15.4.4.17-8-4.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/some/15.4.4.17-8-5.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/some/15.4.4.17-8-6.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/some/15.4.4.17-8-7.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/some/15.4.4.17-8-8.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+built-ins/Array/prototype/sort/S15.4.4.11_A2.1_T3.js  # #1: Check ToString operator
+built-ins/Array/prototype/sort/S15.4.4.11_A2.2_T3.js  # #1: Check ToString operator
+built-ins/Array/prototype/sort/S15.4.4.11_A3_T1.js  # Array.prototype.sort called on incompatible receiver a data object.
+built-ins/Array/prototype/sort/S15.4.4.11_A3_T2.js  # Array.prototype.sort called on incompatible receiver a data object.
+built-ins/Array/prototype/sort/S15.4.4.11_A4_T3.js  # Array.prototype.sort called on incompatible receiver a data object.
+built-ins/Array/prototype/sort/S15.4.4.11_A6_T2.js  # Array.prototype.sort called on incompatible receiver a data object.
+built-ins/Array/prototype/sort/bug_596_1.js  # #1: [object, object].sort(); counter < 2. Actual: 0
+built-ins/Array/prototype/sort/precise-prototype-element.js  # Expected SameValue(«undefined», «4») to be true
+built-ins/Array/prototype/splice/S15.4.4.12_A2.1_T5.js  # Array.splice expects start to be a number.
+built-ins/Array/prototype/splice/S15.4.4.12_A2.2_T5.js  # Array.splice expects delete count to be a number.
+built-ins/Array/prototype/splice/S15.4.4.12_A2_T1.js  # Array.prototype.splice called on incompatible receiver a data object.
+built-ins/Array/prototype/splice/S15.4.4.12_A2_T2.js  # Array.prototype.splice called on incompatible receiver a data object.
+built-ins/Array/prototype/splice/S15.4.4.12_A2_T3.js  # Array.prototype.splice called on incompatible receiver a data object.
+built-ins/Array/prototype/splice/S15.4.4.12_A2_T4.js  # Array.prototype.splice called on incompatible receiver a data object.
+built-ins/Array/prototype/splice/S15.4.4.12_A3_T1.js  # Array.prototype.splice called on incompatible receiver a data object.
+built-ins/Array/prototype/splice/S15.4.4.12_A3_T3.js  # Array.prototype.splice called on incompatible receiver a data object.
+built-ins/Array/prototype/splice/S15.4.4.12_A4_T1.js  # Array.prototype.splice called on incompatible receiver a data object.
+built-ins/Array/prototype/splice/S15.4.4.12_A4_T2.js  # Array.prototype.splice called on incompatible receiver a data object.
+built-ins/Array/prototype/splice/S15.4.4.12_A4_T3.js  # Array.prototype.splice called on incompatible receiver a data object.
+built-ins/Array/prototype/splice/create-ctor-non-object.js  # null value Expected a TypeError to be thrown but no exception was thrown at all
+built-ins/Array/prototype/toLocaleString/S15.4.4.3_A1_T1.js  # #1: var n = 0; var obj = {toLocaleString: function() {n++}}; var arr = [undefined, obj, null, obj, o
+built-ins/Array/prototype/toLocaleString/S15.4.4.3_A3_T1.js  # #1: var n = 0; var obj = {toLocaleString: function() {n++}}; Array.prototype[1] = obj; x = [obj]; x.
+built-ins/Array/prototype/toReversed/holes-not-preserved.js  # Actual [4, undefined, 2, undefined, 0] and expected [4, 3, 2, undefined, 0] should have the same con
+built-ins/Array/prototype/toSorted/holes-not-preserved.js  # Actual [1, 3, 4, undefined, undefined] and expected [1, 2, 3, 4, undefined] should have the same con
+built-ins/Array/prototype/toSpliced/holes-not-preserved.js  # Actual [0, undefined, 2, undefined, 4] and expected [0, undefined, 2, 3, 4] should have the same con
+built-ins/Array/prototype/toString/S15.4.4.2_A1_T4.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+built-ins/Array/prototype/toString/S15.4.4.2_A3_T1.js  # #1: Array.prototype[1] = 1; x = [0]; x.length = 2; x.toString() === "0,1". Actual: 0,
+built-ins/Array/prototype/unshift/S15.4.4.13_A2_T1.js  # Array.prototype.unshift called on incompatible receiver a data object.
+built-ins/Array/prototype/unshift/S15.4.4.13_A2_T3.js  # Array.prototype.unshift called on incompatible receiver a data object.
+built-ins/Array/prototype/unshift/S15.4.4.13_A3_T2.js  # Array.prototype.unshift called on incompatible receiver a data object.
+built-ins/Array/prototype/unshift/S15.4.4.13_A4_T1.js  # Array.prototype.unshift called on incompatible receiver a data object.
+built-ins/Array/prototype/unshift/S15.4.4.13_A4_T2.js  # #3: Array.prototype[0] = 1; x = []; x.length = 1; x.unshift(0); x[1] === 1. Actual: undefined
+built-ins/Array/prototype/values/iteration-mutable.js  # .next is not a function.
+built-ins/Array/prototype/values/iteration.js  # .next is not a function.
+language/statements/async-function/rest-params-trailing-comma-early-error.js  # expected SyntaxError but the program ran
+language/statements/async-generator/dflt-params-abrupt.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/async-generator/dflt-params-ref-later.js  # Expected a ReferenceError to be thrown but no exception was thrown at all
+language/statements/async-generator/dflt-params-ref-self.js  # Expected a ReferenceError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/ary-init-iter-get-err-array-prototype.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/ary-init-iter-get-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/ary-ptrn-elem-ary-val-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/ary-ptrn-elem-id-init-throws.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/ary-ptrn-elem-id-init-unresolvable.js  # Expected a ReferenceError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/ary-ptrn-elem-id-iter-step-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/ary-ptrn-elem-obj-val-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/ary-ptrn-elem-obj-val-undef.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/ary-ptrn-elision-step-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/ary-ptrn-rest-id-elision-next-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/ary-ptrn-rest-id-iter-step-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/dflt-ary-init-iter-get-err-array-prototype.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/dflt-ary-init-iter-get-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/dflt-ary-ptrn-elem-ary-val-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/dflt-ary-ptrn-elem-id-init-throws.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/dflt-ary-ptrn-elem-id-init-unresolvable.js  # Expected a ReferenceError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/dflt-ary-ptrn-elem-id-iter-step-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/dflt-ary-ptrn-elem-obj-val-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/dflt-ary-ptrn-elem-obj-val-undef.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/dflt-ary-ptrn-elision-step-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/dflt-ary-ptrn-rest-id-elision-next-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/dflt-ary-ptrn-rest-id-iter-step-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/dflt-obj-init-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/dflt-obj-init-undefined.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/dflt-obj-ptrn-id-init-throws.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/dflt-obj-ptrn-id-init-unresolvable.js  # Expected a ReferenceError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/dflt-obj-ptrn-list-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/dflt-obj-ptrn-prop-ary-value-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/dflt-obj-ptrn-prop-eval-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/dflt-obj-ptrn-prop-id-init-throws.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/dflt-obj-ptrn-prop-id-init-unresolvable.js  # Expected a ReferenceError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/dflt-obj-ptrn-prop-obj-value-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/dflt-obj-ptrn-prop-obj-value-undef.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/obj-init-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/obj-init-undefined.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/obj-ptrn-id-init-throws.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/obj-ptrn-id-init-unresolvable.js  # Expected a ReferenceError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/obj-ptrn-list-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/obj-ptrn-prop-ary-value-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/obj-ptrn-prop-eval-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/obj-ptrn-prop-id-init-throws.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/obj-ptrn-prop-id-init-unresolvable.js  # Expected a ReferenceError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/obj-ptrn-prop-obj-value-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/async-generator/dstr/obj-ptrn-prop-obj-value-undef.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/async-generator/rest-params-trailing-comma-early-error.js  # expected SyntaxError but the program ran
+language/statements/async-generator/return-undefined-implicit-and-explicit.js  # Actual ["tick 1", "tick 2", "g1 ret", "g2 ret", "g3 ret", "g4 ret"] and expected ["tick 1", "g1 ret"
+language/statements/const/dstr/ary-init-iter-get-err-array-prototype.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/for-await-of/async-func-decl-dstr-array-elem-init-in.js  # Failed to parse TypeScript: '…' expected.
+language/statements/for-await-of/async-func-decl-dstr-obj-empty-bool.js  # TypeError: Object destructuring requires a data object or array value, received a boolean.
+language/statements/for-await-of/async-func-decl-dstr-obj-empty-num.js  # TypeError: Object destructuring requires a data object or array value, received a number.
+language/statements/for-await-of/async-func-decl-dstr-obj-empty-string.js  # TypeError: Object destructuring requires a data object or array value, received a string.
+language/statements/for-await-of/async-func-decl-dstr-obj-rest-number.js  # TypeError: Object destructuring requires a data object or array value, received a number.
+language/statements/for-await-of/async-func-decl-dstr-obj-rest-str-val.js  # TypeError: Object destructuring requires a data object or array value, received a string.
+language/statements/for-await-of/async-gen-decl-dstr-array-elem-init-in.js  # Failed to parse TypeScript: '…' expected.
+language/statements/for-await-of/async-gen-decl-dstr-array-elem-iter-rtrn-close-null.js  # "Promise incorrectly fulfilled."
+language/statements/for-await-of/async-gen-decl-dstr-obj-empty-bool.js  # TypeError: Object destructuring requires a data object or array value, received a boolean.
+language/statements/for-await-of/async-gen-decl-dstr-obj-empty-num.js  # TypeError: Object destructuring requires a data object or array value, received a number.
+language/statements/for-await-of/async-gen-decl-dstr-obj-empty-string.js  # TypeError: Object destructuring requires a data object or array value, received a string.
+language/statements/for-await-of/async-gen-decl-dstr-obj-rest-number.js  # TypeError: Object destructuring requires a data object or array value, received a number.
+language/statements/for-await-of/async-gen-decl-dstr-obj-rest-str-val.js  # TypeError: Object destructuring requires a data object or array value, received a string.
+language/statements/for-in/head-lhs-member.js  # Unsupported for...in binding.
+language/statements/for-of/Array.prototype.Symbol.iterator.js  # The called value is not a function.
+language/statements/for-of/dstr/array-elem-init-in.js  # Failed to parse TypeScript: '…' expected.
+language/statements/for-of/dstr/array-elem-iter-rtrn-close-err.js  # Iterator next must be a function.
+language/statements/for-of/dstr/array-elem-iter-rtrn-close-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/for-of/dstr/array-elem-iter-thrw-close-err.js  # Expected SameValue(«1», «0») to be true
+language/statements/for-of/dstr/array-elem-trlg-iter-list-rtrn-close-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/for-of/dstr/array-elem-trlg-iter-list-rtrn-close-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/for-of/dstr/array-elem-trlg-iter-list-thrw-close-err.js  # Expected SameValue(«1», «0») to be true
+language/statements/for-of/dstr/array-elem-trlg-iter-rest-rtrn-close-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/for-of/dstr/array-elem-trlg-iter-rest-rtrn-close-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/for-of/dstr/array-elem-trlg-iter-rest-thrw-close-err.js  # Expected SameValue(«11», «1») to be true
+language/statements/for-of/dstr/array-rest-iter-rtrn-close-err.js  # Iterator next must be a function.
+language/statements/for-of/dstr/array-rest-iter-rtrn-close-null.js  # Iterator next must be a function.
+language/statements/for-of/dstr/array-rest-iter-thrw-close-err.js  # Expected SameValue(«11», «0») to be true
+language/statements/for-of/dstr/array-rest-lref-err.js  # Expected SameValue(«1», «0») to be true
+language/statements/for-of/dstr/const-ary-init-iter-get-err-array-prototype.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/for-of/dstr/let-ary-init-iter-get-err-array-prototype.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/for-of/dstr/obj-empty-bool.js  # Object destructuring requires a data object or array value, received a boolean.
+language/statements/for-of/dstr/obj-empty-num.js  # Object destructuring requires a data object or array value, received a number.
+language/statements/for-of/dstr/obj-empty-string.js  # Object destructuring requires a data object or array value, received a string.
+language/statements/for-of/dstr/obj-rest-number.js  # Object destructuring requires a data object or array value, received a number.
+language/statements/for-of/dstr/obj-rest-str-val.js  # Object destructuring requires a data object or array value, received a string.
+language/statements/for-of/dstr/var-ary-init-iter-get-err-array-prototype.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/for-of/throw-from-catch.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+language/statements/for-of/throw-from-finally.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+language/statements/for-of/throw.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+language/statements/for/dstr/const-ary-init-iter-get-err-array-prototype.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/for/dstr/let-ary-init-iter-get-err-array-prototype.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/for/dstr/var-ary-init-iter-get-err-array-prototype.js  # Expected a TypeError but got a ReferenceError
+language/statements/function/13.2-19-b-3gs.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/function/13.2-2-s.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/function/S13.2.2_A1_T1.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+language/statements/function/S13.2.2_A1_T2.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+language/statements/function/S13.2.2_A2.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+language/statements/function/S13.2.2_A3_T1.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+language/statements/function/S13.2.2_A3_T2.js  # … cannot be constructed: user-defined constructors and classes are not supported. Call it as a funct
+language/statements/function/S13.2_A1_T1.js  # #1: __func.prototype !== undefined
+language/statements/function/S13.2_A1_T2.js  # #1: __func.prototype !== undefined
+language/statements/function/S13.2_A4_T1.js  # Unknown identifier '…'.
+language/statements/function/S13.2_A4_T2.js  # #1: typeof __gunc.prototype === '…'. Actual: typeof __gunc.prototype ===undefined
+language/statements/function/S13_A3_T1.js  # Unknown identifier '…'.
+language/statements/function/S13_A6_T1.js  # Identifier '…' has already been declared.
+language/statements/function/S14_A2.js  # Unknown identifier '…'.
+language/statements/function/S14_A5_T1.js  # Identifier '…' has already been declared.
+language/statements/function/S14_A5_T2.js  # Identifier '…' has already been declared.
+language/statements/function/dstr/ary-init-iter-get-err-array-prototype.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/function/dstr/dflt-ary-init-iter-get-err-array-prototype.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/function/rest-params-trailing-comma-early-error.js  # expected SyntaxError but the program ran
+language/statements/generators/dflt-params-abrupt.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/generators/dflt-params-ref-later.js  # Expected a ReferenceError to be thrown but no exception was thrown at all
+language/statements/generators/dflt-params-ref-self.js  # Expected a ReferenceError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/ary-init-iter-get-err-array-prototype.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/ary-init-iter-get-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/generators/dstr/ary-ptrn-elem-ary-val-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/ary-ptrn-elem-id-init-throws.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/generators/dstr/ary-ptrn-elem-id-init-unresolvable.js  # Expected a ReferenceError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/ary-ptrn-elem-id-iter-step-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/generators/dstr/ary-ptrn-elem-obj-val-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/ary-ptrn-elem-obj-val-undef.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/ary-ptrn-elision-step-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/generators/dstr/ary-ptrn-rest-id-elision-next-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/generators/dstr/ary-ptrn-rest-id-iter-step-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/generators/dstr/dflt-ary-init-iter-get-err-array-prototype.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/dflt-ary-init-iter-get-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/generators/dstr/dflt-ary-ptrn-elem-ary-val-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/dflt-ary-ptrn-elem-id-init-throws.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/generators/dstr/dflt-ary-ptrn-elem-id-init-unresolvable.js  # Expected a ReferenceError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/dflt-ary-ptrn-elem-id-iter-step-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/generators/dstr/dflt-ary-ptrn-elem-obj-val-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/dflt-ary-ptrn-elem-obj-val-undef.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/dflt-ary-ptrn-elision-step-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/generators/dstr/dflt-ary-ptrn-rest-id-elision-next-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/generators/dstr/dflt-ary-ptrn-rest-id-iter-step-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/generators/dstr/dflt-obj-init-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/dflt-obj-init-undefined.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/dflt-obj-ptrn-id-init-throws.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/generators/dstr/dflt-obj-ptrn-id-init-unresolvable.js  # Expected a ReferenceError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/dflt-obj-ptrn-list-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/generators/dstr/dflt-obj-ptrn-prop-ary-value-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/dflt-obj-ptrn-prop-eval-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/generators/dstr/dflt-obj-ptrn-prop-id-init-throws.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/generators/dstr/dflt-obj-ptrn-prop-id-init-unresolvable.js  # Expected a ReferenceError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/dflt-obj-ptrn-prop-obj-value-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/dflt-obj-ptrn-prop-obj-value-undef.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/obj-init-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/obj-init-undefined.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/obj-ptrn-id-init-throws.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/generators/dstr/obj-ptrn-id-init-unresolvable.js  # Expected a ReferenceError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/obj-ptrn-list-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/generators/dstr/obj-ptrn-prop-ary-value-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/obj-ptrn-prop-eval-err.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/generators/dstr/obj-ptrn-prop-id-init-throws.js  # Expected a Test262Error to be thrown but no exception was thrown at all
+language/statements/generators/dstr/obj-ptrn-prop-id-init-unresolvable.js  # Expected a ReferenceError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/obj-ptrn-prop-obj-value-null.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/generators/dstr/obj-ptrn-prop-obj-value-undef.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/generators/has-instance.js  # The right-hand side of '…' has no '…' object.
+language/statements/generators/prototype-typeof.js  # Expected SameValue(«"undefined"», «"object"») to be true
+language/statements/generators/prototype-uniqueness.js  # Expected true but got false
+language/statements/generators/rest-params-trailing-comma-early-error.js  # expected SyntaxError but the program ran
+language/statements/labeled/value-await-non-module-escaped.js  # Failed to parse TypeScript: Keywords cannot contain escape characters.
+language/statements/labeled/value-await-non-module.js  # Failed to parse TypeScript: Expression expected.
+language/statements/let/dstr/ary-init-iter-get-err-array-prototype.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/return/S12.9_A1_T1.js  # expected SyntaxError but the program ran
+language/statements/return/S12.9_A1_T10.js  # expected SyntaxError but the program ran
+language/statements/return/S12.9_A1_T2.js  # expected SyntaxError but the program ran
+language/statements/return/S12.9_A1_T3.js  # expected SyntaxError but the program ran
+language/statements/return/S12.9_A1_T4.js  # expected SyntaxError but the program ran
+language/statements/return/S12.9_A1_T5.js  # expected SyntaxError but the program ran
+language/statements/return/S12.9_A1_T6.js  # expected SyntaxError but the program ran
+language/statements/return/S12.9_A1_T7.js  # expected SyntaxError but the program ran
+language/statements/return/S12.9_A1_T8.js  # expected SyntaxError but the program ran
+language/statements/return/S12.9_A1_T9.js  # expected SyntaxError but the program ran
+language/statements/switch/S12.11_A1_T4.js  # Switch discriminants must be data values.
+language/statements/switch/scope-lex-open-dflt.js  # Switch discriminants must be data values.
+language/statements/try/dstr/ary-init-iter-get-err-array-prototype.js  # Expected a TypeError to be thrown but no exception was thrown at all
+language/statements/variable/dstr/ary-init-iter-get-err-array-prototype.js  # Expected a TypeError to be thrown but no exception was thrown at all

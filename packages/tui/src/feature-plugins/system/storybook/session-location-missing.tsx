@@ -2,7 +2,7 @@ import type { Plugin } from "@opencode/plugin/tui"
 import { useTerminalDimensions } from "@opentui/solid"
 import { TextAttributes } from "@opentui/core"
 import { createSignal } from "solid-js"
-import { DialogMoveSession } from "../../../component/dialog-move-session"
+import { DialogWorkspaces } from "../../../component/dialog-workspaces"
 import { SessionLocationUnavailable } from "../../../routes/session/location-missing"
 import type { Story } from "./index"
 import { StoryFooter } from "./footer"
@@ -15,7 +15,7 @@ function SessionLocationMissingStory(props: { context: Plugin.Context }) {
   const [message, setMessage] = createSignal("Choose another directory to continue")
   const open = () =>
     props.context.ui.dialog.show(() => (
-      <DialogMoveSession
+      <DialogWorkspaces
         projectID="fixture-project"
         initialDirectories={[
           { directory: "/Users/kit/code/open-source/opencode" },

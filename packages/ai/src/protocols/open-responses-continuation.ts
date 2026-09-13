@@ -6,7 +6,6 @@ import { OpenResponses } from "./open-responses.js"
 
 const PROTOCOL = "open-responses.websocket.v1"
 const VERSION = 1
-const decodeEvent = Schema.decodeUnknownEffect(OpenResponses.protocol.stream.event)
 
 interface CheckpointValue {
   readonly version: typeof VERSION
@@ -15,12 +14,19 @@ interface CheckpointValue {
   readonly output: ReadonlyArray<unknown>
 }
 
+/**
+ * Fields to send next to `previous_response_id` on an incremental step, or undefined to send the step in full.
+ * Whether omitted fields carry over from the continued response is provider behavior the route must know.
+ */
+export type Shape = (request: Readonly<Record<string, unknown>>) => Readonly<Record<string, unknown>> | undefined
+
 export interface DriverInput {
   readonly id: string
   readonly name: string
   readonly request: Readonly<Record<string, unknown>>
   readonly message: string
   readonly base: WebSocketChannelDriver
+  readonly continuation?: Shape
 }
 
 const checkpointValue = (checkpoint: ChannelCheckpoint | undefined): CheckpointValue | undefined => {
@@ -127,22 +133,26 @@ const rejected = (
 
 export const driver = (input: DriverInput): WebSocketChannelDriver => {
   const { previous_response_id: _previousResponseID, ...request } = input.request
+  const shape = input.continuation ?? ((fields: Readonly<Record<string, unknown>>) => fields)
   let output: OpenResponses.StreamItem[] = []
   return {
     create: (checkpoint) =>
       Effect.sync(() => {
         output = []
         const previous = checkpointValue(checkpoint)
-        const delta = previous ? incremental(request, previous) : undefined
-        if (!previous || !delta) return { message: ProviderShared.encodeJson(request), mode: "full" as const }
+        // Ask the route first: diffing the whole history is wasted when it declines the continuation.
+        const fields = previous ? shape(request) : undefined
+        const delta = previous && fields ? incremental(request, previous) : undefined
+        if (!previous || !fields || !delta)
+          return { message: ProviderShared.encodeJson(request), mode: "full" as const }
         return {
-          message: ProviderShared.encodeJson({ ...request, input: delta, previous_response_id: previous.responseID }),
+          message: ProviderShared.encodeJson({ ...fields, input: delta, previous_response_id: previous.responseID }),
           mode: "incremental" as const,
         }
       }),
     observe: (create, frame) =>
       Effect.gen(function* () {
-        const event = yield* decodeEvent(frame).pipe(
+        const event = yield* OpenResponses.decodeChannelEvent(frame).pipe(
           Effect.mapError((cause) =>
             ProviderShared.eventError(input.id, `Invalid ${input.name} WebSocket event`, frame, cause),
           ),
@@ -153,6 +163,15 @@ export const driver = (input: DriverInput): WebSocketChannelDriver => {
           const rejection = code(event)
           if (rejection === "previous_response_not_found") return rejected(observation, "retry-full")
           if (rejection === "websocket_connection_limit_reached") return rejected(observation, "rotate-and-retry-full")
+          // Only the continuation distinguishes an incremental send from a full one, so an unclassified
+          // invalid request there is retried full; Codex reports a stale previous_response_id that way, with
+          // no code. Classified failures such as context overflow keep their runner-owned recovery.
+          if (
+            create.mode === "incremental" &&
+            observation.error.reason._tag === "InvalidRequest" &&
+            observation.error.reason.classification === undefined
+          )
+            return rejected(observation, "retry-full")
         }
         if (observation.type !== "completed") return observation
         // A trigger installs a different context window. Clear the append baseline, retaining the socket.
@@ -172,7 +191,7 @@ export const driver = (input: DriverInput): WebSocketChannelDriver => {
               responseID,
               request,
               // Completion can re-encrypt reasoning. Callers replay the item already emitted by output_item.done.
-              output: event.response?.output
+              output: event.response?.output?.length
                 ? event.response.output.map((item) =>
                     item.type === "reasoning" && item.id !== undefined
                       ? (output.find((done) => done.type === item.type && done.id === item.id) ?? item)
@@ -186,4 +205,4 @@ export const driver = (input: DriverInput): WebSocketChannelDriver => {
   }
 }
 
-export const OpenResponsesContinuation = { driver } as const
+export * as OpenResponsesContinuation from "./open-responses-continuation.js"

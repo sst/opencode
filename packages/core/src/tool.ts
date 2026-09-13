@@ -264,7 +264,9 @@ const layer = Layer.effect(
                 return yield* executeTool(codeModeTool, name, event.input, context)
               const tool = direct.get(name)
               if (tool) return yield* executeTool(tool, name, event.input, context)
-              return yield* new Tool.Error({ message: `Unknown tool: ${name}` })
+              return yield* new Tool.Error({
+                message: `No tool named "${name}" is currently available. Please use a tool from the available tool list.`,
+              })
             }),
           }
         }),

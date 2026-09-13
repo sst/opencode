@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { Effect } from "effect"
 import { CodeMode } from "../src/index.js"
-import { ToolRuntime } from "../src/tool-runtime.js"
+import { Data } from "../src/data.js"
 
 // Runs a CodeMode program with no host tools and returns the CodeMode.Result. These tests pin the
 // JS-parity behaviors for the "99% of ordinary defensive JavaScript just works" goal: cases where
@@ -81,27 +81,26 @@ describe("H3: array property access reads as undefined (not a throw)", () => {
     ).toEqual(["b", "b", null, null, "a", null])
   })
 
-  test("noncanonical keys cannot mutate or delete an aliased element", async () => {
+  test("noncanonical keys are ordinary properties that never alias an element", async () => {
     expect(
       await value(`
         const values = ["a", "b"]
-        let writes = 0
-        try { values["01"] = ++writes } catch {}
+        values["01"] = "c"
+        const before = [values["01"], values[1], values.length]
         const removed = delete values["01"]
-        return [writes, removed, values]
+        return [before, removed, values["01"], values]
       `),
-    ).toEqual([0, true, ["a", "b"]])
+    ).toEqual([["c", "b", 2], true, null, ["a", "b"]])
   })
 
-  test("the maximum array length is not accepted as an array index", async () => {
+  test("the maximum array length is a property, not an index", async () => {
     expect(
       await value(`
         const values = []
-        let writes = 0
-        try { values["4294967295"] = ++writes } catch {}
-        return [writes, values.length]
+        values["4294967295"] = 1
+        return [values["4294967295"], values.length]
       `),
-    ).toEqual([0, 0])
+    ).toEqual([1, 0])
   })
 })
 
@@ -118,9 +117,12 @@ describe("H6: object spread of null/undefined is a no-op", () => {
     expect(await value(`const o = { a: 1 }; return { ...o, b: 2 }`)).toEqual({ a: 1, b: 2 })
   })
 
-  test("spreading an array into an object still errors", async () => {
-    const err = await error(`return { ...[1,2], a: 1 }`)
-    expect(err.kind).toBe("InvalidDataValue")
+  test("spreading an array or string into an object copies index keys, like JS", async () => {
+    expect(await value(`return { ...[1,2], a: 1 }`)).toEqual({ 0: 1, 1: 2, a: 1 })
+    expect(await value(`return { ..."ab", ...5, ...true, ...(() => 1), ...new Map([[1, 2]]) }`)).toEqual({
+      0: "a",
+      1: "b",
+    })
   })
 })
 
@@ -240,19 +242,19 @@ describe("property deletion", () => {
   })
 
   test("array length is not configurable", async () => {
-    expect(await value(`const values = [1, 2]; return [delete values.length, values.length]`)).toEqual([false, 2])
+    expect((await error(`const values = [1, 2]; delete values.length`)).message).toContain(
+      "Cannot delete property 'length'",
+    )
   })
 
-  test("does not broaden unsupported array property assignment", async () => {
+  test("arrays accept named properties like JS, and they stay out of the JSON form", async () => {
     expect(
       await value(`
-        const values = []
-        let rightHandSideRuns = 0
-        function next() { rightHandSideRuns++; return 1 }
-        try { values.field = next() } catch {}
-        return rightHandSideRuns
+        const values = [1]
+        values.field = 2
+        return [values.field, Object.keys(values), values]
       `),
-    ).toBe(0)
+    ).toEqual([2, ["0", "field"], [1]])
   })
 
   test("optional deletion short-circuits without evaluating the key", async () => {
@@ -265,9 +267,11 @@ describe("property deletion", () => {
     expect((await error(`return delete tools.example`)).kind).toBe("InvalidDataValue")
   })
 
-  test("keeps blocked property names unavailable", async () => {
-    expect((await error(`const object = {}; return delete object.__proto__`)).kind).toBe("ExecutionFailure")
-    expect((await error(`const values = []; return delete values["constructor"]`)).kind).toBe("ExecutionFailure")
+  test("prototype-named keys delete like any own data key", async () => {
+    expect(
+      await value(`const object = { __proto__: 1, a: 2 }; delete object.__proto__; return Object.keys(object)`),
+    ).toEqual(["a"])
+    expect(await value(`const values = [1]; delete values["constructor"]; return values`)).toEqual([1])
   })
 })
 
@@ -299,23 +303,23 @@ describe("H1: NaN/Infinity flow as intermediates and normalize to null at the bo
 
   test("copyOut normalizes non-finite numbers to null (the shared return + tool-arg boundary)", () => {
     // Tool-call arguments funnel through copyOut too, so this one function pins both boundaries.
-    expect(ToolRuntime.copyOut(NaN, "json")).toBeNull()
-    expect(ToolRuntime.copyOut(Infinity, "json")).toBeNull()
-    expect(ToolRuntime.copyOut(-Infinity, "nullify")).toBeNull()
-    expect(ToolRuntime.copyOut(42, "json")).toBe(42)
-    expect(ToolRuntime.copyOut({ a: NaN, b: [Infinity, 1] }, "json")).toEqual({ a: null, b: [null, 1] })
+    expect(Data.toData(NaN, "value")).toBeNull()
+    expect(Data.toData(Infinity, "value")).toBeNull()
+    expect(Data.toData(-Infinity, "value", "result")).toBeNull()
+    expect(Data.toData(42, "value")).toBe(42)
+    expect(Data.toData({ a: NaN, b: [Infinity, 1] }, "value")).toEqual({ a: null, b: [null, 1] })
   })
 })
 
 describe("copyOut undefined handling per boundary mode", () => {
   test("json mode mirrors JSON.stringify for undefined", () => {
-    expect(ToolRuntime.copyOut({ q: undefined, keep: 1 }, "json")).toStrictEqual({ keep: 1 })
-    expect(ToolRuntime.copyOut([1, undefined, 2], "json")).toStrictEqual([1, null, 2])
-    expect(ToolRuntime.copyOut({ nested: { a: undefined, b: [undefined] } }, "json")).toStrictEqual({
+    expect(Data.toData({ q: undefined, keep: 1 }, "value")).toStrictEqual({ keep: 1 })
+    expect(Data.toData([1, undefined, 2], "value")).toStrictEqual([1, null, 2])
+    expect(Data.toData({ nested: { a: undefined, b: [undefined] } }, "value")).toStrictEqual({
       nested: { b: [null] },
     })
-    expect(ToolRuntime.copyOut(undefined, "json")).toBeUndefined()
-    expect(ToolRuntime.copyOut({ a: undefined }, "nullify")).toStrictEqual({ a: null })
+    expect(Data.toData(undefined, "value")).toBeUndefined()
+    expect(Data.toData({ a: undefined }, "value", "result")).toStrictEqual({ a: null })
   })
 })
 
@@ -390,11 +394,35 @@ describe("Error values and instanceof", () => {
     ])
   })
 
-  test("diagnostics without a specific real-JS analogue are named plain Error", async () => {
-    expect(await value(`try { JSON.parse(5) } catch (e) { return [e.name, e instanceof Error] }`)).toEqual([
-      "Error",
+  test("interpreter failures are TypeErrors; unsupported syntax is a SyntaxError", async () => {
+    expect(await value(`try { null.x } catch (e) { return [e.name, e instanceof TypeError] }`)).toEqual([
+      "TypeError",
       true,
     ])
+    expect(await value(`try { tools + 1 } catch (e) { return e.name }`)).toBe("TypeError")
+    expect(await value(`try { class A {} } catch (e) { return [e.name, e instanceof SyntaxError] }`)).toEqual([
+      "SyntaxError",
+      true,
+    ])
+  })
+
+  test("errors inherit constructor and instanceof through a real prototype chain", async () => {
+    expect(
+      await value(`
+        const { constructor } = new RangeError("r")
+        let caught
+        try { const { a } = null } catch (e) { caught = e }
+        return [
+          constructor === RangeError,
+          new RangeError("r") instanceof Error,
+          new RangeError("r") instanceof TypeError,
+          caught.constructor === TypeError,
+          ({ ...caught }).constructor === Object,
+          "constructor" in caught,
+          Object.keys(new RangeError("r")),
+        ]
+      `),
+    ).toEqual([true, true, false, true, true, true, []])
   })
 
   test("Promise.allSettled rejection reasons are Error values", async () => {
@@ -419,15 +447,18 @@ describe("Error values and instanceof", () => {
     ])
   })
 
-  test("error values still serialize as plain { name, message } data", async () => {
+  test("errors serialize as { name, message } by brand; neither is enumerable", async () => {
     expect(await value(`return new Error("m")`)).toEqual({ name: "Error", message: "m" })
     expect(await value(`return JSON.stringify(new Error("m"))`)).toBe('{"name":"Error","message":"m"}')
-    expect(await value(`try { throw new Error("m") } catch (e) { return Object.keys(e) }`)).toEqual(["name", "message"])
+    expect(
+      await value(`try { throw new Error("m") } catch (e) { return [Object.keys(e), e.name, e.hasOwnProperty("message")] }`),
+    ).toEqual([[], "Error", true])
+    expect(await value(`return new Error().hasOwnProperty("message")`)).toBe(false)
   })
 
   test("spreading an error loses the brand, like losing the prototype in JS", async () => {
     expect(await value(`const e = new Error("m"); return ({ ...e }) instanceof Error`)).toBe(false)
-    expect(await value(`const e = new Error("m"); return { ...e }`)).toEqual({ name: "Error", message: "m" })
+    expect(await value(`const e = new Error("m"); return { ...e }`)).toEqual({})
   })
 
   test("typeof Error is function; an unknown instanceof right-hand side is a catchable error", async () => {
@@ -486,12 +517,8 @@ describe("CodeMode-specific string behavior", () => {
     expect(await value(`try { "x".normalize("nope"); return "no" } catch (e) { return e.message }`)).toContain('"NFC"')
   })
 
-  test("does not expose obsolete string aliases", async () => {
-    expect(await value(`return [typeof "x".trimLeft, typeof "x".trimRight, typeof "x".substr]`)).toEqual([
-      "undefined",
-      "undefined",
-      "undefined",
-    ])
+  test("exposes the Annex B string aliases every engine ships", async () => {
+    expect(await value(`return [" x ".trimLeft(), " x ".trimRight(), "abc".substr(1, 1)]`)).toEqual(["x ", " x", "b"])
   })
 })
 
@@ -666,13 +693,14 @@ describe("destructuring assignment", () => {
     ).toEqual({ calls: 1, name: "Ada", rest: { role: "engineer" } })
   })
 
-  test("supports object patterns over arrays", async () => {
+  test("supports object patterns over arrays; detached methods lose their receiver like JS", async () => {
     expect(
       await value(`
         const { 0: first, length, slice, ...rest } = ["a", "b", "c"]
-        return { first, length, sliced: slice(1), rest }
+        return { first, length, sliced: slice === Array.prototype.slice, rest }
       `),
-    ).toEqual({ first: "a", length: 3, sliced: ["b", "c"], rest: { 1: "b", 2: "c" } })
+    ).toEqual({ first: "a", length: 3, sliced: true, rest: { 1: "b", 2: "c" } })
+    expect((await error(`const { slice } = [1]; slice(0)`)).message).toContain("Array.prototype.slice called on")
   })
 
   test("preserves exact computed property names on arrays", async () => {
@@ -906,10 +934,66 @@ describe("coercion parity: unknown static members read as undefined", () => {
     )
   })
 
-  test("blocked members still throw instead of reading as undefined", async () => {
-    const err = await error(`return Math.constructor`)
-    expect(err.message).toContain("not available")
-    const coercionErr = await error(`return Number.constructor`)
-    expect(coercionErr.message).toContain("Number.constructor is not available")
+  test("built-ins are objects on a real prototype chain", async () => {
+    expect(
+      await value(`
+        return [
+          Math.constructor === Object,
+          Number.constructor === Function,
+          Object.prototype.hasOwnProperty === ({}).hasOwnProperty,
+          Array.prototype.push.name,
+          Array.prototype.push.length,
+          Math.max.length,
+          Object.keys(Math),
+          typeof Array.prototype.map,
+          Array.isArray(Array.prototype),
+        ]
+      `),
+    ).toEqual([true, true, true, "push", 1, 2, [], "function", true])
+  })
+})
+
+describe("functions are objects", () => {
+  test("name follows NamedEvaluation and length counts required parameters", async () => {
+    expect(
+      await value(`
+        function decl(a, b = 1, ...rest) {}
+        const arrow = () => {}
+        const named = function inner() {}
+        let assigned
+        assigned = (a, b) => {}
+        const { fromDefault = () => {} } = {}
+        const [fromArray = function () {}] = []
+        const obj = { method() {}, key: () => {}, [Symbol.iterator]: () => {} }
+        const passthrough = (0, () => {})
+        return [
+          [decl.name, decl.length],
+          [arrow.name, named.name, assigned.name, assigned.length],
+          [fromDefault.name, fromArray.name],
+          [obj.method.name, obj.key.name, obj[Symbol.iterator].name],
+          passthrough.name,
+        ]
+      `),
+    ).toEqual([
+      ["decl", 1],
+      ["arrow", "inner", "assigned", 2],
+      ["fromDefault", "fromArray"],
+      ["method", "key", "[Symbol.iterator]"],
+      "",
+    ])
+  })
+
+  test("functions hold own properties; name and length are read-only", async () => {
+    expect(
+      await value(`
+        const fn = () => 1
+        fn.count = 2
+        fn.count += 1
+        let renamed = false
+        try { fn.name = "other" } catch (error) { renamed = error instanceof TypeError }
+        const { name, count } = fn
+        return [fn.count, Object.keys(fn), "count" in fn, "name" in fn, name, count, renamed, delete fn.count, fn.count]
+      `),
+    ).toEqual([3, ["count"], true, true, "fn", 3, true, true, null])
   })
 })

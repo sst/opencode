@@ -740,7 +740,7 @@ describe("JSDoc signatures in catalogs and search results", () => {
       "}",
     ].join("\n")
     const signature = `tools.constrained(input: ${type}): Promise<${type}>`
-    expect(runtime.catalog()[0]?.signature).toBe(signature)
+    expect(runtime.catalog[0]?.signature).toBe(signature)
     const result = await Effect.runPromise(runtime.execute('return search({ query: "tools.constrained" })'))
     expect(result.ok).toBe(true)
     if (!result.ok) throw new Error("search failed")
@@ -796,7 +796,7 @@ describe("JSDoc signatures in catalogs and search results", () => {
   })
 
   test("the catalog uses the same JSDoc signatures as search", async () => {
-    const catalog = runtime.catalog()
+    const catalog = runtime.catalog
     const github = (await search("list issues repository")).items.find(
       ({ path }) => path === "tools.github.list_issues",
     )!
@@ -824,7 +824,7 @@ describe("non-identifier tool paths", () => {
   const runtime = CodeMode.make({ tools: { context7: { "resolve-library-id": resolveLibrary } } })
 
   test("catalog signatures use bracket notation for dashed tool names", () => {
-    expect(runtime.catalog()[0]?.signature).toBe(
+    expect(runtime.catalog[0]?.signature).toBe(
       'tools.context7["resolve-library-id"](input: {\n  query: string,\n  libraryName: string,\n}): Promise<unknown>',
     )
   })

@@ -248,7 +248,7 @@ for (const direction of ["ltr", "rtl"]) {
     expect(messageAfter).toEqual(messageBefore)
     await page.locator('[data-component="composer-editor"]').pressSequentially("Also: ")
     await expect(page.locator('[data-component="composer-editor"]')).toHaveText(`Also: ${followUp}`)
-    expect(mock.calls).toEqual(["worktree", "session", "prompt"])
+    await expect.poll(() => mock.calls).toEqual(["worktree", "session", "prompt"])
   })
 }
 

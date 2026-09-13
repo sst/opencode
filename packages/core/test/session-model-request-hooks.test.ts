@@ -57,10 +57,12 @@ describe("SessionModelRequest HTTP hooks", () => {
       const requests = yield* SessionModelRequest.Service.pipe(Effect.provide(SessionModelRequest.layer))
 
       for (const kind of KINDS) {
-        const prepared = yield* requests.prepare({
-          kind,
-          scope: { session, agentID: Agent.ID.make("build"), model },
-          transcript: { system: [], messages: [] },
+        const prepared = yield* requests[kind]({
+          session,
+          agent: Agent.ID.make("build"),
+          model,
+          system: [],
+          messages: [],
         })
         const http = prepared.options.http
         if (!http) throw new Error(`Expected HTTP middleware for ${kind}`)

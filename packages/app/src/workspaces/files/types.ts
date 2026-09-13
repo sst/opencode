@@ -29,6 +29,7 @@ export type FileState = {
   name: string
   loaded?: boolean
   loading?: boolean
+  notFound?: boolean
   error?: string
   content?: FileContent
 }

@@ -24,20 +24,20 @@ const queued = [
 describe("queuedPromptRows", () => {
   test("keeps the edited prompt to one row while its replacement is admitted", () => {
     expect(queuedPromptRows(queued, { original: "msg_original", replacement: "msg_replacement" })).toEqual([
-      { id: "msg_replacement", text: "edited", attachments: false },
+      { id: "msg_replacement", text: "edited", attachments: 0 },
     ])
   })
 
   test("keeps the original visible until its replacement appears", () => {
     expect(queuedPromptRows([queued[0]], { original: "msg_original", replacement: "msg_replacement" })).toEqual([
-      { id: "msg_original", text: "original", attachments: false },
+      { id: "msg_original", text: "original", attachments: 0 },
     ])
   })
 
   test("retains unrelated queue entries", () => {
     expect(queuedPromptRows(queued)).toEqual([
-      { id: "msg_original", text: "original", attachments: false },
-      { id: "msg_replacement", text: "edited", attachments: false },
+      { id: "msg_original", text: "original", attachments: 0 },
+      { id: "msg_replacement", text: "edited", attachments: 0 },
     ])
   })
 
@@ -47,8 +47,8 @@ describe("queuedPromptRows", () => {
     expect(
       queuedPromptRows([queued[0], other, queued[1]], { original: "msg_original", replacement: "msg_replacement" }),
     ).toEqual([
-      { id: "msg_other", text: "other", attachments: false },
-      { id: "msg_replacement", text: "edited", attachments: false },
+      { id: "msg_other", text: "other", attachments: 0 },
+      { id: "msg_replacement", text: "edited", attachments: 0 },
     ])
   })
 })

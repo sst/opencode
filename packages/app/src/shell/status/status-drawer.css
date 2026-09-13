@@ -1,9 +1,0 @@
-[data-slot="mobile-status-loading"] {
-  display: flex;
-  min-height: 56px;
-  align-items: center;
-  justify-content: center;
-  color: var(--v2-text-text-muted);
-  font-size: 13px;
-  line-height: var(--line-height-base);
-}

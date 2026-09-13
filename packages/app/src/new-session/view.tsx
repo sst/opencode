@@ -1,7 +1,8 @@
 import { useDialog } from "@opencode/ui/context/dialog"
 import { Tooltip } from "@opencode/ui/tooltip"
 import { Icon } from "@opencode/ui/icon"
-import { Show, createMemo, createSignal } from "solid-js"
+import { Show, Suspense, createMemo, createSignal, lazy } from "solid-js"
+import { createStore } from "solid-js/store"
 import { Schema } from "effect"
 import createPresence from "solid-presence"
 import { Composer } from "@/composer/composer"
@@ -13,8 +14,6 @@ import {
   PromptProjectSelector,
   type PromptProjectController,
 } from "@/new-session/project/selector"
-import { StatusPopover } from "@/shell/status/status-popover"
-import { TitlebarRight } from "@/shell/titlebar/right-slot"
 import { useLanguage } from "@/runtime/i18n/language"
 import { useWorkspaceLocation } from "@/workspaces/location"
 import { useProviders } from "@/providers/catalog/providers"
@@ -23,6 +22,13 @@ import { Persist, persisted } from "@/runtime/persistence/storage"
 import { Persistence } from "@/runtime/persistence/schema"
 import type { NewSessionWorkspaceController } from "./workspace/controller"
 import { NewSessionWordmark } from "./wordmark"
+import { SummaryPopover } from "@/session/summary/popover"
+import type { DraftMcpControls } from "./mcp"
+
+const NewSessionSummary = lazy(async () => {
+  const { NewSessionSummary } = await import("./summary")
+  return { default: NewSessionSummary }
+})
 
 const providerTipDismissalDuration = 30 * 24 * 60 * 60 * 1000
 
@@ -40,7 +46,9 @@ export function NewSessionView(props: {
   composer: ComposerModel
   project: PromptProjectController
   workspace: NewSessionWorkspaceController
+  mcp: DraftMcpControls
 }) {
+  const [store, setStore] = createStore({ summary: false })
   const [onboarding, setOnboarding, , onboardingReady] = persisted(
     Persist.global("workspace-onboarding"),
     WorkspaceOnboardingSchema,
@@ -61,6 +69,25 @@ export function NewSessionView(props: {
           active={props.composer.state.drag === "active"}
           input={props.composer.model.selection.current()?.capabilities.input}
         />
+        <div
+          data-slot="new-session-summary"
+          class="absolute inset-x-0 top-0 z-20 flex h-12 items-center justify-end px-3"
+        >
+          <SummaryPopover open={store.summary} onOpenChange={(open) => setStore("summary", open)}>
+            <Suspense>
+              <NewSessionSummary
+                project={props.project.selected()}
+                workspace={props.workspace}
+                mcp={props.mcp}
+                shown={store.summary}
+                onChooseProject={() => {
+                  setStore("summary", false)
+                  props.project.add()
+                }}
+              />
+            </Suspense>
+          </SummaryPopover>
+        </div>
         <div class="absolute inset-x-0 top-[25.375%] flex justify-center px-6">
           <div class={NEW_SESSION_CONTENT_WIDTH}>
             <NewSessionWordmark />
@@ -112,19 +139,6 @@ export function NewSessionView(props: {
         />
       </div>
     </div>
-  )
-}
-
-export function NewSessionStatus(props: { visible: boolean }) {
-  const language = useLanguage()
-  return (
-    <TitlebarRight>
-      <Show when={props.visible}>
-        <Tooltip appearance="standard" placement="bottom" value={language.t("status.popover.trigger")}>
-          <StatusPopover />
-        </Tooltip>
-      </Show>
-    </TitlebarRight>
   )
 }
 

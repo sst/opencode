@@ -11,6 +11,7 @@ import { SessionCompaction } from "@opencode/core/session/compaction"
 import { SessionEvent } from "@opencode/core/session/event"
 import { SessionMessage } from "@opencode/core/session/message"
 import { SessionModelRequest } from "@opencode/core/session/model-request"
+import { PluginHooks } from "@opencode/core/plugin/hooks"
 import { SessionProjector } from "@opencode/core/session/projector"
 import { SessionRunnerModel } from "@opencode/core/session/runner/model"
 import { SessionTable } from "@opencode/core/session/sql"
@@ -85,6 +86,7 @@ const it = testEffect(
       SessionStore.node,
       SessionCompaction.node,
       SessionModelRequest.node,
+      PluginHooks.node,
     ]),
     [Bus.node.replace(Bus.configured({ persist: true })), llmClient.replace(client)],
   ),
@@ -93,7 +95,8 @@ const it = testEffect(
 test("compaction prompt preserves detailed work state and relevant files", () => {
   const prompt = SessionCompaction.buildPrompt(false)
 
-  expect(prompt).toContain("## Work State\n### Completed")
+  expect(prompt).toContain("## Work State")
+  expect(prompt).toContain("### Completed")
   expect(prompt).toContain("### Active")
   expect(prompt).toContain("### Blocked")
   expect(prompt).toContain("## Relevant Files")
@@ -134,8 +137,15 @@ test("compaction prompt requires the checkpoint headings in order", () => {
     "### Blocked",
     "## Next Move",
     "## Relevant Files",
-    "## Additional Context",
+    "## Important Context",
   ])
+})
+
+test("compaction update prompt rewrites legacy checkpoints only when asked", () => {
+  const rewrite = "The existing checkpoint was written with an earlier format"
+  expect(SessionCompaction.buildPrompt(true, true)).toContain(rewrite)
+  expect(SessionCompaction.buildPrompt(true)).not.toContain(rewrite)
+  expect(SessionCompaction.buildPrompt(false, true)).not.toContain(rewrite)
 })
 
 test("compaction prompts prohibit task execution", () => {
@@ -348,6 +358,14 @@ it.effect("manual compaction summarizes short context instead of no-op", () =>
     }
     const session = yield* insertSession(sessionID, { parent_id: parentID })
     const modelRequests = yield* SessionModelRequest.Service
+    const hooks = yield* PluginHooks.Service
+    let hooked = 0
+    yield* hooks.register("session", "compaction", (event) =>
+      Effect.sync(() => {
+        hooked = event.messages.length
+        expect(JSON.stringify(event.messages)).not.toContain("Summarize only what")
+      }),
+    )
     const messages = [
       userMessage,
       SessionMessage.Shell.make({
@@ -376,7 +394,7 @@ it.effect("manual compaction summarizes short context instead of no-op", () =>
       yield* compaction.compactManual({
         session,
         resolveContext: () => Effect.succeed(loaded(session, messages)),
-        prepare: modelRequests.prepare,
+        prepare: modelRequests.compaction,
         messages,
         inputID: SessionMessage.ID.make("msg_manual_compaction"),
       }),
@@ -400,9 +418,19 @@ it.effect("manual compaction summarizes short context instead of no-op", () =>
     expect(JSON.stringify(requests[0]?.messages)).toContain("Manual compaction should include this short conversation.")
     expect(JSON.stringify(requests[0]?.messages)).toContain("Use Effect services and generators.")
     expect(JSON.stringify(requests[0]?.messages)).toContain("User shell pwd completed: /project")
+    expect(requests[0]?.messages).toHaveLength(hooked + 1)
+    expect(JSON.stringify(requests[0]?.messages.at(-1))).toContain("Summarize only what")
     expect(JSON.stringify(requests[0]?.messages)).not.toContain("display-only-output")
+    // The compaction message carries its own request usage so clients can show what compacting cost.
     expect(yield* store.context(sessionID)).toMatchObject([
-      { type: "compaction", reason: "manual", summary: "## Objective\n- manual summary", recent: "" },
+      {
+        type: "compaction",
+        reason: "manual",
+        summary: "## Objective\n- manual summary",
+        recent: "",
+        cost: 0.0000233,
+        tokens: { input: 10, output: 4, reasoning: 2, cache: { read: 3, write: 2 } },
+      },
     ])
     expect(yield* store.get(sessionID)).toMatchObject({
       cost: 0.0000233,
@@ -419,6 +447,65 @@ it.effect("manual compaction summarizes short context instead of no-op", () =>
     ).toEqual([
       { type: Bus.versionedType(SessionEvent.Compaction.Started.type, 1) },
       { type: Bus.versionedType(SessionEvent.UsageRecorded.type, 1) },
+      { type: Bus.versionedType(SessionEvent.Compaction.Ended.type, 1) },
+    ])
+  }),
+)
+
+it.effect("compaction hooks can supply the summary instead of the model", () =>
+  Effect.gen(function* () {
+    requests = []
+    const db = (yield* Database.Service).db
+    const compaction = yield* SessionCompaction.Service
+    const hooks = yield* PluginHooks.Service
+    const store = yield* SessionStore.Service
+    const sessionID = Session.ID.make("ses_hooked_compaction")
+    const session = yield* insertSession(sessionID)
+    const modelRequests = yield* SessionModelRequest.Service
+    const messages = [
+      {
+        id: SessionMessage.ID.create(),
+        type: "user" as const,
+        text: "Hooked compaction should see this conversation.",
+        time: { created: DateTime.makeUnsafe(0) },
+      },
+    ]
+    let contexts = 0
+    yield* hooks.register("session", "context", () => Effect.sync(() => contexts++))
+    yield* hooks.register("session", "compaction", (event) =>
+      Effect.sync(() => {
+        expect(event.sessionID).toBe(sessionID)
+        expect(event.agent).toBe(Agent.defaultID)
+        expect(JSON.stringify(event.messages)).toContain("Hooked compaction should see this conversation.")
+        event.result = { summary: "## Objective\n- hooked summary" }
+      }),
+    )
+
+    expect(
+      yield* compaction.compactManual({
+        session,
+        resolveContext: () => Effect.succeed(loaded(session, messages)),
+        prepare: modelRequests.compaction,
+        messages,
+        inputID: SessionMessage.ID.make("msg_hooked_compaction"),
+      }),
+    ).toEqual({ status: "completed" })
+
+    expect(contexts).toBe(0)
+    expect(requests).toEqual([])
+    expect(yield* store.context(sessionID)).toMatchObject([
+      { type: "compaction", reason: "manual", summary: "## Objective\n- hooked summary", recent: "" },
+    ])
+    expect(
+      yield* db
+        .select({ type: EventTable.type })
+        .from(EventTable)
+        .where(eq(EventTable.aggregate_id, sessionID))
+        .orderBy(asc(EventTable.seq))
+        .all()
+        .pipe(Effect.orDie),
+    ).toEqual([
+      { type: Bus.versionedType(SessionEvent.Compaction.Started.type, 1) },
       { type: Bus.versionedType(SessionEvent.Compaction.Ended.type, 1) },
     ])
   }),
@@ -444,7 +531,7 @@ it.effect("manual compaction records model resolution failures without calling t
               modelID: Model.ID.make("missing"),
             }),
           ),
-        prepare: modelRequests.prepare,
+        prepare: modelRequests.compaction,
         messages: [
           {
             id: SessionMessage.ID.create(),
@@ -495,7 +582,7 @@ it.effect("forked session compaction reuses the fork root prompt cache key", () 
       yield* compaction.compactManual({
         session,
         resolveContext: () => Effect.succeed(loaded(session, messages)),
-        prepare: modelRequests.prepare,
+        prepare: modelRequests.compaction,
         messages,
         inputID: SessionMessage.ID.make("msg_fork_compaction"),
       }),

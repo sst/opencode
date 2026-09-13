@@ -1,6 +1,6 @@
 import type { RouteDefaultsInput } from "../route/client.js"
 import type { ProviderPackage } from "../provider-package.js"
-import { ProviderID, type ModelID } from "../schema/index.js"
+import { ProviderConfigurationError, ProviderID, type ModelID } from "../schema/index.js"
 import * as BedrockConverse from "../protocols/bedrock-converse.js"
 import type { BedrockCredentials } from "../protocols/bedrock-converse.js"
 import { BedrockAuth } from "../protocols/utils/bedrock-auth.js"
@@ -39,8 +39,9 @@ const bedrockBaseURL = (region: string) => `https://bedrock-runtime.${region}.am
 const configuredRoute = (input: Config) => {
   const { apiKey, auth, credentials, profile, region, baseURL, ...rest } = input
   if (auth === "bearer" && apiKey === undefined && process.env.AWS_BEARER_TOKEN_BEDROCK === undefined)
-    throw new Error("Amazon Bedrock bearer auth requires apiKey")
-  if (auth === "sigv4" && apiKey !== undefined) throw new Error("Amazon Bedrock SigV4 auth does not accept apiKey")
+    throw new ProviderConfigurationError({ provider: id, message: "Amazon Bedrock bearer auth requires apiKey" })
+  if (auth === "sigv4" && apiKey !== undefined)
+    throw new ProviderConfigurationError({ provider: id, message: "Amazon Bedrock SigV4 auth does not accept apiKey" })
   const resolvedRegion = BedrockAuth.resolveRegion(input)
   return BedrockConverse.route.with({
     ...rest,

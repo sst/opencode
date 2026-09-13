@@ -237,13 +237,16 @@ describe("LLMClient tools", () => {
         LLMEvent.toolError({
           id: "call_2",
           name: "missing",
-          message: "Unknown tool: missing",
+          message: 'No tool named "missing" is currently available. Please use a tool from the available tool list.',
           providerMetadata,
         }),
         LLMEvent.toolResult({
           id: "call_2",
           name: "missing",
-          result: { type: "error", value: "Unknown tool: missing" },
+          result: {
+            type: "error",
+            value: 'No tool named "missing" is currently available. Please use a tool from the available tool list.',
+          },
           providerMetadata,
         }),
       ])
@@ -712,12 +715,17 @@ describe("LLMClient tools", () => {
 
       const toolError = events.find(LLMEvent.is.toolError)
       expect(toolError).toMatchObject({ type: "tool-error", id: "call_1", name: "missing_tool" })
-      expect(toolError?.message).toContain("Unknown tool")
+      expect(toolError?.message).toBe(
+        'No tool named "missing_tool" is currently available. Please use a tool from the available tool list.',
+      )
       expect(events.find(LLMEvent.is.toolResult)).toMatchObject({
         type: "tool-result",
         id: "call_1",
         name: "missing_tool",
-        result: { type: "error", value: "Unknown tool: missing_tool" },
+        result: {
+          type: "error",
+          value: 'No tool named "missing_tool" is currently available. Please use a tool from the available tool list.',
+        },
       })
     }),
   )

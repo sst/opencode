@@ -171,7 +171,7 @@ describe("OpenAI Responses WebSocket recorded", () => {
         instructions: "Follow the user's exact reply instruction.",
         input: [
           { role: "user", content: [{ type: "input_text", text: "Reply exactly: Alpha." }] },
-          { role: "assistant", content: [{ type: "output_text", text: "Alpha." }] },
+          { role: "assistant", status: "completed", content: [{ type: "output_text", text: "Alpha." }] },
           { role: "user", content: [{ type: "input_text", text: "Reply exactly: Beta." }] },
         ],
       })
@@ -208,7 +208,7 @@ describe("OpenAI Responses WebSocket recorded", () => {
         instructions: "Follow the user's exact reply instruction.",
         input: [
           { role: "user", content: [{ type: "input_text", text: "Reply exactly: Ready." }] },
-          { role: "assistant", content: [{ type: "output_text", text: "Ready." }] },
+          { role: "assistant", status: "completed", content: [{ type: "output_text", text: "Ready." }] },
           { role: "user", content: [{ type: "input_text", text: "Reply exactly: Recovered." }] },
         ],
       })

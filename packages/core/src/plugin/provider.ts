@@ -1,6 +1,5 @@
 import { AlibabaPlugin } from "./provider/alibaba.js"
 import { AmazonBedrockPlugin } from "./provider/amazon-bedrock.js"
-import { AnthropicPlugin } from "./provider/anthropic.js"
 import { AzurePlugin } from "./provider/azure.js"
 import { CerebrasPlugin } from "./provider/cerebras.js"
 import { CloudflareAIGatewayPlugin } from "./provider/cloudflare-ai-gateway.js"
@@ -15,7 +14,6 @@ import { GoogleVertexPlugin } from "./provider/google-vertex.js"
 import { KiloPlugin } from "./provider/kilo.js"
 import { LLMGatewayPlugin } from "./provider/llmgateway.js"
 import { LMStudioPlugin } from "./provider/lmstudio.js"
-import { MistralPlugin } from "./provider/mistral.js"
 import { ModalPlugin } from "./provider/modal.js"
 import { NvidiaPlugin } from "./provider/nvidia.js"
 import { OllamaPlugin } from "./provider/ollama.js"
@@ -25,6 +23,7 @@ import { OpenAICompatiblePlugin } from "./provider/openai-compatible.js"
 import { OpencodePlugin } from "./provider/opencode.js"
 import { OpenRouterPlugin } from "./provider/openrouter.js"
 import { PerplexityPlugin } from "./provider/perplexity.js"
+import { PoePlugin } from "./provider/poe.js"
 import { SapAICorePlugin } from "./provider/sap-ai-core.js"
 import { VercelPlugin } from "./provider/vercel.js"
 import { VenicePlugin } from "./provider/venice.js"
@@ -36,7 +35,6 @@ import type { PluginInternal } from "./internal.js"
 export const ProviderPlugins: PluginInternal.InternalPlugin[] = [
   AlibabaPlugin,
   AmazonBedrockPlugin,
-  AnthropicPlugin,
   AzurePlugin,
   CerebrasPlugin,
   CloudflareAIGatewayPlugin,
@@ -50,7 +48,6 @@ export const ProviderPlugins: PluginInternal.InternalPlugin[] = [
   KiloPlugin,
   LLMGatewayPlugin,
   LMStudioPlugin,
-  MistralPlugin,
   ModalPlugin,
   NvidiaPlugin,
   OllamaPlugin,
@@ -60,6 +57,7 @@ export const ProviderPlugins: PluginInternal.InternalPlugin[] = [
   OpenAIPlugin,
   OpenRouterPlugin,
   PerplexityPlugin,
+  PoePlugin,
   SapAICorePlugin,
   VercelPlugin,
   VenicePlugin,

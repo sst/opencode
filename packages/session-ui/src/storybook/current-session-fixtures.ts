@@ -998,6 +998,8 @@ export const compactionDocument = document([
     reason: "auto",
     summary: "The Session timeline now consumes current nested assistant content.",
     recent: "Add deterministic stories and verify Storybook.",
+    cost: 0.0142,
+    tokens: { input: 3_180, output: 412, reasoning: 96, cache: { read: 8_704, write: 0 } },
     time: { created: STORY_TIME + 63_000 },
   },
   assistant({

@@ -217,13 +217,20 @@ export function convertHTMLToMarkdown(html: string) {
     }
     if (code.inline) {
       const fence = "`".repeat(Math.max(1, backticks + 1))
-      const padding = /^ | $/.test(code.text) && !/^ +$/.test(code.text) ? " " : ""
       flushSpace()
       prefixQuote()
-      const wrapper = encoder.encode(`${fence}${padding}${padding}${fence}`).byteLength
-      appendRaw(
-        `${fence}${padding}${sliceBytes(code.text, Math.max(0, CONTENT_BYTES - outputBytes - wrapper))}${padding}${fence}`,
-      )
+      const available = Math.max(0, CONTENT_BYTES - outputBytes - fence.length * 2)
+      let payload = sliceBytes(code.text, available)
+      while (payload) {
+        const padding = /^[ `]|[ `]$/.test(payload) && !/^ +$/.test(payload) ? " " : ""
+        const bytes = encoder.encode(payload).byteLength
+        if (bytes + padding.length * 2 <= available) {
+          appendRaw(`${fence}${padding}${payload}${padding}${fence}`)
+          return
+        }
+        // Padding costs at most two bytes, so at most two whole-code-point trims are needed.
+        payload = sliceBytes(payload, bytes - 1)
+      }
       return
     }
     if (activeCell) {
@@ -246,6 +253,8 @@ export function convertHTMLToMarkdown(html: string) {
         block()
         return
       }
+      // No amount of trimming can make the empty fenced block fit.
+      if (!payload) return
       const excess = valueBytes - Math.max(0, CONTENT_BYTES - outputBytes)
       payload = sliceBytes(payload, Math.max(0, encoder.encode(payload).byteLength - Math.ceil(excess)))
     }

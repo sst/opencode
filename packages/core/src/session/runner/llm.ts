@@ -130,7 +130,7 @@ const layer = Layer.effect(
                             instructionUpdate: history.instructionUpdate,
                           }
                         }),
-                      prepare: context.prepare,
+                      prepare: context.request.compaction,
                       messages: yield* store.context(sessionID),
                       inputID: pending.id,
                       started: true,
@@ -209,7 +209,7 @@ const layer = Layer.effect(
         initial = undefined
         const compactionInput = {
           context: loaded,
-          prepare: context.prepare,
+          prepare: context.request.compaction,
         }
         if (compaction.required({ messages: loaded.messages, resolved: loaded.model, context: loaded })) {
           const result = yield* compaction.compact(compactionInput)
@@ -226,15 +226,15 @@ const layer = Layer.effect(
           initial: loaded.initial,
           messages: loaded.messages,
         })
-        const prepared = yield* context.prepare({
-          kind: "primary",
-          scope: { session: loaded.session, agentID: loaded.agent.id, model: loaded.model, tools: loaded.tools },
-          transcript: {
-            system: transcript.system,
-            messages: stepLimitReached
-              ? [...transcript.messages, Message.assistant(MAX_STEPS_PROMPT)]
-              : transcript.messages,
-          },
+        const prepared = yield* context.request.primary({
+          session: loaded.session,
+          agent: loaded.agent.id,
+          model: loaded.model,
+          tools: loaded.tools,
+          system: transcript.system,
+          messages: stepLimitReached
+            ? [...transcript.messages, Message.assistant(MAX_STEPS_PROMPT)]
+            : transcript.messages,
           // Keep tool definitions on the final Step to preserve the provider's cached prefix.
           toolChoice: stepLimitReached ? "none" : undefined,
           webSocket: "session",

@@ -1,6 +1,6 @@
 export * as Provider from "./provider.js"
 
-import { Effect, Schema } from "effect"
+import { Effect, Schema, Struct } from "effect"
 import { Provider } from "@opencode/schema/provider"
 import type { ProviderPackageDefinition } from "@opencode/ai"
 import { isRecord } from "@opencode/ai/utils/record"
@@ -102,6 +102,13 @@ export const loadPackage = Effect.fn("Provider.loadPackage")(function* (input: s
   })
   return yield* importPackage(specifier, entrypoint)
 })
+
+/** opencode transport settings consumed in aisdk.ts; native packages never receive them. */
+const TRANSPORT_KEYS = ["chunkTimeout", "fetch", "timeout"] as const
+
+export function nativeSettings(settings: Settings): Settings {
+  return Struct.omit(settings, TRANSPORT_KEYS)
+}
 
 export function mergeOverlay(
   base: Readonly<Record<string, unknown>> | undefined,

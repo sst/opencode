@@ -61,6 +61,8 @@ test("bundles one Effect runtime and Drizzle while keeping native dependencies e
     "output" in result ? result.output.filter((item) => item.type === "chunk") : [],
   )
   expect(chunks.length).toBeGreaterThan(0)
+  // Resource resolution must not depend on which lazy entry owns DesktopPaths.
+  expect(chunks.every((chunk) => !chunk.fileName.includes("/"))).toBe(true)
   const imports = chunks.flatMap((chunk) => [...chunk.imports, ...chunk.dynamicImports])
   const modules = chunks.flatMap((chunk) => Object.keys(chunk.modules))
   for (const name of ["effect", "@effect/platform-node", "@effect/platform-node-shared", "drizzle-orm"]) {

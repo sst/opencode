@@ -1,3 +1,4 @@
+export * as Alibaba from "./alibaba.js"
 export * as Anthropic from "./anthropic.js"
 export * as AnthropicCompatible from "./anthropic-compatible.js"
 export * as AmazonBedrock from "./amazon-bedrock.js"

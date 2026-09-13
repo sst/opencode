@@ -11,7 +11,8 @@ import { useSettings } from "@/settings/model"
 import { decode64 } from "@/runtime/persistence/base64"
 import { Persist, persisted } from "@/runtime/persistence/storage"
 import { Persistence } from "@/runtime/persistence/schema"
-import { playSoundByIdOnce } from "@/shell/notifications/sound"
+import { playSoundById } from "@/shell/notifications/sound"
+import type { createNotificationCoordinator } from "@/shell/notifications/coordinator"
 import { useGlobal } from "@/runtime/server/runtime"
 import { ServerConnection, useServers } from "@/runtime/server/registry"
 import { sessionIDHasOpenTab, useTabs } from "@/shell/tabs/tabs"
@@ -114,7 +115,12 @@ function buildNotificationIndex(list: Notification[]) {
   return index
 }
 
-export function createServerNotificationState(input: { sdk: ServerSDK; data: Data; key: ServerConnection.Key }) {
+export function createServerNotificationState(input: {
+  sdk: ServerSDK
+  data: Data
+  key: ServerConnection.Key
+  coordinator: ReturnType<typeof createNotificationCoordinator>
+}) {
   const platform = usePlatform()
   const settings = useSettings()
   const language = useLanguage()
@@ -223,7 +229,7 @@ export function createServerNotificationState(input: { sdk: ServerSDK; data: Dat
       if (session.parentID) return
 
       if (sessionIDHasOpenTab(tabs.store, input.key, sessionID) && settings.sounds.agentEnabled()) {
-        void playSoundByIdOnce(settings.sounds.agent(), `${input.key}\0${eventID}`)
+        void input.coordinator.sound(`${input.key}\0${eventID}`, () => playSoundById(settings.sounds.agent()))
       }
 
       append({
@@ -235,8 +241,10 @@ export function createServerNotificationState(input: { sdk: ServerSDK; data: Dat
       })
 
       if (settings.notifications.agent()) {
-        void platform.notify(language.t("notification.session.responseReady.title"), session.title ?? sessionID, () =>
-          openNotificationSession(tabs, input.key, sessionID),
+        void input.coordinator.system(`${input.key}\0${eventID}`, () =>
+          platform.notify(language.t("notification.session.responseReady.title"), session.title ?? sessionID, () =>
+            openNotificationSession(tabs, input.key, sessionID),
+          ),
         )
       }
     })
@@ -248,7 +256,7 @@ export function createServerNotificationState(input: { sdk: ServerSDK; data: Dat
       if (session?.parentID) return
 
       if (sessionIDHasOpenTab(tabs.store, input.key, sessionID) && settings.sounds.errorsEnabled()) {
-        void playSoundByIdOnce(settings.sounds.errors(), `${input.key}\0${eventID}`)
+        void input.coordinator.sound(`${input.key}\0${eventID}`, () => playSoundById(settings.sounds.errors()))
       }
 
       append({
@@ -263,8 +271,10 @@ export function createServerNotificationState(input: { sdk: ServerSDK; data: Dat
         session?.title ??
         (typeof error === "string" ? error : language.t("notification.session.error.fallbackDescription"))
       if (settings.notifications.errors()) {
-        void platform.notify(language.t("notification.session.error.title"), description, () =>
-          openNotificationSession(tabs, input.key, sessionID),
+        void input.coordinator.system(`${input.key}\0${eventID}`, () =>
+          platform.notify(language.t("notification.session.error.title"), description, () =>
+            openNotificationSession(tabs, input.key, sessionID),
+          ),
         )
       }
     })

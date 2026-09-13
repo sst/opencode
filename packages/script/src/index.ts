@@ -40,6 +40,7 @@ const VERSION = await (async () => {
       return res.json()
     })
     .then((data: any) => data.version)
+  if (semver.lt(version, "2.0.0")) return "2.0.0"
   const [major, minor, patch] = version.split(".").map((x: string) => Number(x) || 0)
   const t = env.OPENCODE_BUMP?.toLowerCase()
   if (t === "major") return `${major + 1}.0.0`

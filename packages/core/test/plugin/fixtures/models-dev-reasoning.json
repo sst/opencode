@@ -267,8 +267,8 @@
     "env": ["AWS_ACCESS_KEY_ID"],
     "npm": "@ai-sdk/amazon-bedrock",
     "models": {
-      "amazon.nova-2-lite-v1:0": {
-        "id": "amazon.nova-2-lite-v1:0",
+      "us.amazon.nova-2-lite-v1:0": {
+        "id": "us.amazon.nova-2-lite-v1:0",
         "name": "Nova 2 Lite",
         "release_date": "2026-01-01",
         "attachment": false,

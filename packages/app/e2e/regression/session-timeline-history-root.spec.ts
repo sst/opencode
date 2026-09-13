@@ -17,7 +17,7 @@ import { mockOpenCodeServer } from "../utils/mock-server"
 import { installSseTransport } from "../utils/sse-transport"
 import { expectSessionTitle } from "../utils/waits"
 
-const messagePageSize = 20
+const messagePageSize = 40
 const server = `http://${process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"}:${process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"}`
 const messages = Array.from({ length: messagePageSize / 2 + 1 }, (_, index) => {
   const id = `msg_${String(index + 1001).padStart(4, "0")}_history_root_user`
@@ -188,7 +188,7 @@ for (const scenario of scenarios) {
     await waitForProbeSamples(page, beforeHistory)
     expect(pages).toEqual([
       { before: undefined, limit: messagePageSize },
-      { before: messages.at(-messagePageSize)!.id, limit: messagePageSize },
+      { before: messages.at(-messagePageSize)!.id, limit: 20 },
     ])
     expect(roots).toEqual([])
 

@@ -1,33 +1,30 @@
-import { type AstNode, InterpreterRuntimeError } from "../interpreter/model.js"
-import { CodeModeDate } from "../values.js"
+import { Effect } from "effect"
+import { constructor, type Method, methods, prototypeFrom, receiver } from "../interpreter/native.js"
+import { type AstNode, rangeError } from "../interpreter/model.js"
+import { ProgramDate, ProgramObject } from "../interpreter/objects.js"
+import { type Runner, toPrimitive, toPrimitiveNumber } from "../interpreter/runner.js"
 import { coerceToNumber, coerceToString } from "./value.js"
 
-const dateSetterArguments = new Map<string, number>([
-  ["setTime", 1],
-  ["setMilliseconds", 1],
-  ["setUTCMilliseconds", 1],
-  ["setSeconds", 2],
-  ["setUTCSeconds", 2],
-  ["setMinutes", 3],
-  ["setUTCMinutes", 3],
-  ["setHours", 4],
-  ["setUTCHours", 4],
-  ["setDate", 1],
-  ["setUTCDate", 1],
-  ["setMonth", 2],
-  ["setUTCMonth", 2],
-  ["setFullYear", 3],
-  ["setUTCFullYear", 3],
-])
+const constructDate = <R>(runner: Runner<R>, args: Array<unknown>, proto: ProgramObject, node: AstNode) => {
+  if (args.length === 0) return Effect.succeed(new ProgramDate(proto, Date.now()))
+  if (args.length === 1) {
+    const arg = args[0]
+    if (arg instanceof ProgramDate) return Effect.succeed(new ProgramDate(proto, arg.time))
+    return Effect.map(toPrimitive(runner, arg, "default", node), (value) =>
+      typeof value === "string"
+        ? new ProgramDate(proto, Date.parse(value))
+        : new ProgramDate(proto, new Date(coerceToNumber(value)).getTime()),
+    )
+  }
+  const parts = args.map((arg) => coerceToNumber(arg))
+  return Effect.succeed(new ProgramDate(proto, new Date(...(parts as [number, number])).getTime()))
+}
 
-export const dateMethods = new Set([
-  "getTime",
-  "valueOf",
-  "toISOString",
-  "toJSON",
-  "toString",
-  "toUTCString",
-  "toGMTString",
+type Getter = keyof {
+  [K in keyof Date as Date[K] extends () => number ? K : never]: never
+}
+
+const getters: ReadonlyArray<Getter> = [
   "getFullYear",
   "getMonth",
   "getDate",
@@ -45,136 +42,92 @@ export const dateMethods = new Set([
   "getUTCSeconds",
   "getUTCMilliseconds",
   "getTimezoneOffset",
-  ...dateSetterArguments.keys(),
-])
+]
 
-export const dateStatics = new Set(["now", "parse", "UTC"])
-
-export const invokeDateStatic = (name: string, args: Array<unknown>, node: AstNode): number => {
-  switch (name) {
-    case "now":
-      return Date.now()
-    case "parse":
-      return Date.parse(coerceToString(args[0]))
-    case "UTC":
-      return Date.UTC(...(args.map((arg) => coerceToNumber(arg)) as Parameters<typeof Date.UTC>))
-    default:
-      throw new InterpreterRuntimeError(`Date.${name} is not available.`, node)
-  }
+type Setter = keyof {
+  [K in keyof Date as Date[K] extends (value: number, ...rest: Array<number>) => number ? K : never]: never
 }
 
-export const dateSetterArgumentCount = (name: string): number | undefined => dateSetterArguments.get(name)
+const setters: ReadonlyArray<readonly [Setter, number]> = [
+  ["setTime", 1],
+  ["setMilliseconds", 1],
+  ["setUTCMilliseconds", 1],
+  ["setSeconds", 2],
+  ["setUTCSeconds", 2],
+  ["setMinutes", 3],
+  ["setUTCMinutes", 3],
+  ["setHours", 4],
+  ["setUTCHours", 4],
+  ["setDate", 1],
+  ["setUTCDate", 1],
+  ["setMonth", 2],
+  ["setUTCMonth", 2],
+  ["setFullYear", 3],
+  ["setUTCFullYear", 3],
+]
 
-export const invokeDateMethod = (
-  value: CodeModeDate,
-  name: string,
-  args: Array<number>,
-  node: AstNode,
-  initialTime = value.time,
-): unknown => {
-  const hosted = new Date(initialTime)
-  switch (name) {
-    case "getTime":
-    case "valueOf":
-      return value.time
-    case "toISOString":
-      if (!Number.isFinite(value.time)) throw new InterpreterRuntimeError("Invalid time value.", node).as("RangeError")
-      return hosted.toISOString()
-    case "toJSON":
-      return Number.isFinite(value.time) ? hosted.toISOString() : null
-    case "toString":
-      return coerceToString(value)
-    case "toUTCString":
-    case "toGMTString":
-      return hosted.toUTCString()
-    case "getFullYear":
-      return hosted.getFullYear()
-    case "getMonth":
-      return hosted.getMonth()
-    case "getDate":
-      return hosted.getDate()
-    case "getDay":
-      return hosted.getDay()
-    case "getHours":
-      return hosted.getHours()
-    case "getMinutes":
-      return hosted.getMinutes()
-    case "getSeconds":
-      return hosted.getSeconds()
-    case "getMilliseconds":
-      return hosted.getMilliseconds()
-    case "getUTCFullYear":
-      return hosted.getUTCFullYear()
-    case "getUTCMonth":
-      return hosted.getUTCMonth()
-    case "getUTCDate":
-      return hosted.getUTCDate()
-    case "getUTCDay":
-      return hosted.getUTCDay()
-    case "getUTCHours":
-      return hosted.getUTCHours()
-    case "getUTCMinutes":
-      return hosted.getUTCMinutes()
-    case "getUTCSeconds":
-      return hosted.getUTCSeconds()
-    case "getUTCMilliseconds":
-      return hosted.getUTCMilliseconds()
-    case "getTimezoneOffset":
-      return hosted.getTimezoneOffset()
-    case "setTime":
-      return updateDate(value, hosted.setTime(args[0]))
-    case "setMilliseconds":
-      return updateDate(value, hosted.setMilliseconds(args[0]))
-    case "setUTCMilliseconds":
-      return updateDate(value, hosted.setUTCMilliseconds(args[0]))
-    case "setSeconds":
-      if (args.length < 2) return updateDate(value, hosted.setSeconds(args[0]))
-      return updateDate(value, hosted.setSeconds(args[0], args[1]))
-    case "setUTCSeconds":
-      if (args.length < 2) return updateDate(value, hosted.setUTCSeconds(args[0]))
-      return updateDate(value, hosted.setUTCSeconds(args[0], args[1]))
-    case "setMinutes":
-      if (args.length < 2) return updateDate(value, hosted.setMinutes(args[0]))
-      if (args.length < 3) return updateDate(value, hosted.setMinutes(args[0], args[1]))
-      return updateDate(value, hosted.setMinutes(args[0], args[1], args[2]))
-    case "setUTCMinutes":
-      if (args.length < 2) return updateDate(value, hosted.setUTCMinutes(args[0]))
-      if (args.length < 3) return updateDate(value, hosted.setUTCMinutes(args[0], args[1]))
-      return updateDate(value, hosted.setUTCMinutes(args[0], args[1], args[2]))
-    case "setHours":
-      if (args.length < 2) return updateDate(value, hosted.setHours(args[0]))
-      if (args.length < 3) return updateDate(value, hosted.setHours(args[0], args[1]))
-      if (args.length < 4) return updateDate(value, hosted.setHours(args[0], args[1], args[2]))
-      return updateDate(value, hosted.setHours(args[0], args[1], args[2], args[3]))
-    case "setUTCHours":
-      if (args.length < 2) return updateDate(value, hosted.setUTCHours(args[0]))
-      if (args.length < 3) return updateDate(value, hosted.setUTCHours(args[0], args[1]))
-      if (args.length < 4) return updateDate(value, hosted.setUTCHours(args[0], args[1], args[2]))
-      return updateDate(value, hosted.setUTCHours(args[0], args[1], args[2], args[3]))
-    case "setDate":
-      return updateDate(value, hosted.setDate(args[0]))
-    case "setUTCDate":
-      return updateDate(value, hosted.setUTCDate(args[0]))
-    case "setMonth":
-      if (args.length < 2) return updateDate(value, hosted.setMonth(args[0]))
-      return updateDate(value, hosted.setMonth(args[0], args[1]))
-    case "setUTCMonth":
-      if (args.length < 2) return updateDate(value, hosted.setUTCMonth(args[0]))
-      return updateDate(value, hosted.setUTCMonth(args[0], args[1]))
-    case "setFullYear":
-      if (args.length < 2) return updateDate(value, hosted.setFullYear(args[0]))
-      if (args.length < 3) return updateDate(value, hosted.setFullYear(args[0], args[1]))
-      return updateDate(value, hosted.setFullYear(args[0], args[1], args[2]))
-    case "setUTCFullYear":
-      if (args.length < 2) return updateDate(value, hosted.setUTCFullYear(args[0]))
-      if (args.length < 3) return updateDate(value, hosted.setUTCFullYear(args[0], args[1]))
-      return updateDate(value, hosted.setUTCFullYear(args[0], args[1], args[2]))
-    default:
-      throw new InterpreterRuntimeError(`Date method '${name}' is not available.`, node)
+export const dateGlobal = <R>(runner: Runner<R>) => {
+  const protos = runner.prototypes
+  const proto = protos.Date
+  const date = constructor<R>(protos, proto, {
+    name: "Date",
+    length: 7,
+    // ISO instead of the host's locale string: date strings are deterministic and must not leak the host timezone.
+    call: () => Effect.sync(() => new Date().toISOString()),
+    construct: (args, newTarget, node) => constructDate(runner, args, prototypeFrom(newTarget, proto), node),
+  })
+  methods(protos, date, [
+    ["now", 0, () => Date.now()],
+    ["parse", 1, (_, args) => Date.parse(coerceToString(args[0]))],
+    ["UTC", 7, (_, args) => Date.UTC(...(args.map((arg) => coerceToNumber(arg)) as Parameters<typeof Date.UTC>))],
+  ])
+
+  const self = (thisValue: unknown, name: string, node: AstNode) =>
+    receiver(ProgramDate, thisValue, `Date.prototype.${name}`, node)
+  const iso = (value: ProgramDate, node: AstNode) => {
+    if (!Number.isFinite(value.time)) throw rangeError("Invalid time value.", node)
+    return new Date(value.time).toISOString()
   }
-}
-
-const updateDate = (value: CodeModeDate, time: number): number => {
-  value.time = time
-  return time
+  methods(protos, proto, [
+    ["getTime", 0, (thisValue, _, node) => self(thisValue, "getTime", node).time],
+    ["valueOf", 0, (thisValue, _, node) => self(thisValue, "valueOf", node).time],
+    ["toISOString", 0, (thisValue, _, node) => iso(self(thisValue, "toISOString", node), node)],
+    [
+      "toJSON",
+      1,
+      (thisValue, _, node) => {
+        const value = self(thisValue, "toJSON", node)
+        return Number.isFinite(value.time) ? iso(value, node) : null
+      },
+    ],
+    ["toString", 0, (thisValue, _, node) => coerceToString(self(thisValue, "toString", node))],
+    ["toDateString", 0, (thisValue, _, node) => new Date(self(thisValue, "toDateString", node).time).toDateString()],
+    ["toTimeString", 0, (thisValue, _, node) => new Date(self(thisValue, "toTimeString", node).time).toTimeString()],
+    ["toUTCString", 0, (thisValue, _, node) => new Date(self(thisValue, "toUTCString", node).time).toUTCString()],
+    ["toGMTString", 0, (thisValue, _, node) => new Date(self(thisValue, "toGMTString", node).time).toUTCString()],
+    ...getters.map(
+      (name): Method => [name, 0, (thisValue, _, node) => new Date(self(thisValue, name, node).time)[name]()],
+    ),
+    ...setters.map(
+      ([name, length]): Method => [
+        name,
+        length,
+        (thisValue, args, node) => {
+          const target = self(thisValue, name, node)
+          // Native setters read the current time before argument coercion, whose callbacks may mutate the Date.
+          const hosted = new Date(target.time)
+          return Effect.map(
+            Effect.forEach(args.slice(0, length), (arg) => toPrimitiveNumber(runner, arg, node), {
+              concurrency: 1,
+            }),
+            (values) => {
+              target.time = hosted[name](...(values as [number, number, number, number]))
+              return target.time
+            },
+          )
+        },
+      ],
+    ),
+  ])
+  return date
 }

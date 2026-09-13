@@ -40,11 +40,11 @@ export type Config = Omit<RouteDefaultsInput, "providerOptions"> &
     readonly providerOptions?: ProviderOptionsInput
   }
 
-export interface Settings<Options = MessagesOptionsInput> extends ProviderPackage.Settings {
-  readonly apiKey?: string
-  readonly baseURL?: string
-  readonly providerOptions?: Options
-}
+export type Settings<Options = MessagesOptionsInput> = ProviderPackage.Settings &
+  Options & {
+    readonly apiKey?: string
+    readonly baseURL?: string
+  }
 
 const ChatOptions = Schema.Struct({
   thinking: Schema.optional(Schema.Struct({ type: Schema.String })),
@@ -127,14 +127,14 @@ export const provider = configure()
 
 export const model: ProviderPackage.Definition<Settings<MessagesOptionsInput>, MessagesOptionsInput>["model"] = (
   modelID,
-  settings,
+  { apiKey, baseURL, body, headers, ...providerOptions },
 ) =>
   configure({
-    apiKey: settings.apiKey,
-    baseURL: settings.baseURL,
-    headers: settings.headers,
-    http: settings.body === undefined ? undefined : { body: { ...settings.body } },
-    providerOptions: settings.providerOptions,
+    apiKey,
+    baseURL,
+    headers,
+    http: body === undefined ? undefined : { body: { ...body } },
+    providerOptions,
   }).model(modelID)
 
 export const messages = provider.messages

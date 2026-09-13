@@ -15,26 +15,26 @@ state. Start by determining whether an issue is in a client, the shared server, 
 Show the current server status:
 
 ```bash
-opencode2 service status
+opencode service status
 ```
 
 Verify that its API is healthy:
 
 ```bash
-opencode2 api get /api/health
+opencode api get /api/health
 ```
 
 If the service is stuck or unhealthy, restart it:
 
 ```bash
-opencode2 service restart
+opencode service restart
 ```
 
 You can also stop and start it explicitly:
 
 ```bash
-opencode2 service stop
-opencode2 service start
+opencode service stop
+opencode service start
 ```
 
 <Callout type="note">
@@ -47,30 +47,30 @@ opencode2 service start
 If a browser client on another origin cannot connect because of CORS, add the client's origin to the service configuration:
 
 ```bash
-opencode2 service set cors http://192.168.1.10:3001
-opencode2 service get cors
+opencode service set cors http://192.168.1.10:3001
+opencode service get cors
 ```
 
 Use an exact HTTP or HTTPS origin, including the port when needed, without a path or trailing slash. To allow multiple
 origins, pass a comma-separated list as one argument; whitespace around each origin is trimmed:
 
 ```bash
-opencode2 service set cors "http://192.168.1.10:3001, https://app.example.com"
+opencode service set cors "http://192.168.1.10:3001, https://app.example.com"
 ```
 
 `service get cors` prints a JSON array. Remove the configured list with:
 
 ```bash
-opencode2 service unset cors
+opencode service unset cors
 ```
 
 Setting or unsetting service configuration stops the background service. Its next start picks up the new configuration;
-use `opencode2 service start` to start it explicitly.
+use `opencode service start` to start it explicitly.
 
 For a foreground server, repeat `--cors` for each additional allowed origin:
 
 ```bash
-opencode2 serve --cors http://192.168.1.10:3001 --cors https://app.example.com
+opencode serve --cors http://192.168.1.10:3001 --cors https://app.example.com
 ```
 
 With `serve --service`, supplied `--cors` flags override the persisted list for that process. Without those flags, service
@@ -86,7 +86,7 @@ See the [API reference](/api) for all endpoints and operation IDs.
 Pass a JSON request body with `--data` or `-d`, and add headers with `--header` or `-H`.
 
 <Callout type="warning">
-  Running `opencode2 api` may start the background service when no compatible healthy service is available.
+  Running `opencode api` may start the background service when no compatible healthy service is available.
 </Callout>
 
 ## Read logs
@@ -117,7 +117,7 @@ On macOS and Linux, you can signal a running OpenCode process to capture diagnos
 from the health endpoint:
 
 ```bash
-opencode2 api get /api/health
+opencode api get /api/health
 ```
 
 Use the `pid` from the response with one of these signals:
@@ -177,8 +177,8 @@ The database normally lives at:
 
 Include the following when reporting a reproducible problem:
 
-- Output from `opencode2 --version`
-- Output from `opencode2 service status`
+- Output from `opencode --version`
+- Output from `opencode service status`
 - The smallest sequence of steps that reproduces the issue
 - Whether the issue affects the shared service, a specific client, or one project
 - Relevant log lines, including their `run` and `role` fields

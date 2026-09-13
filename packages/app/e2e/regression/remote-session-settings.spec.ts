@@ -20,6 +20,7 @@ test("session settings use the remote server context", async ({ page }) => {
   // one toggle sweeps every connected server, not just the focused one.
   await mockServers(page, permissionRequests, permissionResponses, {
     pending: { [serverA]: [pendingPermission("permission-pending-a", sessionA.id)] },
+    preferencesUnavailable: true,
   })
   await configureServers(page)
 
@@ -34,8 +35,10 @@ test("session settings use the remote server context", async ({ page }) => {
   await expect(page.locator('[data-titlebar-tab][data-active="true"]')).toHaveCount(0)
   await expect(page.getByRole("button", { name: "Home", exact: true })).toHaveAttribute("aria-pressed", "false")
   await expect(page.getByRole("dialog")).toHaveCount(0)
-  await expect(settings.getByRole("tablist")).toHaveCSS("width", "328px")
+  await expect(settings.getByRole("complementary")).toHaveCSS("width", "328px")
   await expect(sessionHeading).toBeHidden()
+  await expect(settings.getByText("Servers", { exact: true })).toBeVisible()
+  await expect(settings.getByRole("tab", { name: "Models", exact: true })).toHaveCount(0)
   const autoAccept = settings.locator('[data-action="settings-auto-accept-permissions"]')
   const input = autoAccept.getByRole("switch")
   await expect(autoAccept).toBeVisible()
@@ -63,9 +66,21 @@ test("session settings use the remote server context", async ({ page }) => {
       },
     ])
 
+  await settings.getByRole("tab", { name: "127.0.0.1:4097", exact: true }).click()
+  await expect(settings.getByRole("button", { name: "Back to settings", exact: true })).toBeVisible()
+  await expect(settings.getByRole("heading", { name: "Connection", exact: true })).toBeVisible()
+  await expect(settings.getByRole("tab")).toHaveText([
+    "127.0.0.1:4097",
+    "Projects",
+    "Worktrees",
+    "Providers",
+    "Models",
+    "Extensions",
+  ])
   await settings.getByRole("tab", { name: "Models" }).click()
   await expect(settings.getByRole("switch", { name: "Server B Model" })).toBeEnabled()
   await expect(settings.getByRole("switch", { name: "Server A Model" })).toHaveCount(0)
+  await settings.getByRole("button", { name: "Back to settings" }).click()
   await settings.getByRole("button", { name: "Back to app" }).click()
   await expect(settings).toBeHidden()
   await expect(page).toHaveURL(`/server/${base64Encode(serverB)}/session/${sessionB.id}`)
@@ -73,7 +88,7 @@ test("session settings use the remote server context", async ({ page }) => {
   await expect(page.locator('[data-titlebar-tab][data-active="true"]')).toContainText(sessionB.title)
   await page.keyboard.press("Control+]")
   await expect(page).toHaveURL("/settings")
-  await expect(settings.getByRole("tab", { name: "Models", exact: true })).toHaveAttribute("aria-selected", "true")
+  await expect(settings.getByRole("tab", { name: "Preferences", exact: true })).toHaveAttribute("aria-selected", "true")
   await expect(page.locator('[data-titlebar-tab][data-active="true"]')).toHaveCount(0)
   await page.keyboard.press("Escape")
   await expect(page).toHaveURL(`/server/${base64Encode(serverB)}/session/${sessionB.id}`)
@@ -311,6 +326,7 @@ type MockServerOptions = {
   listFailures?: Record<string, number>
   // Records /api/session/:id GETs so tests can assert session resyncs.
   sessionGets?: string[]
+  preferencesUnavailable?: boolean
 }
 
 async function mockServers(
@@ -342,6 +358,7 @@ async function mockServers(
     if (route.request().method() === "GET" && sessionPermission)
       return json(route, { data: options.sessionPending?.[sessionPermission[1]!] ?? [] })
     if (requestDirectory && requestDirectory !== directory) return json(route, { name: "InvalidDirectory" }, 500)
+    if (url.pathname === "/api/config") return json(route, [])
     if (url.pathname === "/api/provider")
       return json(route, {
         location: { directory },
@@ -401,6 +418,11 @@ async function mockServers(
         directory,
         project: { id: remote ? sessionB.projectID : "project-server-a", directory, canonical: directory },
       })
+    if (url.pathname === "/api/config/preferences") return json(route, {}, options.preferencesUnavailable ? 404 : 200)
+    if (url.pathname === "/api/config/shell")
+      return json(route, options.preferencesUnavailable ? {} : [], options.preferencesUnavailable ? 404 : 200)
+    if (url.pathname === "/api/websearch/provider")
+      return json(route, { location: { directory }, data: [] }, options.preferencesUnavailable ? 404 : 200)
     if (url.pathname === "/api/worktree") return json(route, [{ directory }])
     if (url.pathname === "/api/vcs")
       return json(route, { location: { directory }, data: { branch: "main", defaultBranch: "main" } })

@@ -1,5 +1,6 @@
 import { batch, createEffect, createMemo, onCleanup } from "solid-js"
 import { createStore, produce, reconcile } from "solid-js/store"
+import { isFileNotFoundError } from "@opencode/client/promise"
 import { createSimpleContext } from "@opencode/ui/context"
 import { showToast } from "@/shell/notifications/toast"
 import { useParams } from "@solidjs/router"
@@ -22,6 +23,7 @@ import {
 } from "./content-cache"
 import { createFileViewCache } from "./view-cache"
 import { useServerSDK } from "@/runtime/server/client"
+import { formatServerError } from "@/runtime/server/errors"
 import { SessionRouteKey, SessionStateKey } from "@/runtime/server/scope"
 import { createFileTreeStore } from "./tree-store"
 import { invalidateFromWatcher } from "./watcher"
@@ -43,12 +45,6 @@ export {
   resetFileContentLru,
   setFileContentBytes,
   touchFileContent,
-}
-
-function errorMessage(error: unknown, fallback: string) {
-  if (error instanceof Error && error.message) return error.message
-  if (typeof error === "string" && error) return error
-  return fallback
 }
 
 export const { use: useFile, provider: FileProvider } = createSimpleContext({
@@ -146,18 +142,24 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
         produce((draft) => {
           draft.loaded = true
           draft.loading = false
+          draft.notFound = false
           draft.content = content
         }),
       )
     }
 
-    const setLoadError = (file: string, message: string) => {
+    const setLoadError = (file: string, message: string, notFound = false) => {
+      if (notFound) removeFileContentBytes(file)
       setStore(
         "file",
         file,
         produce((draft) => {
           draft.loading = false
+          draft.notFound = notFound
           draft.error = message
+          if (!notFound) return
+          draft.loaded = false
+          draft.content = undefined
         }),
       )
       showToast({
@@ -196,7 +198,11 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
         })
         .catch((e) => {
           if (scope() !== directory) return
-          setLoadError(file, errorMessage(e, language.t("error.chain.unknown")))
+          setLoadError(
+            file,
+            formatServerError(e, language.t, language.t("error.chain.unknown")),
+            isFileNotFoundError(e),
+          )
         })
         .finally(() => {
           inflight.delete(key)
@@ -286,6 +292,7 @@ export const { use: useFile, provider: FileProvider } = createSimpleContext({
         collapse: tree.collapseDir,
       },
       get,
+      notFound: (input: string) => store.file[path.normalize(input)]?.notFound ?? false,
       load,
       scrollTop,
       scrollLeft,

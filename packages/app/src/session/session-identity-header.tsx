@@ -1,5 +1,4 @@
 import type { SessionInfo } from "@opencode/client/promise"
-import { useDialog } from "@opencode/ui/context/dialog"
 import { Icon } from "@opencode/ui/icon"
 import { IconButton } from "@opencode/ui/icon-button"
 import { Menu } from "@opencode/ui/menu"
@@ -10,12 +9,14 @@ import { useNavigate } from "@solidjs/router"
 import { createMemo, Show, type ParentProps } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useServer } from "@/runtime/server/current"
+import { ServerConnection } from "@/runtime/server/registry"
 import { useLanguage } from "@/runtime/i18n/language"
 import { usePlatform } from "@/runtime/platform/platform"
 import { displayName, errorMessage, getProjectAvatarSource, projectForSession } from "@/shell/layout/helpers"
 import { getProjectAvatarVariant, useLayout, type LocalProject } from "@/shell/state/layout"
 import { tabKey, useTabs } from "@/shell/tabs/tabs"
 import { useSettings } from "@/settings/model"
+import { useSettingsSurface } from "@/settings/surface"
 import { pathKey } from "@/workspaces/path-key"
 import { isProjectDirectory, isWorkspaceDirectory } from "@/workspaces/paths"
 import { sessionHref } from "@/shell/routes/session"
@@ -42,9 +43,9 @@ export function SessionProjectMenu(props: {
 }) {
   const server = useServer()
   const language = useLanguage()
-  const dialog = useDialog()
   const platform = usePlatform()
   const layout = useLayout()
+  const settingsSurface = useSettingsSurface()
   const navigate = useNavigate()
   const [state, setState] = createStore({
     open: false,
@@ -64,11 +65,13 @@ export function SessionProjectMenu(props: {
       }),
     )
   }
-  const openProjectSettings = async () => {
+  const openProjectSettings = () => {
     const current = props.project
     if (!current) return
-    const { DialogEditProject } = await import("@/settings/workspaces/project-dialog")
-    dialog.push(() => <DialogEditProject project={{ expanded: false, ...current }} server={server.conn} />)
+    settingsSurface.openProject({
+      server: ServerConnection.key(server.conn),
+      project: current.worktree,
+    })
   }
 
   return (
@@ -191,7 +194,7 @@ export function SessionProjectMenu(props: {
             </Menu.Item>
           </Tooltip>
           <Menu.Separator />
-          <Menu.Item disabled={!props.project} onSelect={() => void openProjectSettings()}>
+          <Menu.Item disabled={!props.project} onSelect={openProjectSettings}>
             <Icon name="settings-gear" class="text-v2-icon-icon-muted" />
             {language.t("project.settings.title")}
           </Menu.Item>

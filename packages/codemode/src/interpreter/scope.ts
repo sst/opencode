@@ -1,4 +1,4 @@
-import { type AstNode, type Binding, InterpreterRuntimeError } from "./model.js"
+import { type AstNode, type Binding, InterpreterRuntimeError, referenceError } from "./model.js"
 
 export class ScopeStack {
   private readonly scopes: Array<Map<string, Binding>>
@@ -36,11 +36,11 @@ export class ScopeStack {
     const binding = this.resolve(name)
 
     if (!binding) {
-      throw new InterpreterRuntimeError(`Unknown identifier '${name}'.`, node).as("ReferenceError")
+      throw referenceError(`Unknown identifier '${name}'.`, node)
     }
 
     if (binding.initialized === false) {
-      throw new InterpreterRuntimeError(`Cannot access '${name}' before initialization.`, node).as("ReferenceError")
+      throw referenceError(`Cannot access '${name}' before initialization.`, node)
     }
 
     return binding.value
@@ -50,15 +50,15 @@ export class ScopeStack {
     const binding = this.resolve(name)
 
     if (!binding) {
-      throw new InterpreterRuntimeError(`Unknown identifier '${name}'.`, node).as("ReferenceError")
+      throw referenceError(`Unknown identifier '${name}'.`, node)
     }
 
     if (binding.initialized === false) {
-      throw new InterpreterRuntimeError(`Cannot access '${name}' before initialization.`, node).as("ReferenceError")
+      throw referenceError(`Cannot access '${name}' before initialization.`, node)
     }
 
     if (!binding.mutable) {
-      throw new InterpreterRuntimeError(`Cannot assign to constant '${name}'.`, node).as("TypeError")
+      throw new InterpreterRuntimeError(`Cannot assign to constant '${name}'.`, node)
     }
 
     binding.value = value

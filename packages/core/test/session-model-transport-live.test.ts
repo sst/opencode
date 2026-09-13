@@ -225,7 +225,7 @@ describe("SessionModelTransport local WebSocket server", () => {
           expect(requests).toHaveLength(3)
           expect(requests[1]).toHaveProperty("previous_response_id", "resp_1")
           expect(requests[2]).not.toHaveProperty("previous_response_id")
-          expect(server.state.opens).toBe(1)
+          expect(server.state.opens).toBe(2)
         }),
     )
   })

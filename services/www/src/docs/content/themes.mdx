@@ -2,8 +2,268 @@
 title: "Themes"
 ---
 
-Themes are currently a terminal-client capability rather than a shared OpenCode configuration feature. The terminal
-client includes built-in light and dark themes, supports terminal-aware color modes, and owns theme selection and custom
-theme loading.
+Choose a theme from the terminal UI by pressing `Ctrl+P`, selecting **Open settings**, and opening **Theme**. You can also
+set it directly in your global CLI config:
 
-See [CLI config](/cli/config) for terminal-client theme settings.
+```json title="~/.config/opencode/cli.json"
+{
+  "theme": {
+    "name": "tokyonight",
+    "mode": "system"
+  }
+}
+```
+
+Themes belong to the terminal client. Put theme selection in `cli.json`, not `opencode.json`. See
+[CLI config](/cli/config) for the config location and other terminal settings.
+
+## Modes
+
+Use `system` to follow your terminal's appearance, or lock the theme to one mode:
+
+```json title="~/.config/opencode/cli.json"
+{
+  "theme": {
+    "name": "opencode",
+    "mode": "dark"
+  }
+}
+```
+
+| Value    | Behavior                                      |
+| -------- | --------------------------------------------- |
+| `system` | Follows the light or dark mode of the terminal. |
+| `dark`   | Always uses the dark theme.                   |
+| `light`  | Always uses the light theme.                  |
+
+If a custom theme provides only one mode, OpenCode uses that mode when the other is requested.
+
+## Builtins
+
+Select a built-in theme by its name:
+
+```json title="~/.config/opencode/cli.json"
+{
+  "theme": {
+    "name": "catppuccin"
+  }
+}
+```
+
+Available themes include:
+
+- `aura`, `ayu`, `carbonfox`, `cobalt2`, `cursor`, `dracula`, `everforest`, `flexoki`
+- `catppuccin`, `catppuccin-frappe`, `catppuccin-macchiato`
+- `github`, `gruvbox`, `kanagawa`, `material`, `matrix`, `mercury`, `monokai`, `nightowl`, `nord`
+- `one-dark`, `opencode`, `orng`, `lucent-orng`, `osaka-jade`, `palenight`, `rosepine`
+- `solarized`, `synthwave84`, `tokyonight`, `vercel`, `vesper`, `zenburn`
+
+The `system` theme is available when OpenCode can read your terminal palette.
+
+## Files
+
+To create a global theme named `ocean`, save this file:
+
+```json title="~/.config/opencode/themes/ocean.json"
+{
+  "version": 2,
+  "dark": {
+    "hue": {
+      "accent": "$hue.cyan"
+    },
+    "text": {
+      "default": "#d8f3ff"
+    }
+  }
+}
+```
+
+Then select `ocean` in settings or set `theme.name` to `ocean` in `cli.json`. The filename, without `.json`, is the
+theme name.
+
+| Scope   | Directory                                  |
+| ------- | ------------------------------------------ |
+| Global  | `~/.config/opencode/themes/`               |
+| Project | `.opencode/themes/` in the project tree    |
+
+OpenCode reads `.json` files only. A theme closer to the current directory replaces a global or parent theme with the
+same name.
+
+## Format
+
+Every V2 theme declares `version: 2` and at least one of `light` or `dark`:
+
+```json title="themes/ocean.json"
+{
+  "version": 2,
+  "light": {
+    "text": {
+      "default": "#16324f"
+    }
+  },
+  "dark": {
+    "text": {
+      "default": "#d8f3ff"
+    }
+  }
+}
+```
+
+Custom themes inherit unspecified values from the built-in OpenCode theme. To base one mode on the other, add
+`mergeMode: true` to the mode containing the overrides:
+
+```json title="themes/ocean.json"
+{
+  "version": 2,
+  "light": {
+    "text": {
+      "default": "#16324f"
+    }
+  },
+  "dark": {
+    "mergeMode": true,
+    "text": {
+      "default": "#d8f3ff"
+    }
+  }
+}
+```
+
+Only one mode can use `mergeMode`, and the other mode must be present.
+
+## Colors
+
+Use a hex color, `transparent`, or a reference to another theme color:
+
+```json title="themes/ocean.json"
+{
+  "version": 2,
+  "dark": {
+    "text": {
+      "default": "#d8f3ff",
+      "subdued": "$hue.neutral.400"
+    },
+    "background": {
+      "default": "transparent"
+    }
+  }
+}
+```
+
+Hex values may use 3, 4, 6, or 8 digits. References begin with `$`; hue references use the form
+`$hue.<name>.<step>`.
+
+## Hues
+
+Override a hue alias to change a family of related colors at once:
+
+```json title="themes/ocean.json"
+{
+  "version": 2,
+  "dark": {
+    "hue": {
+      "accent": "$hue.cyan",
+      "interactive": "$hue.blue"
+    },
+    "categorical": ["accent", "purple", "green"]
+  }
+}
+```
+
+| Kind    | Values                                                               |
+| ------- | -------------------------------------------------------------------- |
+| Base    | `gray`, `red`, `orange`, `yellow`, `green`, `cyan`, `blue`, `purple` |
+| Alias   | `accent`, `interactive`, `neutral`                                 |
+| Step    | `100`, `200`, `300`, `400`, `500`, `600`, `700`, `800`, `900`      |
+
+`categorical` sets the ordered hues used to distinguish agents and other repeated items. It must contain at least one
+base hue or alias.
+
+## States
+
+Use state keys to change interactive colors. Unspecified states use the nearest default value:
+
+```json title="themes/ocean.json"
+{
+  "version": 2,
+  "dark": {
+    "text": {
+      "action": {
+        "primary": {
+          "default": "$hue.interactive.400",
+          "$hovered": "$hue.interactive.300",
+          "$disabled": "$hue.neutral.600"
+        }
+      }
+    }
+  }
+}
+```
+
+| Group     | Values                                                    |
+| --------- | --------------------------------------------------------- |
+| Actions   | `primary`, `secondary`, `destructive`                     |
+| States    | `$hovered`, `$focused`, `$pressed`, `$selected`, `$disabled` |
+
+Form fields use the same state keys directly under `text.formfield` or `background.formfield`.
+
+## Tokens
+
+Override only the token groups your theme needs:
+
+```json title="themes/ocean.json"
+{
+  "version": 2,
+  "dark": {
+    "border": {
+      "default": "$hue.neutral.700"
+    },
+    "syntax": {
+      "comment": "$hue.neutral.500",
+      "keyword": "$hue.accent.400"
+    },
+    "diff": {
+      "text": {
+        "added": "$hue.green.400",
+        "removed": "$hue.red.400"
+      }
+    }
+  }
+}
+```
+
+| Group        | Purpose                                                       |
+| ------------ | ------------------------------------------------------------- |
+| `text`       | Default, subdued, action, form-field, status, and feedback text |
+| `background` | Default, surfaces, actions, form fields, and feedback fills    |
+| `border`     | Borders                                                       |
+| `scrollbar`  | Scrollbars                                                    |
+| `diff`       | Added, removed, context, highlight, and line-number colors     |
+| `syntax`     | Source-code highlighting                                      |
+| `markdown`   | Markdown elements                                              |
+
+Syntax keys are `comment`, `keyword`, `function`, `variable`, `string`, `number`, `type`, `operator`, and
+`punctuation`. Markdown keys are `text`, `heading`, `link`, `linkText`, `code`, `blockQuote`, `emphasis`, `strong`,
+`horizontalRule`, `listItem`, `listEnumeration`, `image`, `imageText`, and `codeBlock`.
+
+## Contexts
+
+Use context overrides for elevated panels and overlays while keeping the base theme elsewhere:
+
+```json title="themes/ocean.json"
+{
+  "version": 2,
+  "dark": {
+    "background": {
+      "default": "#071521"
+    },
+    "@context:overlay": {
+      "background": {
+        "default": "#102a3c"
+      }
+    }
+  }
+}
+```
+
+The available keys are `@context:elevated` and `@context:overlay`. Each accepts the same token groups as the base mode.

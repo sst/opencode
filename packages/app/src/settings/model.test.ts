@@ -34,6 +34,17 @@ describe("settings timeline detail migration", () => {
 })
 
 describe("settings schema", () => {
+  test("restores summary expansion and discards the retired status preference", () => {
+    const settings = decode({
+      general: { showStatus: true, showSearch: true },
+      sessionSummary: { projectExpanded: false, serverExpanded: true },
+    })
+    expect(settings.general.showSearch).toBe(true)
+    expect(settings.general).not.toHaveProperty("showStatus")
+    expect(settings.sessionSummary).toEqual({ projectExpanded: false, serverExpanded: true })
+    expect(decode(encode(settings)).sessionSummary).toEqual(settings.sessionSummary)
+  })
+
   test("uses the supplied initial values independently of the current schema", () => {
     const initial = {
       ...defaultSettings,
@@ -58,7 +69,6 @@ describe("settings schema", () => {
         showFileTree: false,
         showNavigation: false,
         showSearch: false,
-        showStatus: false,
         showProjectIcon: false,
         showTerminal: false,
         timelineDetail: timelinePresets[2].value,
@@ -69,6 +79,7 @@ describe("settings schema", () => {
         followUpBehavior: "steer",
         experimentalBrowser: false,
       },
+      sessionSummary: { projectExpanded: true, serverExpanded: true },
       appearance: {
         fontSize: 14,
         mono: "",

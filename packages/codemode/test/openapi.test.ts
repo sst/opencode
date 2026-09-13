@@ -1095,7 +1095,7 @@ describe("OpenAPI.fromSpec", () => {
           tags: ["x", "y"],
           filter: { state: "open", page: 2 },
           nullable: null,
-          constructor_2: "safe",
+          constructor: "safe",
           meta: { a: "b", c: "d" },
         })
         .pipe(Effect.provide(client.layer)),

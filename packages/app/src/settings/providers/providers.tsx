@@ -9,8 +9,6 @@ import { createMemo, type Component, For, Show } from "solid-js"
 import { useLanguage } from "@/runtime/i18n/language"
 import { useServerSDK } from "@/runtime/server/client"
 import { DialogConnectProvider, useProviderConnectController } from "@/providers/connect/dialog"
-import { SettingsServerScope } from "@/settings/server-scope"
-import { InlineServerSelect } from "@/settings/server-select"
 import { SettingsList } from "@/settings/list"
 import "@/settings/settings.css"
 
@@ -44,11 +42,7 @@ export const SettingsProviders: Component<{
 
   const connect = (provider?: string) => {
     providerConnect.select(provider)
-    void dialog.show(() => (
-      <SettingsServerScope directory={props.directory}>
-        <DialogConnectProvider directory={props.directory} controller={providerConnect} />
-      </SettingsServerScope>
-    ))
+    void dialog.show(() => <DialogConnectProvider directory={props.directory} controller={providerConnect} />)
   }
 
   const connected = createMemo(() => {
@@ -134,14 +128,13 @@ export const SettingsProviders: Component<{
             <h2 class="settings-tab-title">{language.t("settings.providers.title")}</h2>
             <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.providers.description")}</span>
           </div>
-          <InlineServerSelect />
         </div>
       </div>
 
-      <div class="settings-tab-body settings-providers">
+      <div class="settings-tab-body settings-tab-body--sectioned settings-providers">
         <div class="settings-section" data-component="connected-providers-section">
           <h3 class="settings-section-title">{language.t("settings.providers.section.connected")}</h3>
-          <SettingsList>
+          <SettingsList variant="catalog">
             <Show
               when={connected().length > 0}
               fallback={<div class="settings-provider-empty">{language.t("settings.providers.connected.empty")}</div>}
@@ -182,7 +175,7 @@ export const SettingsProviders: Component<{
 
         <div class="settings-section">
           <h3 class="settings-section-title">{language.t("settings.providers.section.popular")}</h3>
-          <SettingsList>
+          <SettingsList variant="catalog">
             <For each={popular()}>
               {(item) => (
                 <div class="settings-provider-row">

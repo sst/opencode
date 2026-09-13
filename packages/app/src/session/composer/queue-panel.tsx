@@ -23,10 +23,12 @@ export function SessionQueuePanel(props: { queue: SessionQueueView }) {
     <Show when={count() > 0}>
       <div
         data-component="session-queue-panel"
-        class="relative z-0 -mb-3 rounded-xl bg-v2-background-bg-base px-1.5 pt-1.5 pb-[18px] shadow-[inset_0_0_0_0.5px_var(--v2-border-border-base)]"
+        class="relative z-0 -mb-3 rounded-xl bg-v2-background-bg-base px-1.5 pt-1.5 shadow-[inset_0_0_0_0.5px_var(--v2-border-border-base)]"
+        // Match the composer overlap so the scroll crop meets the input edge.
+        classList={{ "pb-3": count() > 4, "pb-[18px]": count() <= 4 }}
       >
         <Show when={count() > 3}>
-          <div class="px-1.5 pb-px text-[11px] font-[530] uppercase leading-[var(--line-height-tight)] tracking-[0.05px] text-v2-text-text-muted [font-variant-numeric:tabular-nums]">
+          <div class="px-1.5 pt-1 pb-px text-[11px] font-[530] uppercase leading-[var(--line-height-tight)] tracking-[0.05px] text-v2-text-text-muted [font-variant-numeric:tabular-nums]">
             {language.plural("session.queue.count", count())}
           </div>
         </Show>
@@ -58,10 +60,17 @@ export function SessionQueuePanel(props: { queue: SessionQueueView }) {
         >
           {/* Keyed on row IDs so store updates move row elements instead of
               remounting them, which would kill an in-flight drag. */}
+          {/* Four 32px rows, four 1px gaps, and half a row hint at more queued prompts. */}
           <div
             ref={listRef}
             class="flex flex-col gap-px"
-            classList={{ "max-h-[131px] overflow-y-auto": count() > 3 }}
+            classList={{ "max-h-[148px] overflow-y-auto": count() > 4 }}
+            style={{
+              "mask-image":
+                count() > 4
+                  ? "linear-gradient(to bottom, transparent, black 8px, black calc(100% - 12px), transparent)"
+                  : undefined,
+            }}
           >
             <For each={props.queue.rows().map((row) => row.id)}>
               {(id, index) => <SessionQueueRow queue={props.queue} id={id} index={index()} />}
@@ -98,7 +107,7 @@ function SessionQueueRow(props: { queue: SessionQueueView; id: string; index: nu
         <div
           ref={sortable.ref}
           data-component="session-queue-row"
-          class="group/queue-row flex items-center justify-between gap-2 rounded-md py-1 ps-1 pe-2"
+          class="group/queue-row flex h-8 shrink-0 items-center justify-between gap-2 rounded-md py-1 ps-1 pe-2"
           classList={{
             "bg-v2-overlay-simple-overlay-hover": editing(),
             "opacity-60": sortable.isDragSource(),
@@ -115,7 +124,7 @@ function SessionQueueRow(props: { queue: SessionQueueView; id: string; index: nu
                 {() => <span class="size-[2px] bg-v2-background-bg-layer-04" />}
               </For>
             </button>
-            <div class="flex min-w-0 flex-col">
+            <div class="flex min-w-0 items-center gap-4">
               <button
                 type="button"
                 data-action="session-queue-edit"
@@ -128,11 +137,12 @@ function SessionQueueRow(props: { queue: SessionQueueView; id: string; index: nu
                 }}
                 onClick={() => props.queue.edit(props.id)}
               >
-                {entry.text || (entry.attachments ? language.t("session.queue.attachments") : "")}
+                {entry.text ||
+                  (entry.attachments ? language.plural("session.queue.attachments", entry.attachments) : "")}
               </button>
               <Show when={entry.attachments && entry.text}>
-                <span class="text-[13px] font-[440] leading-[var(--line-height-compact)] text-v2-text-text-muted">
-                  {language.t("session.queue.attachments")}
+                <span class="shrink-0 whitespace-nowrap text-[13px] font-[440] leading-[var(--line-height-compact)] text-v2-text-text-muted">
+                  {language.plural("session.queue.attachments", entry.attachments)}
                 </span>
               </Show>
             </div>

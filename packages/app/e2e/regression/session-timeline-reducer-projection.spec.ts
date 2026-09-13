@@ -45,10 +45,10 @@ test("expands a mixed collapsed tool stack without expanding its individual call
   const group = page.locator(
     '[data-timeline-part-ids="prt_stack_shell_1,prt_stack_explore,prt_stack_patch,prt_stack_shell_2"]',
   )
-  const summary = group.getByRole("button", { name: "Used 2 Shell, 1 Agent, 1 Patch", exact: true })
+  const summary = group.getByRole("button", { name: "Used 4 Shell, Agent, Patch", exact: true })
   await expect(summary).toHaveAttribute("aria-expanded", "false")
   await expect(summary).toHaveCSS("height", "28px")
-  await expect(summary.locator('[data-slot="basic-tool-tool-title"]')).toHaveText("2 Shell, 1 Agent, 1 Patch")
+  await expect(summary.locator('[data-slot="basic-tool-tool-title"]')).toHaveText("Shell, Agent, Patch")
   await expect(summary.locator('[data-component="tag"]')).toHaveCount(0)
   await summary.click()
   await expect(summary).toHaveAttribute("aria-expanded", "true")
@@ -75,8 +75,8 @@ test("leaves tools expanded by settings outside the collapsed stack", async ({ p
 
   await expect(page.locator('[data-timeline-part-id="prt_expanded_shell"]')).toBeVisible()
   const group = page.locator('[data-timeline-part-ids="prt_collapsed_patch,prt_collapsed_read"]')
-  await expect(group.getByRole("button", { name: "Used 1 Patch, 1 Read", exact: true })).toBeVisible()
-  await expect(group.locator('[data-slot="basic-tool-tool-title"]')).toHaveText("1 Patch, 1 Read")
+  await expect(group.getByRole("button", { name: "Used 2 Patch, Read", exact: true })).toBeVisible()
+  await expect(group.locator('[data-slot="basic-tool-tool-title"]')).toHaveText("Patch, Read")
   await expect(page.locator('[data-timeline-spacing="tool"]')).toHaveCSS("padding-top", "8px")
 })
 
@@ -114,8 +114,8 @@ test("combines follow-up patches into one three-file stack inside Used", async (
     ],
   })
   const group = page.locator('[data-component="collapsed-tool-group"]')
-  await group.getByRole("button", { name: "Used 1 Shell, 1 Patch", exact: true }).click()
-  await expect(group.getByText("2 files", { exact: true })).toBeVisible()
+  await group.getByRole("button", { name: "Used 2 Shell, Patch", exact: true }).click()
+  await expect(group.locator('[data-slot="apply-patch-filename"]')).toHaveText(["a.ts", "b.ts"])
   await timeline.send(
     partUpdated(
       toolPart(
@@ -129,12 +129,11 @@ test("combines follow-up patches into one three-file stack inside Used", async (
       ),
     ),
   )
-  await expect(group.getByRole("button", { name: "Used 1 Shell, 2 Patch", exact: true })).toHaveAttribute(
+  await expect(group.getByRole("button", { name: "Used 3 Shell, Patch", exact: true })).toHaveAttribute(
     "aria-expanded",
     "true",
   )
   await expect(group.locator('[data-component="apply-patch-tool"]')).toHaveCount(1)
-  await expect(group.getByText("3 files", { exact: true })).toBeVisible()
   await expect(group.locator('[data-slot="apply-patch-filename"]')).toHaveText(["a.ts", "b.ts", "c.ts"])
 })
 
@@ -162,7 +161,7 @@ test("keeps failed search calls and their error cards inside the collapsed stack
   await setupTimeline(page, { messages: [userMessage(), assistantMessage(parts)] })
 
   const group = page.locator('[data-component="collapsed-tool-group"]')
-  const summary = group.getByRole("button", { name: "Used 1 Glob, 1 Grep", exact: true })
+  const summary = group.getByRole("button", { name: "Used 2 Glob, Grep", exact: true })
   await expect(summary).toHaveAttribute("aria-expanded", "false")
   await summary.click()
   await expect(group.locator('[data-kind="tool-error-card"]')).toHaveCount(2)

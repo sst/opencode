@@ -27,4 +27,11 @@ describe("Provider", () => {
       expect(loaded.model).toBeFunction()
     }
   })
+
+  test("passes flat settings to native packages without opencode transport keys", () => {
+    expect(Provider.nativeSettings({ apiKey: "secret", reasoningEffort: "high", chunkTimeout: 1000 })).toEqual({
+      apiKey: "secret",
+      reasoningEffort: "high",
+    })
+  })
 })

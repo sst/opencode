@@ -63,6 +63,36 @@ describe("SerializeAddon", () => {
     }
   })
 
+  describe("scrollback option", () => {
+    test("reads only the requested tail and restores the cursor on its screen row", async () => {
+      const { term, addon } = createTerminal(20, 5)
+      await writeAndWait(term, Array.from({ length: 30 }, (_, i) => `line ${i}`).join("\r\n"))
+      await writeAndWait(term, "\x1b[2A\x1b[3G")
+      expect(term.buffer.normal.length).toBe(30)
+      expect([term.buffer.normal.cursorX, term.buffer.normal.cursorY]).toEqual([2, 2])
+
+      const reads = spyOn(term.buffer.normal, "getLine")
+      const serialized = addon.serialize({ scrollback: 3 })
+      expect(new Set(reads.mock.calls.map((args) => args[0]))).toEqual(new Set([22, 23, 24, 25, 26, 27, 28, 29]))
+      reads.mockRestore()
+
+      const restored = createTerminal(20, 5)
+      await writeAndWait(restored.term, serialized)
+      expect(restored.term.getScrollbackLength()).toBe(3)
+      for (let row = 0; row < 8; row++) {
+        expect(restored.term.buffer.normal.getLine(row)?.translateToString(true)).toBe(`line ${22 + row}`)
+      }
+      expect([restored.term.buffer.normal.cursorX, restored.term.buffer.normal.cursorY]).toEqual([2, 2])
+    })
+
+    test("serializes the whole buffer when it has fewer rows than requested", async () => {
+      const { term, addon } = createTerminal(20, 5)
+      await writeAndWait(term, Array.from({ length: 30 }, (_, i) => `line ${i}`).join("\r\n"))
+
+      expect(addon.serialize({ scrollback: 100 })).toBe(addon.serialize())
+    })
+  })
+
   test("preserves color scheme reporting mode", async () => {
     const { term, addon } = createTerminal()
     await writeAndWait(term, "\x1b[?2031h")

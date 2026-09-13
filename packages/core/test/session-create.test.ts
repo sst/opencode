@@ -388,6 +388,32 @@ describe("Session.create", () => {
     }),
   )
 
+  it.effect("stores permission rules, inherits them through children and forks, and replaces them", () =>
+    Effect.gen(function* () {
+      const session = yield* Session.Service
+      const bus = yield* Bus.Service
+      const { db } = yield* Database.Service
+      const permissions = [{ action: "edit", resource: "/original/**", effect: "deny" as const }]
+
+      const created = yield* session.create({ location, permissions })
+      expect(created.permissions).toEqual(permissions)
+      expect((yield* session.create({ parentID: created.id })).permissions).toEqual(permissions)
+      expect((yield* session.create({ parentID: created.id, permissions: [] })).permissions).toEqual([])
+
+      yield* session.prompt({ sessionID: created.id, text: "Fork context", resume: false })
+      yield* SessionInbox.promote(db, bus, created.id, "steer")
+      const forked = yield* session.fork({ sessionID: created.id, boundary: { type: "through" } })
+      expect(forked.permissions).toEqual(permissions)
+
+      const replaced = [{ action: "shell", resource: "*", effect: "ask" as const }]
+      yield* session.setPermissions({ sessionID: created.id, permissions: replaced })
+      expect((yield* session.get(created.id)).permissions).toEqual(replaced)
+      expect(
+        yield* session.setPermissions({ sessionID: Session.ID.create(), permissions: replaced }).pipe(Effect.flip),
+      ).toBeInstanceOf(Session.NotFoundError)
+    }),
+  )
+
   it.effect("inherits location from an existing parent when omitted", () =>
     Effect.gen(function* () {
       const session = yield* Session.Service
@@ -1330,7 +1356,12 @@ describe("SessionTransfer", () => {
       const transfer = yield* SessionTransfer.Service
       const bus = yield* Bus.Service
       const { db } = yield* Database.Service
-      const template = yield* session.create({ location, title: "Exported", metadata: { channel: "C123" } })
+      const template = yield* session.create({
+        location,
+        title: "Exported",
+        metadata: { channel: "C123" },
+        permissions: [{ action: "edit", resource: "*", effect: "deny" }],
+      })
       const sessionID = Session.ID.create()
       const sourceMessageID = SessionMessage.ID.create()
       const errorMessageID = SessionMessage.ID.create()
@@ -1376,7 +1407,13 @@ describe("SessionTransfer", () => {
       })
       const messages = yield* session.messages({ sessionID, order: "asc" })
 
-      expect(imported).toMatchObject({ id: sessionID, title: "Exported", location, metadata: { channel: "C123" } })
+      expect(imported).toMatchObject({
+        id: sessionID,
+        title: "Exported",
+        location,
+        metadata: { channel: "C123" },
+        permissions: [{ action: "edit", resource: "*", effect: "deny" }],
+      })
       expect(imported.time).toMatchObject({
         updated: DateTime.makeUnsafe(1_000),
         idle: DateTime.makeUnsafe(200),

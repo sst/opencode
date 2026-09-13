@@ -39,6 +39,7 @@ const Group = HttpApiGroup.make("mock")
     }),
   )
   .add(HttpApiEndpoint.get("reference", "/api/reference", { success: Json }))
+  .add(HttpApiEndpoint.get("config", "/api/config", { success: Json }))
   .add(HttpApiEndpoint.get("agent", "/api/agent", { success: Json }))
   .add(HttpApiEndpoint.get("provider", "/api/provider", { success: Json }))
   .add(HttpApiEndpoint.get("model", "/api/model", { success: Json }))
@@ -69,7 +70,23 @@ const Group = HttpApiGroup.make("mock")
   .add(HttpApiEndpoint.get("mcp", "/api/mcp", { success: Json }))
   .add(HttpApiEndpoint.get("mcpResource", "/api/mcp/resource", { success: Json }))
   .add(HttpApiEndpoint.get("projectList", "/api/project", { success: Json }))
+  .add(
+    HttpApiEndpoint.patch("projectUpdate", "/api/project/:projectID", {
+      params: { projectID: Schema.String },
+      payload: JsonPayload,
+      success: Json,
+    }),
+  )
   .add(HttpApiEndpoint.get("projectCurrent", "/api/project/current", { success: Json }))
+  .add(HttpApiEndpoint.get("configPreferences", "/api/config/preferences", { success: Json }))
+  .add(
+    HttpApiEndpoint.patch("configUpdatePreferences", "/api/config/preferences", {
+      payload: JsonPayload,
+      success: Json,
+    }),
+  )
+  .add(HttpApiEndpoint.get("configShells", "/api/config/shell", { success: Json }))
+  .add(HttpApiEndpoint.get("websearchProviders", "/api/websearch/provider", { success: Json }))
   .add(
     HttpApiEndpoint.get("worktreeList", "/api/worktree", {
       success: Json,

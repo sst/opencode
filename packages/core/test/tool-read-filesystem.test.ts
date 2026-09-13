@@ -3,6 +3,7 @@ import fs from "fs/promises"
 import path from "path"
 import { Environment } from "@opencode/core/environment/index"
 import { AbsolutePath } from "@opencode/core/schema"
+import { ReadTool } from "@opencode/core/tool/plugin/read"
 import { ReadToolFileSystem } from "@opencode/core/tool/read-filesystem"
 import { CrossSpawnSpawner } from "@opencode/util/cross-spawn-spawner"
 import { LayerNodePlatform } from "@opencode/util/effect/app-node-platform"
@@ -19,6 +20,96 @@ const fixture = Effect.gen(function* () {
   return { environment: Environment.makeFiles(Environment.makeLocalDriver(spawner)), files, directory }
 })
 const absolute = (value: string) => AbsolutePath.make(value)
+
+describe("ReadTool text serialization", () => {
+  const cases = [
+    {
+      name: "preserves a selected trailing blank line before continuation",
+      content: "alpha\n\nomega\n",
+      page: { offset: 1, limit: 2 },
+      output: { type: "text-page", content: "alpha\n", offset: 1, truncated: true, next: 3 },
+      model: "Read file lines.txt, lines 1-2\n1: alpha\n2: \n[Output truncated. Continue reading with offset: 3]",
+    },
+    {
+      name: "preserves multiple selected trailing blank lines at a noninitial offset",
+      content: "before\nalpha\n\n\nomega\n",
+      page: { offset: 2, limit: 3 },
+      output: { type: "text-page", content: "alpha\n\n", offset: 2, truncated: true, next: 5 },
+      model: "Read file lines.txt, lines 2-4\n2: alpha\n3: \n4: \n[Output truncated. Continue reading with offset: 5]",
+    },
+    {
+      name: "preserves a selected trailing blank line at EOF",
+      content: "alpha\n\n",
+      page: { limit: 2 },
+      output: { type: "text-page", content: "alpha\n", offset: 1, truncated: false },
+      model: "Read file lines.txt, lines 1-2\n1: alpha\n2: ",
+    },
+    {
+      name: "preserves internal blank lines in a page",
+      content: "alpha\n\nomega\n",
+      page: { limit: 3 },
+      output: { type: "text-page", content: "alpha\n\nomega", offset: 1, truncated: false },
+      model: "Read file lines.txt, lines 1-3\n1: alpha\n2: \n3: omega",
+    },
+    {
+      name: "preserves continuation for a nonblank page",
+      content: "alpha\n\nomega\n",
+      page: { limit: 1 },
+      output: { type: "text-page", content: "alpha", offset: 1, truncated: true, next: 2 },
+      model: "Read file lines.txt, lines 1-1\n1: alpha\n[Output truncated. Continue reading with offset: 2]",
+    },
+    {
+      name: "strips only the terminal file newline in a whole-file read",
+      content: "alpha\n\n",
+      page: {},
+      output: { type: "file", content: "alpha\n\n", encoding: "utf8" },
+      model: "Read file lines.txt, lines 1-2\n1: alpha\n2: ",
+    },
+    {
+      name: "does not add a line for a whole-file terminal newline",
+      content: "alpha\n",
+      page: {},
+      output: { type: "file", content: "alpha\n", encoding: "utf8" },
+      model: "Read file lines.txt, lines 1-1\n1: alpha",
+    },
+    {
+      name: "preserves a whole-file read without a terminal newline",
+      content: "alpha",
+      page: {},
+      output: { type: "file", content: "alpha", encoding: "utf8" },
+      model: "Read file lines.txt, lines 1-1\n1: alpha",
+    },
+    {
+      name: "preserves empty whole-file output",
+      content: "",
+      page: {},
+      output: { type: "file", content: "", encoding: "utf8" },
+      model: "Read file lines.txt, 0 lines",
+    },
+    {
+      name: "preserves empty-file page output",
+      content: "",
+      page: { limit: 2 },
+      output: { type: "text-page", content: "", offset: 1, truncated: false },
+      model: "Read file lines.txt, 0 lines",
+    },
+  ]
+
+  cases.forEach((input) => {
+    it.live(input.name, () =>
+      Effect.gen(function* () {
+        const current = yield* fixture
+        const file = absolute(path.join(current.directory, "lines.txt"))
+        yield* current.files.writeFileString(file, input.content)
+
+        const result = yield* ReadToolFileSystem.read(current.environment, file, "lines.txt", input.page)
+
+        expect(result).toMatchObject(input.output)
+        expect(ReadTool.toModelContent("lines.txt", undefined, result)).toBe(input.model)
+      }),
+    )
+  })
+})
 
 describe("ReadToolFileSystem", () => {
   it.effect("preserves the environment not-found error", () =>

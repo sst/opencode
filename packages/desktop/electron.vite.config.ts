@@ -45,6 +45,9 @@ export default defineConfig(({ command }) => ({
         // corrupt bundled TypeScript, while an output banner places the shim safely.
         output: {
           format: "es",
+          // DesktopPaths resolves resources from the main output directory,
+          // including when the lazy desktop entry shares it with other chunks.
+          chunkFileNames: "[name]-[hash].js",
           banner: `
 // -- CommonJS Shims --
 import __cjs_mod__ from 'node:module';

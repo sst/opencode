@@ -1079,7 +1079,7 @@ describe("ModelsDevPlugin", () => {
 
       const bedrock = yield* catalog.model.get(
         Provider.ID.make("amazon-bedrock"),
-        Model.ID.make("amazon.nova-2-lite-v1:0"),
+        Model.ID.make("us.amazon.nova-2-lite-v1:0"),
       )
       expect(bedrock?.variants).toEqual([
         {

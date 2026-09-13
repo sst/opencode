@@ -308,8 +308,8 @@ for (const delivery of ["steer", "queue"] as const) {
     })
     const tools = page.locator('[data-timeline-part-ids="tool_queue_read,tool_queue_grep"]')
     await expect(tools).toBeVisible()
-    await expect(tools).toHaveText(/^Used\s*1 Read, 1 Grep$/)
-    await expect(tools.locator('[data-slot="basic-tool-tool-title"]')).toHaveText("1 Read, 1 Grep")
+    await expect(tools).toHaveText(/^Used\s*2\s*Read, Grep$/)
+    await expect(tools.locator('[data-slot="basic-tool-tool-title"]')).toHaveText("Read, Grep")
     await expect(thinking).toHaveCount(0)
     await expect(pending).toBeVisible()
     expect(mock.rows.map((row) => ({ id: row.id, delivery: row.delivery }))).toEqual([
@@ -318,7 +318,7 @@ for (const delivery of ["steer", "queue"] as const) {
     await transcript.screenshot({ path: testInfo.outputPath("pending-steer.png") })
 
     // Soft assertions let delivery run too, even when the pending ordering regresses.
-    await expect.soft(tools.or(pending)).toHaveText([/^Used\s*1 Read, 1 Grep$/, /U2: Also check the retry path\./])
+    await expect.soft(tools.or(pending)).toHaveText([/^Used\s*2\s*Read, Grep$/, /U2: Also check the retry path\./])
     await expect
       .soft(transcript.locator('[data-timeline-row="AssistantPart"]').filter({ has: tools }))
       .toHaveAttribute("data-message-id", userID)
@@ -350,7 +350,7 @@ for (const delivery of ["steer", "queue"] as const) {
     await expect(response).toHaveAttribute("data-message-id", inboxID)
     await expect(thinking).toHaveCount(0)
     await expect(tools.or(pending).or(response)).toHaveText([
-      /^Used\s*1 Read, 1 Grep$/,
+      /^Used\s*2\s*Read, Grep$/,
       /U2: Also check the retry path\./,
       /A3: Now checking the retry path for U2\./,
     ])

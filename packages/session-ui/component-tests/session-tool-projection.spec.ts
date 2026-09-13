@@ -44,9 +44,9 @@ story("renders every tool error outcome without leaking hidden tools", async ({ 
   const timeline = await mount("current-session-research-agents--agent-research", { args: { scenario: "failures" } })
   const names = ["shell", "edit", "write", "patch", "webfetch", "websearch", "subagent", "skill", "mcp_probe"]
   const group = timeline.locator(`[data-timeline-part-ids="${names.map((name) => `tool_error_${name}`).join(",")}"]`)
-  await expect(
-    group.locator('[data-component="context-tool-group-trigger"] [data-slot="basic-tool-tool-title"]'),
-  ).toHaveText(new RegExp(`^${names.length} `))
+  const usage = group.locator('[data-component="context-tool-group-trigger"] [data-slot="context-tool-group-usage"]')
+  await expect(usage.locator('[data-slot="context-tool-group-prefix"]')).toHaveText("Used")
+  await expect(usage.locator('[data-slot="context-tool-group-count"]')).toHaveText(String(names.length))
   await group.getByRole("button").click()
   await expect(timeline.locator('[data-kind="tool-error-card"]')).toHaveCount(names.length + 1)
   const dismissed = timeline.locator('[data-timeline-part-id="tool_error_question_dismissed"]')
@@ -108,7 +108,7 @@ story("labels skill tools from IDs and result metadata", async ({ mount }) => {
   await expect(group.getByRole("button")).toHaveAccessibleName("Used 2 Skill")
   await expect(
     group.locator('[data-component="context-tool-group-trigger"] [data-slot="basic-tool-tool-title"]'),
-  ).toHaveText("2 Skill")
+  ).toHaveText("Skill")
   await group.getByRole("button").click()
   const loaded = group.locator('[data-component="tool-loaded-item"]')
   await expect(loaded).toHaveCount(1)
@@ -133,7 +133,7 @@ story("groups every collapsed tool until visible text separates the stack", asyn
   await expect(group.getByRole("button")).toHaveAccessibleName("Used 4 Glob, Grep, Shell, List")
   await expect(
     group.locator('[data-component="context-tool-group-trigger"] [data-slot="basic-tool-tool-title"]'),
-  ).toHaveText("4 Glob, Grep, Shell, List")
+  ).toHaveText("Glob, Grep, Shell, List")
   await expect(timeline.locator('[data-timeline-row="AssistantPart"]')).toHaveCount(3)
   await expect(timeline.locator('[data-timeline-spacing="content"]')).toHaveCount(2)
   await expect(timeline.locator('[data-timeline-spacing="content"]').nth(0)).toHaveCSS("padding-top", "16px")

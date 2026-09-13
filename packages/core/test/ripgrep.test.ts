@@ -6,13 +6,43 @@ import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
 import { Location } from "@opencode/core/location"
 import { Ripgrep } from "@opencode/core/ripgrep"
 import { RelativePath } from "@opencode/core/schema"
-import { tmpdir } from "./fixture/tmpdir"
+import { tmpdir, tmpdirScoped } from "./fixture/tmpdir"
 import { testEffect } from "./lib/effect"
 import { tempLocationLayer } from "./fixture/location"
 
 const it = testEffect(AppNodeBuilder.build(Ripgrep.node, [Location.node.replace(tempLocationLayer)]))
 
 describe("Ripgrep", () => {
+  for (const hidden of [undefined, false, true]) {
+    for (const limit of hidden ? [10] : [1, 10]) {
+      it.live(`glob honors hidden=${hidden} before limit=${limit}`, () =>
+        Effect.gen(function* () {
+          const tmp = yield* tmpdirScoped()
+          yield* Effect.promise(() =>
+            Promise.all(
+              ["src/visible.ts", ".hidden.ts", "src/.hidden.ts", ".hidden/nested.ts", ".git/config.ts"].map((file) =>
+                Bun.write(path.join(tmp.path, file), "needle\n"),
+              ),
+            ),
+          )
+          const ripgrep = yield* Ripgrep.Service
+          const files = yield* ripgrep.glob({
+            cwd: tmp.path,
+            pattern: "**/*.ts",
+            limit,
+            ...(hidden === undefined ? {} : { hidden }),
+          })
+
+          expect(files.map((item) => item.path).sort()).toEqual(
+            (hidden ? [".hidden.ts", ".hidden/nested.ts", "src/.hidden.ts", "src/visible.ts"] : ["src/visible.ts"]).map(
+              (file) => RelativePath.make(file),
+            ),
+          )
+        }),
+      )
+    }
+  }
+
   it.live("globs files as an array", () =>
     Effect.acquireUseRelease(
       Effect.promise(() => tmpdir()),

@@ -11,7 +11,7 @@ import { useLanguage } from "@/runtime/i18n/language"
 import { useLayout } from "@/shell/state/layout"
 import { usePlatform } from "@/runtime/platform/platform"
 import { useWorkspaceLocation } from "@/workspaces/location"
-import { useData } from "@/runtime/server/current"
+import { useData, useServer } from "@/runtime/server/current"
 import { createSessionTabs } from "@/session/helpers"
 import { showToast } from "@/shell/notifications/toast"
 import { formatServerError } from "@/runtime/server/errors"
@@ -30,6 +30,8 @@ export type ComposerModel = ComposerEditorModel & {
 export function createComposerModel(adapter: ComposerAdapter, options?: { queue?: ComposerQueue }): ComposerModel {
   const sdk = useWorkspaceLocation()
   const data = useData()
+  const server = useServer()
+  const available = () => server.conn.type !== "ssh" || server.ctx.sdk.connection.status() === "connected"
   const files = useFile()
   const layout = useLayout()
   const comments = useComments()
@@ -394,10 +396,12 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
         keybind: () => command.keybindParts("model.variant.cycle"),
       },
       submit: {
+        available,
         stopping,
         working: adapter.working,
         queue: options?.queue,
         onSubmit: (submitOptions) => {
+          if (!available()) return
           const queue = options?.queue
           // Confirming an edit re-admits the queued prompt instead of sending
           // the composer value as a new prompt. Enter keeps it queued in

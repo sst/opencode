@@ -131,38 +131,55 @@ const layer = Layer.effect(
       )
     })
 
-    const compare = Effect.fnUntraced(function* (operation: "files" | "diff", input: CompareInput) {
+    const comparison = Effect.fnUntraced(function* (operation: "files" | "diff", input: CompareInput) {
       const repo = yield* repository.pipe(Effect.mapError((cause) => failure(operation, cause)))
-      const comparison = {
+      return {
+        source: repo.source,
         repository: repo.snapshotRepository,
         from: Git.TreeID.make(input.from),
         to: Git.TreeID.make(input.to),
       }
-      const files = yield* git.tree.files(comparison).pipe(Effect.mapError((cause) => failure(operation, cause)))
-      const ignored = yield* git.index
-        .ignored({ repository: repo.source, paths: files })
+    })
+
+    // Snapshots track every scoped file; the source repository's ignore rules decide what callers see.
+    const ignored = Effect.fnUntraced(function* (
+      operation: "files" | "diff",
+      source: Git.Repository,
+      paths: readonly RelativePath[],
+    ) {
+      return yield* git.index
+        .ignored({ repository: source, paths })
         .pipe(Effect.mapError((cause) => failure(operation, cause)))
-      return {
-        input: comparison,
-        files,
-        ignored,
-      }
     })
 
     const files = Effect.fn("Snapshot.files")(function* (input: CompareInput) {
-      const comparison = yield* compare("files", input)
-      return comparison.files.filter((file) => !comparison.ignored.has(file))
+      const compared = yield* comparison("files", input)
+      const changed = yield* git.tree
+        .files({ repository: compared.repository, from: compared.from, to: compared.to })
+        .pipe(Effect.mapError((cause) => failure("files", cause)))
+      const skipped = yield* ignored("files", compared.source, changed)
+      return changed.filter((file) => !skipped.has(file))
     })
 
     const diff = Effect.fn("Snapshot.diff")(function* (input: DiffInput) {
-      const comparison = yield* compare("diff", input)
-      return yield* git.tree
+      if (input.paths?.length === 0) return []
+      const compared = yield* comparison("diff", input)
+      // Only an explicit selection becomes a pathspec; ignored paths are dropped from the result instead.
+      const diffs = yield* git.tree
         .diff({
-          ...comparison.input,
+          repository: compared.repository,
+          from: compared.from,
+          to: compared.to,
           context: input.context,
-          paths: (input.paths ?? comparison.files).filter((file) => !comparison.ignored.has(file)),
+          paths: input.paths,
         })
         .pipe(Effect.mapError((cause) => failure("diff", cause)))
+      const skipped = yield* ignored(
+        "diff",
+        compared.source,
+        diffs.map((file) => RelativePath.make(file.file)),
+      )
+      return diffs.filter((file) => !skipped.has(RelativePath.make(file.file)))
     })
 
     const plan = Effect.fnUntraced(function* (worktree: AbsolutePath, input: RestoreInput) {

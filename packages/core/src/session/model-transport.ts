@@ -20,6 +20,7 @@ import { webSocketConstructor } from "../effect/app-node-platform.js"
 
 const ROTATE_AFTER_MS = 55 * 60 * 1000
 const INBOUND_CAPACITY = 128
+const CONNECT_TIMEOUT = "10 seconds"
 const IDLE_TIMEOUT = "5 minutes"
 const events = Metric.counter("opencode_session_websocket_events_total", {
   description: "Session WebSocket lifecycle events",
@@ -145,6 +146,11 @@ export const makeLayer = (connector: WebSocketConnector) =>
         if (owner.channel === channel) owner.channel = undefined
         if (channel.closing) return
         channel.closing = true
+        yield* Effect.logDebug("session websocket poisoned", {
+          sessionTransport: "websocket",
+          code: error.reason._tag === "Transport" ? error.reason.code : error.reason._tag,
+          active: channel.active !== undefined,
+        })
         if (channel.active) Queue.failCauseUnsafe(channel.active.queue, Cause.fail(error))
         yield* metric(
           error.reason._tag === "Transport" && error.reason.code === "queue-overflow"
@@ -162,7 +168,20 @@ export const makeLayer = (connector: WebSocketConnector) =>
         return yield* Effect.uninterruptibleMask((restore) =>
           Effect.gen(function* () {
             const connection = yield* restore(
-              connector.open(exchange.connect).pipe(Effect.withSpan("SessionModelTransport.connect")),
+              connector.open(exchange.connect).pipe(
+                Effect.timeoutOrElse({
+                  duration: CONNECT_TIMEOUT,
+                  orElse: () =>
+                    transportError("Timed out opening the Session WebSocket", {
+                      url: exchange.connect.url,
+                      operation: "request",
+                      code: "connect-timeout",
+                      phase: "connect",
+                      delivery: "not-sent",
+                    }),
+                }),
+                Effect.withSpan("SessionModelTransport.connect"),
+              ),
             )
             if (owner.closed) {
               yield* connection.close
@@ -289,20 +308,22 @@ export const makeLayer = (connector: WebSocketConnector) =>
         const channel = owner.channel
           ? owner.channel
           : yield* open(owner, exchange, key).pipe(
-              Effect.catch((error) =>
-                error.reason._tag === "Transport" && error.reason.code === "owner-closed"
-                  ? Effect.fail(error)
-                  : Effect.logWarning("session websocket connect failed; using http", {
-                      sessionTransport: "websocket",
-                      phase: "connect",
-                      delivery: "not-sent",
-                      code: error.reason._tag === "Transport" ? error.reason.code : error.reason._tag,
-                    }).pipe(
-                      Effect.andThen(metric("connect_failure")),
-                      Effect.andThen(metric("fallback")),
-                      Effect.as(undefined),
-                    ),
-              ),
+              Effect.catch((error) => {
+                if (error.reason._tag === "Transport" && error.reason.code === "owner-closed") return Effect.fail(error)
+                // Any connect failure, transient or not, pins the Session to HTTP until restart or move:
+                // a network that refuses the upgrade would otherwise charge every step for a failed connect.
+                owner.httpFallback = true
+                return Effect.logWarning("session websocket connect failed; using http", {
+                  sessionTransport: "websocket",
+                  phase: "connect",
+                  delivery: "not-sent",
+                  code: error.reason._tag === "Transport" ? error.reason.code : error.reason._tag,
+                }).pipe(
+                  Effect.andThen(metric("connect_failure")),
+                  Effect.andThen(metric("fallback")),
+                  Effect.as(undefined),
+                )
+              }),
             )
         if (!channel) return fallback(exchange)
 
@@ -316,6 +337,11 @@ export const makeLayer = (connector: WebSocketConnector) =>
           Effect.onInterrupt(() => closeChannel(owner, channel)),
         )
         if (create.mode === "full") channel.checkpoint = undefined
+        yield* Effect.logDebug("session websocket sending", {
+          sessionTransport: "websocket",
+          phase: "send",
+          mode: create.mode,
+        })
         const active: Active = {
           queue: yield* Queue.bounded<string, AIError>(INBOUND_CAPACITY),
           delivery: "send-attempted",
@@ -383,8 +409,10 @@ export const makeLayer = (connector: WebSocketConnector) =>
               if (terminal && pending === 0) {
                 yield* metric("terminal", { type: terminal.type })
                 if (terminal.type === "rejected") yield* metric("rejection", { recovery: terminal.recovery })
-                if (terminal.type === "rejected" && terminal.recovery === "rotate-and-retry-full")
-                  yield* closeChannel(owner, channel)
+                // The Codex backend stops serving a connection after any error frame: the next request is
+                // never answered and the socket dies with 1006. api.openai.com keeps it open, so reconnecting
+                // costs one handshake there. Drop the socket after every error so retries never race that.
+                if (terminal.type !== "completed" && terminal.type !== "incomplete") yield* closeChannel(owner, channel)
                 return
               }
               yield* metric("cancellation")

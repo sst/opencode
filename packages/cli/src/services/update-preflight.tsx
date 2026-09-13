@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 // Split-footer status shown while a freshly launched CLI replaces a
 // version-mismatched background service before the TUI attaches.
-import { createCliRenderer, RGBA, TextAttributes, type CliRenderer, type ThemeMode } from "@opentui/core"
+import { createCliRenderer, RGBA, TextAttributes, type CliRenderer } from "@opentui/core"
 import { render, useTerminalDimensions } from "@opentui/solid"
 import { OPENCODE_VERSION } from "../version"
 import { registerOpencodeSpinner } from "@opencode/tui/component/register-spinner"
@@ -30,15 +30,9 @@ const completionHold = 650
 export type Handle = {
   readonly begin: (from?: string) => boolean
   readonly loading: () => void
-  readonly finish: () => Promise<Handoff | undefined>
+  readonly finish: () => Promise<undefined>
   readonly fail: (message: string) => Promise<void>
   readonly close: () => Promise<void>
-}
-
-export type Handoff = {
-  readonly renderer: CliRenderer
-  readonly mode: ThemeMode | null
-  readonly complete: () => void
 }
 
 export const make = (): Handle => {
@@ -72,7 +66,7 @@ export const make = (): Handle => {
 
 type Session = {
   readonly loading: () => Promise<void>
-  readonly finish: () => Promise<Handoff>
+  readonly finish: () => Promise<undefined>
   readonly fail: (message: string) => Promise<void>
   readonly close: () => Promise<void>
 }
@@ -83,7 +77,6 @@ async function open(from?: string): Promise<Session> {
   const [outcome, setOutcome] = createSignal<"running" | "success" | "failure">("running")
   const [failure, setFailure] = createSignal("")
   const [animating, setAnimating] = createSignal(true)
-  const [visible, setVisible] = createSignal(true)
   let resolveOutcome: (() => void) | undefined
   const renderer = await createCliRenderer({
     stdin: process.stdin,
@@ -101,20 +94,17 @@ async function open(from?: string): Promise<Session> {
     externalOutputMode: "capture-stdout",
     consoleMode: "disabled",
   })
-  const terminalMode = renderer.waitForThemeMode(1000).catch(() => null)
   await render(
     () => (
-      <Show when={visible()}>
-        <UpdateFooter
-          from={from}
-          active={active}
-          outcome={outcome}
-          failure={failure}
-          animating={animating}
-          renderer={renderer}
-          onOutcomeSettled={() => resolveOutcome?.()}
-        />
-      </Show>
+      <UpdateFooter
+        from={from}
+        active={active}
+        outcome={outcome}
+        failure={failure}
+        animating={animating}
+        renderer={renderer}
+        onOutcomeSettled={() => resolveOutcome?.()}
+      />
     ),
     renderer,
   ).catch((error) => {
@@ -148,10 +138,8 @@ async function open(from?: string): Promise<Session> {
     if (completed) await setTimeout(hold)
   }
   let closing: Promise<void> | undefined
-  let transferred = false
   const close = () =>
     (closing ??= (async () => {
-      if (transferred) return
       setAnimating(false)
       if (renderer.isDestroyed) return
       renderer.pause()
@@ -174,18 +162,8 @@ async function open(from?: string): Promise<Session> {
         await waitForStage()
         await transitionTo("success", completionHold)
       })
-      const mode = await terminalMode
-      renderer.externalOutputMode = "passthrough"
-      renderer.screenMode = "alternate-screen"
-      renderer.consoleMode = "console-overlay"
-      renderer.requestRender()
-      await Promise.race([renderer.idle(), setTimeout(500)])
-      transferred = true
-      return {
-        renderer,
-        mode,
-        complete: () => setVisible(false),
-      }
+      await close()
+      return undefined
     },
     fail: (message) =>
       settle(async () => {

@@ -74,9 +74,6 @@ function getLoads() {
 }
 
 const cache = new Map<SoundID, Promise<string | undefined>>()
-const claimed = new Set<string>()
-const CLAIMED_STORAGE_KEY = "opencode:notification-sounds"
-const MAX_CLAIMED = 500
 
 export function soundSrc(id: string | undefined) {
   const loads = getLoads()
@@ -102,35 +99,4 @@ export function playSound(src: string | undefined) {
 
 export function playSoundById(id: string | undefined) {
   return soundSrc(id).then((src) => playSound(src))
-}
-
-export async function playSoundByIdOnce(id: string | undefined, eventID: string) {
-  const play = async () => {
-    if (!claim(eventID)) return
-    await playSoundById(id)
-  }
-
-  if (typeof navigator === "undefined" || !navigator.locks) return play()
-  await navigator.locks.request(`${CLAIMED_STORAGE_KEY}:${eventID}`, play)
-}
-
-function claim(eventID: string) {
-  if (claimed.has(eventID)) return false
-
-  if (typeof localStorage !== "undefined") {
-    try {
-      const value: unknown = JSON.parse(localStorage.getItem(CLAIMED_STORAGE_KEY) ?? "[]")
-      const events = Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
-      if (events.includes(eventID)) {
-        claimed.add(eventID)
-        return false
-      }
-      localStorage.setItem(CLAIMED_STORAGE_KEY, JSON.stringify([...events, eventID].slice(-MAX_CLAIMED)))
-    } catch {
-      // The in-memory claim still prevents duplicates in this renderer when storage is unavailable.
-    }
-  }
-
-  claimed.add(eventID)
-  return true
 }

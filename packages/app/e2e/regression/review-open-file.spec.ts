@@ -1,5 +1,6 @@
 import { base64Encode } from "@opencode/util/encode"
-import { expect, test } from "@playwright/test"
+import type { OpenCodeEvent } from "@opencode/client/promise"
+import { expect, test, type Route } from "@playwright/test"
 import { mockOpenCodeServer } from "../utils/mock-server"
 import { expectSessionTitle } from "../utils/waits"
 
@@ -13,6 +14,7 @@ test.use({ viewport: { width: 1440, height: 900 } })
 
 test("opens and searches project files inline", async ({ page }) => {
   const searches: { query: string; dirs?: string; limit?: number }[] = []
+  const events: OpenCodeEvent[] = []
   await mockOpenCodeServer(page, {
     directory,
     project: {
@@ -58,6 +60,7 @@ test("opens and searches project files inline", async ({ page }) => {
       searches.push(input)
       return input.query === "nested" ? ["src/nested.ts"] : []
     },
+    events: () => events.splice(0),
     pageMessages: () => ({ items: [] }),
   })
   await page.addInitScript(
@@ -126,6 +129,35 @@ test("opens and searches project files inline", async ({ page }) => {
   await expect(panel.getByText("contents:README.md", { exact: true })).toBeVisible()
   await expect(sidebar).toHaveCount(0)
 
+  const missingReadPattern = "**/api/fs/read/README.md*"
+  const missingRead = (route: Route) =>
+    route.fulfill({
+      status: 404,
+      contentType: "application/json",
+      body: JSON.stringify({
+        _tag: "FileNotFoundError",
+        path: "README.md",
+        message: "File not found: README.md",
+      }),
+    })
+  await page.route(missingReadPattern, missingRead)
+  const missingResponse = page.waitForResponse((response) => response.url().includes("/api/fs/read/README.md"))
+  events.push(filesystemEvent("README.md", "unlink"))
+  await missingResponse
+  await expect(page.getByText("Failed to load file", { exact: true })).toBeVisible()
+
+  const missingTab = panel.getByRole("tab", { name: "File not found: README.md", selected: true })
+  await expect(missingTab).toBeVisible()
+  await expect(missingTab.locator("[data-file-not-found]")).toHaveCSS("text-decoration-line", "line-through")
+  await expect(panel.getByText("File not found: README.md", { exact: true })).toBeVisible()
+
+  await page.unroute(missingReadPattern, missingRead)
+  events.push(filesystemEvent("README.md", "add"))
+  const restoredTab = panel.getByRole("tab", { name: "README.md", selected: true })
+  await expect(restoredTab).toBeVisible()
+  await expect(restoredTab.locator("[data-file-not-found]")).toHaveCount(0)
+  await expect(panel.getByText("contents:README.md", { exact: true })).toBeVisible()
+
   await panel.getByRole("button", { name: "Open file" }).click()
   await expect(panel.getByRole("tab", { name: "README.md" })).toHaveCount(0)
   await expect(sidebar).toBeVisible()
@@ -154,6 +186,16 @@ test("opens and searches project files inline", async ({ page }) => {
   await expect(panel.getByRole("tab", { name: "Open file" })).toHaveCount(0)
   await expect(panel.getByRole("tab", { name: "nested.ts", selected: true })).toBeVisible()
 })
+
+function filesystemEvent(file: string, event: "add" | "change" | "unlink"): OpenCodeEvent {
+  return {
+    id: `evt_${file}_${event}`,
+    created: 1,
+    type: "filesystem.changed",
+    location: { directory },
+    data: { file, event },
+  }
+}
 
 function fileNode(path: string) {
   return {

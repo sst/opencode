@@ -1,16 +1,18 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@opencode/cli",
-  "version": "1.18.4",
+  "version": "2.0.3",
   "type": "module",
   "license": "MIT",
   "bin": {
+    "opencode": "./bin/opencode.cjs",
     "opencode2": "./bin/opencode2.cjs"
   },
   "files": [
     "bin"
   ],
   "exports": {
+    "./vite-host": "./dev/host.js",
     "./run": "./src/run/index.ts",
     "./server-process": "./src/server-process.ts"
   },
@@ -74,6 +76,7 @@
     "@parcel/watcher-linux-x64-glibc": "2.5.1",
     "@parcel/watcher-win32-arm64": "2.5.1",
     "@parcel/watcher-win32-x64": "2.5.1",
+    "solid-refresh": "0.6.3",
     "vite": "catalog:",
     "vite-plugin-solid": "catalog:"
   }

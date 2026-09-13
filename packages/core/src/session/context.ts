@@ -1,6 +1,7 @@
 export * as SessionContext from "./context.js"
 
 import { Model } from "@opencode/schema/model"
+import { Permission } from "../permission.js"
 import { Context, Effect, Layer } from "effect"
 import { Agent } from "../agent.js"
 import { Catalog } from "../catalog.js"
@@ -65,7 +66,7 @@ export interface Interface {
       }
     | undefined
   >
-  readonly prepare: SessionModelRequest.Interface["prepare"]
+  readonly request: SessionModelRequest.Interface
 }
 
 /** Location-scoped model-context loader for durable Session Steps. */
@@ -84,7 +85,7 @@ const layer = Layer.effect(
     const mcpInstructions = yield* McpInstructions.Service
     const mcpTools = yield* McpTool.Service
     const models = yield* SessionRunnerModel.Service
-    const modelRequests = yield* SessionModelRequest.Service
+    const request = yield* SessionModelRequest.Service
     const referenceInstructions = yield* ReferenceInstructions.Service
     const skillInstructions = yield* SkillInstructions.Service
     const store = yield* SessionStore.Service
@@ -129,7 +130,7 @@ const layer = Layer.effect(
       if (!agent.info) return yield* new AgentNotFoundError({ sessionID: session.id, agent: session.agent ?? agent.id })
       const loaded = yield* Effect.all(
         {
-          tools: registry.snapshot(agent.info.permissions),
+          tools: registry.snapshot(Permission.merge(agent.info.permissions, session.permissions ?? [])),
           builtins: builtins.load(sessionID),
           discovery: discovery.load(),
           skills: skillInstructions.load(agent),
@@ -173,7 +174,7 @@ const layer = Layer.effect(
       }
     })
 
-    return Service.of({ select, load, resolveModel, selectTitle, prepare: modelRequests.prepare })
+    return Service.of({ select, load, resolveModel, selectTitle, request })
   }),
 )
 

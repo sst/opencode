@@ -32,7 +32,7 @@ describe("acp service lifecycle", () => {
         model: { providerID: "test", id: "second-model" },
       },
     })
-    expect(currentValue(created, "effort")).toBe("none")
+    expect(currentValue(created, "effort")).toBe("default")
   })
 
   test("loads and forks with paginated replay while resume does not replay", async () => {

@@ -15,11 +15,11 @@ export type LanguageModelOptions = Omit<RouteDefaultsInput, "providerOptions"> &
     readonly providerOptions?: OpenAIProviderOptionsInput
   }
 
-export interface Settings extends ProviderPackage.Settings {
-  readonly apiKey?: string
-  readonly baseURL?: string
-  readonly providerOptions?: OpenAIProviderOptionsInput
-}
+export type Settings = ProviderPackage.Settings &
+  OpenAIProviderOptionsInput & {
+    readonly apiKey?: string
+    readonly baseURL?: string
+  }
 
 export const route = Route.make({
   id: "cerebras-chat",
@@ -52,11 +52,14 @@ export const configure = (input: LanguageModelOptions = {}) => {
 
 export const provider = configure()
 
-export const model: ProviderPackage.Definition<Settings, OpenAIProviderOptionsInput>["model"] = (modelID, settings) =>
+export const model: ProviderPackage.Definition<Settings, OpenAIProviderOptionsInput>["model"] = (
+  modelID,
+  { apiKey, baseURL, body, headers, ...providerOptions },
+) =>
   configure({
-    apiKey: settings.apiKey,
-    baseURL: settings.baseURL,
-    headers: settings.headers === undefined ? undefined : { ...settings.headers },
-    http: settings.body === undefined ? undefined : { body: { ...settings.body } },
-    providerOptions: settings.providerOptions,
+    apiKey,
+    baseURL,
+    headers: headers === undefined ? undefined : { ...headers },
+    http: body === undefined ? undefined : { body: { ...body } },
+    providerOptions,
   }).model(modelID)

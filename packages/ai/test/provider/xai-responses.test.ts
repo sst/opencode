@@ -1,17 +1,53 @@
 import { describe, expect } from "bun:test"
-import { Effect } from "effect"
+import { Effect, Layer, Stream } from "effect"
 import { LLM, LLMEvent, Message } from "../../src/index.js"
 import { XAI } from "../../src/providers.js"
 import { OpenResponses } from "../../src/protocols/open-responses.js"
 import { OpenAIResponses } from "../../src/protocols/openai-responses.js"
+import * as ProviderShared from "../../src/protocols/shared.js"
 import { XAIResponses } from "../../src/protocols/xai-responses.js"
-import { LLMClient } from "../../src/route.js"
+import {
+  LLMClient,
+  RequestExecutor,
+  WebSocketTransport,
+  type ChannelCheckpoint,
+  type WebSocketChannelDriver,
+} from "../../src/route.js"
 import { compileRequest } from "../../src/route/client.js"
 import { it } from "../lib/effect.js"
 import { fixedResponse } from "../lib/http.js"
 import { sseEvents } from "../lib/sse.js"
 
 const model = XAI.configure({ apiKey: "test", baseURL: "https://api.x.ai/v1" }).responses("grok-4.6")
+
+/** Runs a request through the WebSocket transport and hands back its channel driver; the HTTP fallback answers. */
+const channelDriver = (request: ReturnType<typeof LLM.request>) =>
+  Effect.gen(function* () {
+    let driver: WebSocketChannelDriver | undefined
+    yield* LLMClient.generate(request, {
+      webSocket: {
+        execute: (exchange) =>
+          Effect.sync(() => {
+            driver = exchange.driver
+            return { frames: exchange.fallback(), complete: Effect.void }
+          }),
+      },
+    }).pipe(Effect.provide(fixedResponse(sseEvents({ type: "response.completed", response: { id: "http" } }))))
+    if (!driver) throw new Error("Expected a WebSocket channel driver")
+    return driver
+  })
+
+const completed = (driver: WebSocketChannelDriver, id: string) =>
+  Effect.gen(function* () {
+    const create = yield* driver.create(undefined)
+    yield* driver.observe(create, ProviderShared.encodeJson({ type: "response.created", response: { id } }))
+    const observation = yield* driver.observe(
+      create,
+      ProviderShared.encodeJson({ type: "response.completed", response: { id } }),
+    )
+    if (observation.type !== "completed" || !observation.checkpoint) throw new Error("Expected a checkpoint")
+    return observation.checkpoint
+  })
 
 describe("xAI Responses route", () => {
   it.effect("composes the Open Responses baseline with xAI extensions", () =>
@@ -159,6 +195,78 @@ describe("xAI Responses route", () => {
         items[1],
         { role: "user", content: [{ type: "input_text", text: JSON.stringify(items[2]) }] },
       ])
+    }),
+  )
+
+  it.effect("classifies xAI's untyped WebSocket error envelope", () =>
+    Effect.gen(function* () {
+      // xAI answers a rejected response.create with an error envelope that carries no event type.
+      const envelope = ProviderShared.encodeJson({
+        error: {
+          message:
+            'Request validation error: {"code":"400","error":"Argument not supported: instructions and previous_response_id together"}',
+          type: "api_error",
+        },
+      })
+      const webSocket = WebSocketTransport.makeDirect({
+        open: () =>
+          Effect.succeed({ sendText: () => Effect.void, messages: Stream.make(envelope), close: Effect.void }),
+      })
+      const error = yield* LLMClient.generate(LLM.request({ model, prompt: "Hello" }), { webSocket }).pipe(
+        Effect.provide(
+          LLMClient.layer.pipe(
+            Layer.provide(
+              Layer.succeed(
+                RequestExecutor.Service,
+                RequestExecutor.Service.of({ execute: () => Effect.die("unexpected HTTP request") }),
+              ),
+            ),
+          ),
+        ),
+        Effect.flip,
+      )
+
+      expect(error.reason._tag).toBe("ProviderInternal")
+      expect(error.message).toContain("Argument not supported: instructions and previous_response_id together")
+      expect(error.reason.body).toBe(envelope)
+    }),
+  )
+
+  it.effect("continues stored responses without instructions and sends unstored steps in full", () =>
+    Effect.gen(function* () {
+      const step = (store: boolean, ...prompts: string[]) =>
+        LLM.request({
+          model,
+          system: "You are terse.",
+          messages: prompts.map((prompt) => Message.user(prompt)),
+          providerOptions: { store },
+        })
+      const send = (store: boolean, checkpoint: ChannelCheckpoint) =>
+        channelDriver(step(store, "First", "Second")).pipe(Effect.flatMap((driver) => driver.create(checkpoint)))
+
+      const stored = yield* send(true, yield* completed(yield* channelDriver(step(true, "First")), "resp_1"))
+      expect(stored.mode).toBe("incremental")
+      expect(JSON.parse(stored.message)).toEqual({
+        type: "response.create",
+        model: "grok-4.6",
+        store: true,
+        include: ["reasoning.encrypted_content"],
+        previous_response_id: "resp_1",
+        input: [{ role: "user", content: [{ type: "input_text", text: "Second" }] }],
+      })
+
+      // The connection cache only serves stored responses, so the default store: false never chains.
+      const unstored = yield* send(false, yield* completed(yield* channelDriver(step(false, "First")), "resp_1"))
+      expect(unstored.mode).toBe("full")
+      expect(JSON.parse(unstored.message)).toMatchObject({
+        instructions: "You are terse.",
+        store: false,
+        input: [
+          { role: "user", content: [{ type: "input_text", text: "First" }] },
+          { role: "user", content: [{ type: "input_text", text: "Second" }] },
+        ],
+      })
+      expect(JSON.parse(unstored.message).previous_response_id).toBeUndefined()
     }),
   )
 

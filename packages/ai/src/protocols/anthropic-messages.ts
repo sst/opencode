@@ -1708,7 +1708,10 @@ export const transport = <
 }
 
 function requiredBetaHeaders(body: Pick<AnthropicMessagesBody, "messages" | "context_management" | "thinking">) {
-  const betas: string[] = []
+  // Always request interleaved thinking. The API accepts the header on any
+  // model and ignores it where unsupported, while manual-thinking models need
+  // it for thinking between tool calls.
+  const betas: string[] = ["interleaved-thinking-2025-05-14"]
   const requestsCompaction = (body.context_management?.edits.length ?? 0) > 0
   const replaysCompaction = body.messages.some((message) =>
     message.content.some((block) => block.type === "compaction"),

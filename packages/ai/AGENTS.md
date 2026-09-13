@@ -122,13 +122,14 @@ Keep provider facades small and explicit:
 
 ### Provider Package Entrypoints
 
-Catalog-selected native providers use package-like export paths from `@opencode/ai`. They are internal entrypoints in one npm package, not separately published provider packages. Every entrypoint implements `ProviderPackage.Definition` and exposes `model(modelID, settings)`, where settings are serializable provider configuration plus common `headers`, `body`, and `limits` overlays.
+Catalog-selected native providers use package-like export paths from `@opencode/ai`. They are internal entrypoints in one npm package, not separately published provider packages. Every entrypoint implements `ProviderPackage.Definition` and exposes `model(modelID, settings)`, where settings are one flat serializable object: the connection keys the entrypoint declares (`apiKey`, `baseURL`, `region`, …), the common `headers` and `body` overlays, and the protocol's request options (`reasoningEffort`, `thinking`, …) side by side. Each entrypoint destructures its own connection keys and passes the rest to the route as `providerOptions`; there is no nested `providerOptions` at the entrypoint.
 
 ```ts
 import { model } from "@opencode/ai/providers/openai/responses"
 
 const selected = model("gpt-5", {
   apiKey,
+  reasoningEffort: "high",
 })
 ```
 

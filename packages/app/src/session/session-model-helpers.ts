@@ -12,10 +12,8 @@ type Local = {
 type ModelSelection = {
   model: {
     current(): { id: string; provider: { id: string } } | undefined
-    set(model: { providerID: string; modelID: string }): void
     variant: {
       current(): string | undefined
-      set(variant: string | undefined): void
     }
   }
 }
@@ -50,19 +48,4 @@ export const syncPromptModel = (local: ModelSelection, prompt: PromptState) => {
   if (current?.providerID === next.providerID && current.modelID === next.modelID && current.variant === next.variant)
     return
   prompt.model.set(next)
-}
-
-export const restorePromptModel = (local: ModelSelection, prompt: PromptState) => {
-  const model = prompt.model.current()
-  if (!model) return false
-  const current = local.model.current()
-  if (
-    current?.provider.id === model.providerID &&
-    current.id === model.modelID &&
-    local.model.variant.current() === (model.variant ?? undefined)
-  )
-    return true
-  local.model.set({ providerID: model.providerID, modelID: model.modelID })
-  local.model.variant.set(model.variant ?? undefined)
-  return true
 }

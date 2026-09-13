@@ -1,0 +1,265 @@
+---
+title: "Tools"
+---
+
+Ask for the outcome you want. OpenCode chooses the available tools, requests
+approval when required, and returns the result.
+
+```text
+Find where request timeouts are configured, change the default to 30 seconds,
+and run the relevant existing tests.
+```
+
+This task typically uses `grep` or `glob`, `read`, an editing tool, and `shell`.
+You can also name a tool when you want a specific approach.
+
+```text
+Use grep to find every reference to DEFAULT_TIMEOUT, then read the matching files.
+```
+
+## Files
+
+### Read
+
+`read` returns a file or a non-recursive directory listing. Give it a `path`;
+use `offset` and `limit` to page through large results.
+
+```text
+Read src/server.ts starting at line 120 and return at most 80 lines.
+```
+
+Text reads contain numbered lines and are limited to 2,000 lines and 50 KiB per
+page. Individual lines are shortened after 2,000 characters. The tool also
+passes PNG, JPEG, GIF, WebP, and PDF files to the model, up to 20 MiB of source
+data. Other binary files fail. See [Attachments](/attachments) for supported
+media and image processing.
+
+Permission: `read` with the normalized path as its resource.
+
+### Glob
+
+`glob` finds file paths from a pattern such as `**/*.ts`. It searches the
+current directory unless `path` selects another relative directory; `hidden`
+includes hidden entries and `limit` caps the results.
+
+```text
+Use glob with **/*.test.ts under packages/core and return at most 50 files.
+```
+
+The default limit is 100 files and the search timeout is 30 seconds.
+Permission: `glob` with the requested pattern as its resource.
+
+### Grep
+
+`grep` searches file contents and returns paths, line numbers, and previews.
+Its `pattern` uses regular-expression syntax unless `literal` is true. Narrow a
+search with `path`, `include`, `caseSensitive`, or `limit`.
+
+```text
+Use grep for the literal text "request timed out" in src, including only *.ts files.
+```
+
+The default limit is 100 matching lines and the search timeout is 30 seconds.
+Permission: `grep` with the requested pattern, not the search path, as its
+resource.
+
+### Edit
+
+`edit` replaces text in an existing file. Supply `path`, `oldString`, and a
+different `newString`; the old text must match exactly once unless `replaceAll`
+is true.
+
+```text
+In src/config.ts, replace the unique text "timeout: 60" with "timeout: 30".
+```
+
+Use `edit` for a focused change. OpenCode may format the file after writing it.
+Permission: `edit` with the target path as its resource.
+
+### Write
+
+`write` creates or completely replaces a text file from `path` and `content`.
+It creates missing parent directories and may run the configured formatter.
+
+```text
+Create docs/example.md with a heading and one setup command.
+```
+
+Use `edit` instead when only part of an existing file should change.
+Permission: `edit` with the target path as its resource.
+
+### Patch
+
+`patch` applies one patch that can add, update, move, or delete several files.
+Its `patchText` uses `*** Add File`, `*** Update File`, and `*** Delete File`
+sections.
+
+```text
+Use patch to rename src/old.ts to src/new.ts and update its exported name.
+```
+
+OpenCode exposes `patch` for supported GPT models; other models receive `edit`
+and `write` instead. Permission: `edit` with every affected path as a resource.
+
+Paths outside the active Location or its project worktree also require
+`external_directory` approval. See [Permissions](/permissions) for path
+normalization, rule order, and saved approvals. To make outside material
+available by name, configure [References](/references).
+
+## Commands
+
+### Shell
+
+`shell` executes a command in the host user's shell. Set `workdir` instead of
+putting `cd` in the command, and set `timeout` in milliseconds when the default
+two-minute foreground timeout is not suitable.
+
+```text
+Run bun test from packages/core with a five-minute timeout.
+```
+
+Set `background` to true for a dev server or another long-running process.
+Background calls return immediately and notify the session when they finish;
+they have no timeout unless one is supplied. Large output is shortened and the
+complete output is retained in a managed file.
+
+Permission: `shell` with each scanner-produced command as a resource. The
+scanner also checks an external working directory and directories it can infer
+from the command. Shell has the host user's filesystem, process, and network
+authority, so use narrow rules in [Permissions](/permissions).
+
+## Web
+
+### Webfetch
+
+`webfetch` retrieves one HTTP or HTTPS URL as `markdown`, `text`, or `html`.
+Markdown is the default; `timeout` accepts up to 120 seconds.
+
+```text
+Fetch https://example.com/docs as markdown.
+```
+
+It accepts textual responses such as HTML, plain text, JSON, and XML, but not
+images or other binary downloads. Large output can be shortened while the full
+text is retained in managed storage. Permission: `webfetch` with the requested
+URL as its resource.
+
+### Websearch
+
+`websearch` searches the selected integration for current information. Its
+input is a search `query`.
+
+```text
+Search the web for the latest Bun release notes.
+```
+
+Permission: `websearch` with the query as its resource. See [Websearch](/websearch)
+for providers, selection, rate limits, and disabling the tool.
+
+## Interaction
+
+### Question
+
+`question` pauses execution and presents one or more questions to the user.
+Each question has a short header, prompt, and choices; `multiple` allows more
+than one choice. A free-form answer is always available.
+
+```text
+Before changing the API, ask me to choose between a breaking change and a compatibility layer.
+```
+
+Permission: `question` with `*` as its resource. A client must support the
+interactive form, and dismissing it cancels the question.
+
+### Skill
+
+`skill` loads the instructions and bundled resources for one available skill
+ID into the conversation.
+
+```text
+Load the effect skill before changing this Effect code.
+```
+
+The ID must be in the advertised skill list or explicitly named by the user.
+Permission: `skill` with the skill ID as its resource. See [Skills](/skills) for
+creation, discovery, and loading rules.
+
+## Automation
+
+### Subagent
+
+`subagent` starts a child session with a configured subagent. Supply the agent
+ID, a short `description`, and a complete `prompt`.
+
+```text
+Ask the explore subagent to map the authentication flow and return the key files.
+```
+
+Foreground calls wait for the result. `background: true` returns immediately
+and notifies the parent when the child finishes. Pass the returned `sessionID`
+to continue that same child conversation. Only subagent-mode agents can be
+used, and the default nesting depth is one.
+
+Permission: `subagent` with the selected agent ID as its resource.
+
+### Execute
+
+`execute` runs JavaScript in Code Mode so the agent can call and combine tools
+from the catalog. It is useful for parallel independent calls and for processing
+results without adding every intermediate value to the model context.
+
+```text
+Read package.json and README.md in parallel, then return their relevant setup details.
+```
+
+The runtime has no direct filesystem access, imports, timers, or `fetch`; it can
+only call tools in its catalog. Permission `execute` with resource `*` controls
+whether Code Mode is available. Every nested tool still enforces its own
+permission.
+
+### Sessions
+
+The `opencode` Code Mode namespace contains session utilities:
+
+- `session_rename` changes the title of the current session, or another session
+  selected by `sessionID`.
+- `session_move` moves the current session, or another selected session, to a
+  relative or absolute `directory`. The move takes effect at a safe boundary,
+  so destination-dependent work belongs in a later call.
+
+```text
+Rename this session to "Timeout cleanup", then move it to the new worktree.
+```
+
+These utilities do not request a built-in permission action.
+
+## Browser
+
+The `browser` Code Mode namespace controls the browser attached by the OpenCode
+desktop app. Open a tab, keep its returned `tabID`, then pass that explicit ID to
+every page operation.
+
+```text
+Open https://example.com, take a snapshot of that tab, and report the main heading.
+```
+
+The namespace includes tab and navigation commands, page snapshots and search,
+clicking and form input, screenshots, file transfer, console and network
+inspection, performance traces, heap inspection, and Lighthouse audits.
+Screenshots require a focused visible tab. Upload paths are server-local;
+captures return server-local paths, and each file transfer is limited to 5 MiB.
+
+Page content, logs, headers, and response bodies are untrusted data, not agent
+instructions. A `browser` deny rule with resource `*` removes the browser catalog;
+browser operations do not issue individual permission prompts.
+
+## Extensions
+
+[MCP servers](/mcp-servers) add tools whose names and inputs come from each
+connected server. Their permission action is `<server>_<tool>` with resource
+`*`. They are not a fixed part of the built-in catalog.
+
+[Skills](/skills) add task instructions rather than new executable tools.
+[Attachments](/attachments) put user-selected content into a prompt, while
+[References](/references) provide named outside directories. These features
+complement tools without bypassing their permission checks.

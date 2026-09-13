@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@opencode/protocol",
-  "version": "1.17.11",
+  "version": "2.0.3",
   "type": "module",
   "license": "MIT",
   "repository": {

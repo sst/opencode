@@ -34,12 +34,10 @@ it.effect("Groq lowers its own options for custom catalog identities and endpoin
         baseURL: "https://gateway.example/v1",
         headers: { "x-client": "test" },
         body: { custom: "value" },
-        providerOptions: {
-          reasoningEffort: "default",
-          parallelToolCalls: true,
-          serviceTier: "flex",
-          user: "test-user",
-        },
+        reasoningEffort: "default",
+        parallelToolCalls: true,
+        serviceTier: "flex",
+        user: "test-user",
       }),
       { provider: "custom-groq" },
     )

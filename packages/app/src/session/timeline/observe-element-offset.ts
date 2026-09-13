@@ -20,7 +20,8 @@ export function observeElementOffsetReconnectAware<TScrollElement extends Elemen
       cleanupOffset?.()
     }
 
-  let removed = false
+  // Cached views can be constructed before their first attachment to the page.
+  let removed = !element.isConnected
   let frame: number | undefined
   const clearCheck = () => {
     if (frame === undefined) return

@@ -67,6 +67,7 @@ async function renderSubagent(interrupt: "ctrl+i" | "none") {
           tuiConfig={config}
           miniSettings={() => ({
             thinking: "hide",
+            tools: "show",
             shell_output: "hide",
             turn_summary: "show",
             footer: "show",

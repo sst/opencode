@@ -11,7 +11,6 @@ import { fakeSelectorSdk } from "../fixture/selector"
 import { testEffect } from "../lib/effect"
 import { PluginTestLayer } from "./fixture"
 
-const vertexOptions: Record<string, any>[] = []
 const googleAuthOptions: Record<string, any>[] = []
 const it = testEffect(PluginTestLayer)
 
@@ -47,15 +46,6 @@ function withEnv<A, E, R>(vars: Record<string, string | undefined>, effect: () =
       ),
   )
 }
-
-void mock.module("@ai-sdk/google-vertex", () => ({
-  createVertex: (options: Record<string, any>) => {
-    vertexOptions.push(options)
-    return {
-      languageModel: (modelID: string) => ({ modelID, provider: "google-vertex", specificationVersion: "v3" }),
-    }
-  },
-}))
 
 void mock.module("google-auth-library", () => ({
   GoogleAuth: class {
@@ -187,9 +177,6 @@ describe("GoogleVertexPlugin", () => {
       },
       () =>
         Effect.gen(function* () {
-          vertexOptions.length = 0
-          const plugin = yield* Plugin.Service
-          const aisdk = yield* AISDK.Service
           const catalog = yield* Catalog.Service
           yield* catalog.transform((catalog) =>
             catalog.provider.update(Provider.ID.make("google-vertex"), (provider) => {
@@ -203,15 +190,6 @@ describe("GoogleVertexPlugin", () => {
           )
           yield* addPlugin()
           const provider = required(yield* catalog.provider.get(Provider.ID.make("google-vertex")))
-          yield* aisdk.runSDK({
-            model: Model.Info.make({
-              ...Model.Info.default(Provider.ID.make("google-vertex"), Model.ID.make("gemini")),
-              modelID: Model.ID.make("gemini"),
-              package: "aisdk:@ai-sdk/google-vertex",
-            }),
-            package: "@ai-sdk/google-vertex",
-            options: { name: "google-vertex" },
-          })
 
           expect(provider.settings?.project).toBe("vertex-project")
           expect(provider).toMatchObject({
@@ -221,8 +199,6 @@ describe("GoogleVertexPlugin", () => {
                 "https://europe-west4-aiplatform.googleapis.com/v1/projects/vertex-project/locations/europe-west4",
             },
           })
-          expect(vertexOptions[0].project).toBe("vertex-project")
-          expect(vertexOptions[0].location).toBe("europe-west4")
         }),
     ),
   )
@@ -314,56 +290,6 @@ describe("GoogleVertexPlugin", () => {
           expect(provider.settings?.location).toBe("us-central1")
         }),
     ),
-  )
-
-  it.effect("does not pass Google auth fetch to the native Vertex SDK", () =>
-    withEnv(
-      {
-        GOOGLE_CLOUD_PROJECT: "env-project",
-        GOOGLE_VERTEX_LOCATION: "env-location",
-      },
-      () =>
-        Effect.gen(function* () {
-          vertexOptions.length = 0
-          const plugin = yield* Plugin.Service
-          const aisdk = yield* AISDK.Service
-          yield* addPlugin()
-          yield* aisdk.runSDK({
-            model: Model.Info.make({
-              ...Model.Info.default(Provider.ID.make("google-vertex"), Model.ID.make("gemini")),
-              modelID: Model.ID.make("gemini"),
-              package: "aisdk:@ai-sdk/google-vertex",
-            }),
-            package: "@ai-sdk/google-vertex",
-            options: { name: "google-vertex" },
-          })
-          expect(vertexOptions).toHaveLength(1)
-          expect(vertexOptions[0].project).toBe("env-project")
-          expect(vertexOptions[0].location).toBe("env-location")
-          expect(vertexOptions[0].fetch).toBeUndefined()
-        }),
-    ),
-  )
-
-  it.effect("creates Anthropic SDKs for canonical Google Vertex models", () =>
-    Effect.gen(function* () {
-      const plugin = yield* Plugin.Service
-      const aisdk = yield* AISDK.Service
-      yield* addPlugin()
-      const result = yield* aisdk.runSDK({
-        model: Model.Info.make({
-          ...Model.Info.default(Provider.ID.googleVertex, Model.ID.make("claude-sonnet-4-6@default")),
-          modelID: Model.ID.make("claude-sonnet-4-6@default"),
-          package: "aisdk:@ai-sdk/google-vertex/anthropic",
-        }),
-        package: "@ai-sdk/google-vertex/anthropic",
-        options: { name: "google-vertex", project: "project", location: "eu" },
-      })
-
-      expect(result.sdk.languageModel("claude-sonnet-4-6@default").config.baseURL).toBe(
-        "https://aiplatform.eu.rep.googleapis.com/v1/projects/project/locations/eu/publishers/anthropic/models",
-      )
-    }),
   )
 
   it.effect("wraps an injected transport with Google auth for OpenAI-compatible Vertex endpoints", () =>

@@ -5,12 +5,12 @@ export type Settings = ZAICodingPlan.Settings<ZAICodingPlan.ResponsesOptionsInpu
 
 export const model: ProviderPackage.Definition<Settings, ZAICodingPlan.ResponsesOptionsInput>["model"] = (
   modelID,
-  settings,
+  { apiKey, baseURL, body, headers, ...providerOptions },
 ) =>
   ZAICodingPlan.configure({
-    apiKey: settings.apiKey,
-    baseURL: settings.baseURL,
-    headers: settings.headers,
-    http: settings.body === undefined ? undefined : { body: { ...settings.body } },
-    providerOptions: settings.providerOptions,
+    apiKey,
+    baseURL,
+    headers,
+    http: body === undefined ? undefined : { body: { ...body } },
+    providerOptions,
   }).responses(modelID)

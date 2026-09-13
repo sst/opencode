@@ -40,7 +40,6 @@
   --menu-v2-fg-muted: var(--v2-text-text-faint);
   --menu-v2-fg-subtle: var(--v2-text-text-muted);
   --menu-v2-icon: var(--v2-icon-icon-base);
-  --menu-v2-accent: var(--v2-text-text-accent);
   --menu-v2-badge-bg: var(--v2-background-bg-layer-02);
   --menu-v2-badge-border: var(--v2-border-border-base);
   --menu-v2-hover: var(--v2-overlay-simple-overlay-hover);
@@ -146,12 +145,12 @@
   }
 
   &[data-checked] [data-slot="menu-v2-item-content"] {
-    font-weight: 530;
-    color: var(--menu-v2-accent);
+    font-weight: 440;
+    color: var(--menu-v2-fg);
   }
 
   &[data-checked] [data-slot="menu-v2-item-indicator"] {
-    color: var(--menu-v2-accent);
+    color: var(--menu-v2-icon);
   }
 
   &[data-disabled] {

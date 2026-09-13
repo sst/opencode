@@ -1,6 +1,6 @@
 {
   "name": "@opencode/console-support",
-  "version": "1.18.15",
+  "version": "2.0.3",
   "type": "module",
   "license": "MIT",
   "scripts": {

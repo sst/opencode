@@ -458,8 +458,6 @@ export function DialogOpen(props: { sessions: SessionInfo[]; onLoad: (sessions: 
                   directory: data.project.get(id)!.canonical,
                   workspace: workspaceID(),
                 },
-                strategy: "git",
-                directory: path.join(paths.worktree, id.slice(0, 6)),
                 ...(value.trim() ? { name: value.trim() } : {}),
               })
               .then((created) => {

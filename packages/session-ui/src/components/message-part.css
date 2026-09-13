@@ -8,6 +8,8 @@
 }
 
 [data-component="user-message"] {
+  --user-message-mention-prefix-color: var(--v2-blue-500);
+
   font-family: var(--font-family-sans);
   font-size: var(--font-size-base);
   font-style: normal;
@@ -144,16 +146,16 @@
     padding: 8px 12px;
     border-radius: 10px;
 
-    [data-highlight="file"] {
-      color: var(--syntax-property);
+    [data-highlight="file"],
+    [data-highlight="agent"] {
+      color: inherit;
+      font-weight: 600;
       direction: ltr;
       unicode-bidi: isolate;
     }
 
-    [data-highlight="agent"] {
-      color: var(--syntax-type);
-      direction: ltr;
-      unicode-bidi: isolate;
+    [data-slot="user-message-mention-prefix"] {
+      color: var(--user-message-mention-prefix-color);
     }
 
     max-width: 100%;
@@ -605,19 +607,35 @@
   [data-slot="context-tool-group-title"] {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 0;
     flex-shrink: 1;
     min-width: 0;
   }
 
-  [data-slot="context-tool-group-prefix"] {
+  [data-slot="context-tool-group-usage"] {
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 0;
     color: var(--v2-text-text-muted);
     font-family: var(--v2-font-family-sans);
     font-size: 13px;
     font-weight: 440;
     line-height: var(--line-height-compact);
     letter-spacing: -0.04px;
+
+    & > [data-slot="context-tool-group-prefix"],
+    & > [data-slot="context-tool-group-count"] {
+      white-space: pre;
+    }
+  }
+
+  [data-slot="context-tool-group-count"] {
+    color: var(--v2-text-text-base);
+  }
+
+  [data-slot="context-tool-group-prefix"] {
+    flex-shrink: 0;
   }
 
   [data-slot="basic-tool-tool-title"] {
@@ -1290,7 +1308,7 @@
     flex-grow: 1;
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: 12px;
     min-width: 0;
   }
 
@@ -1448,18 +1466,26 @@
 }
 
 :root body [data-workspace-session] [data-component="user-message"] [data-slot="user-message-text"] {
+  --user-message-mention-prefix-color: var(--v2-blue-300);
+
   background: var(--v2-background-bg-accent);
   color: var(--v2-text-text-contrast);
 }
 
-:root[data-color-scheme="light"] body [data-local-session] [data-component="user-message"]
+:root[data-color-scheme="light"]
+  body
+  [data-local-session]
+  [data-component="user-message"]
   [data-slot="user-message-text"] {
   background: var(--v2-blue-100);
   color: var(--v2-blue-700);
   border-radius: 8px;
 }
 
-:root[data-color-scheme="dark"] body [data-local-session] [data-component="user-message"]
+:root[data-color-scheme="dark"]
+  body
+  [data-local-session]
+  [data-component="user-message"]
   [data-slot="user-message-text"] {
   background: var(--v2-blue-1200);
   color: var(--v2-blue-300);

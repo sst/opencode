@@ -230,7 +230,7 @@ const setup = Effect.fnUntraced(function* (endpoint = false) {
       messages: yield* store.context(sessionID),
       inputID: SessionMessage.ID.create(),
       resolveContext: () => load,
-      prepare: requests.prepare,
+      prepare: requests.compaction,
     })
   })
   const checkpoint = Effect.gen(function* () {
@@ -240,12 +240,14 @@ const setup = Effect.fnUntraced(function* (endpoint = false) {
       return yield* Effect.die("Missing native checkpoint")
     expect(last.summary).toBe("")
     expect(last.recent).toBe("")
+    // Provider compaction has no summary, so the request usage is the only visible cost of the operation.
+    expect(last.tokens).toMatchObject({ input: 20, output: 4 })
     return last.providerContext
   })
   return {
     compact,
     automatic: Effect.gen(function* () {
-      return yield* compaction.compact({ context: yield* load, prepare: requests.prepare })
+      return yield* compaction.compact({ context: yield* load, prepare: requests.compaction })
     }),
     checkpoint,
     prompt,
@@ -282,10 +284,12 @@ it.live(
       expect(fixture.headers[0]?.get("x-http-hook")).toBe("compaction")
       yield* fixture.prompt("Second real user request")
       const context = yield* fixture.load
-      const prepared = yield* fixture.requests.prepare({
-        kind: "primary",
-        scope: { session: context.session, model: context.model, agentID: context.agent.id, tools: context.tools },
-        transcript: SessionModelRequest.baseTranscript({ ...context, agent: context.agent.info }),
+      const prepared = yield* fixture.requests.primary({
+        session: context.session,
+        agent: context.agent.id,
+        model: context.model,
+        tools: context.tools,
+        ...SessionModelRequest.baseTranscript({ ...context, agent: context.agent.info }),
       })
       const client = yield* LLMClient.Service
       yield* client.generate(prepared.request, prepared.options)
@@ -329,7 +333,7 @@ it.live(
       expect(fixture.state.calls).toBe(7)
       expect(retries).toMatchObject([
         {
-          agent: "compaction",
+          agent: "build",
           attempt: 2,
           error: { type: "provider.rate-limit" },
           decision: { retry: true, delay: 0 },
@@ -393,6 +397,34 @@ it.live("only known automatic native overflow falls back locally and failed reco
     expect((yield* fixture.load).messages).toContainEqual(
       expect.objectContaining({ type: "compaction", summary: "## Objective\n- Recovered locally" }),
     )
+  }),
+)
+
+it.live("compaction hooks supply the summary instead of provider compaction", () =>
+  Effect.gen(function* () {
+    const fixture = yield* setup()
+    yield* fixture.prompt("Original user")
+    yield* fixture.hooks.register("session", "compaction", (event) =>
+      Effect.sync(() => {
+        event.result = {
+          summary: "## Objective\n- hooked summary",
+          providerState: { responseId: "plugin" },
+          metadata: { plugin: "custom" },
+          tokens: { input: 10, output: 5, reasoning: 0, cache: { read: 0, write: 0 } },
+        }
+      }),
+    )
+    expect(yield* fixture.compact).toEqual({ status: "completed" })
+    expect(fixture.state.calls).toBe(0)
+    expect((yield* fixture.load).messages.at(-1)).toMatchObject({
+      type: "compaction",
+      status: "completed",
+      summary: "## Objective\n- hooked summary",
+      recent: "",
+      providerState: { responseId: "plugin" },
+      metadata: { plugin: "custom" },
+      tokens: { input: 10, output: 5 },
+    })
   }),
 )
 

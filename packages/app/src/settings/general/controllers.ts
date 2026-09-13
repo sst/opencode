@@ -1,4 +1,5 @@
 import { createMemo, createResource, onMount, type Accessor } from "solid-js"
+import type { ConfigPreferences, ConfigUpdatePreferencesInput } from "@opencode/client/promise"
 import type { ColorScheme } from "@opencode/ui/theme/context"
 import { useTheme } from "@opencode/ui/theme/context"
 import {
@@ -14,32 +15,100 @@ import {
   useSettings,
 } from "@/settings/model"
 import { playSoundById, SOUND_OPTIONS } from "@/shell/notifications/sound"
-import { createSoundPreviewController, type ShellOption } from "./behavior"
+import { createSoundPreviewController } from "./behavior"
 import { ServerConnection } from "@/runtime/server/registry"
 import { useServerCtx } from "@/runtime/server/runtime"
+import { useLanguage } from "@/runtime/i18n/language"
+import { showToast } from "@/shell/notifications/toast"
 
 export { createShellOptions, createSoundPreviewController } from "./behavior"
 export type { ShellOption, ShellSelectOption } from "./behavior"
 
-export function createShellSettingsController(server: Accessor<ServerConnection.Any | undefined>) {
+export function createServerPreferencesController(server: Accessor<ServerConnection.Any>) {
+  const language = useLanguage()
   const serverCtx = useServerCtx(server)
-  const [shells] = createResource(
-    async () => {
-      // TODO: Dax is considering the V2 shell discovery and config update APIs.
-      // return (await sdk.api.pty.shells()).data
-      return [] as ShellOption[]
-    },
-    { initialValue: [] as ShellOption[] },
+  const source = () => ServerConnection.key(server())
+  const [preferences, preferencesActions] = createResource<ConfigPreferences, ServerConnection.Key>(
+    source,
+    () =>
+      serverCtx()
+        .sdk.api.config.preferences()
+        .catch(() => ({})),
+    { initialValue: {} },
   )
-  const current = createMemo(() => serverCtx()?.sync.data.config.shell ?? "")
+  const [shells] = createResource(
+    source,
+    () =>
+      serverCtx()
+        .sdk.api.config.shells()
+        .catch(() => []),
+    { initialValue: [] },
+  )
+  const [providers] = createResource(
+    source,
+    () =>
+      serverCtx()
+        .sdk.api.websearch.providers()
+        .then((result) => result.data)
+        .catch(() => []),
+    { initialValue: [] },
+  )
+
+  const update = async (patch: ConfigUpdatePreferencesInput) => {
+    const context = serverCtx()
+    const previous = preferences.latest
+    preferencesActions.mutate({
+      ...previous,
+      ...(patch.shell === undefined ? {} : { shell: patch.shell ?? undefined }),
+      ...(patch.websearch === undefined ? {} : { websearch: patch.websearch ?? undefined }),
+    })
+    await context.sdk.api.config
+      .updatePreferences(patch)
+      .then(preferencesActions.mutate)
+      .catch((error: unknown) => {
+        preferencesActions.mutate(previous)
+        showToast({
+          variant: "error",
+          title: language.t("common.requestFailed"),
+          description: error instanceof Error ? error.message : language.t("common.requestFailed"),
+        })
+      })
+  }
+
+  const websearchOptions = createMemo(() => {
+    const options = providers.latest.map((provider) => ({ value: provider.id, label: provider.name }))
+    const selected = preferences.latest.websearch
+    const configured = selected && selected.provider !== "random" ? selected.provider : undefined
+    return [
+      { value: "random" as const, label: language.t("session.websearch.any") },
+      ...options,
+      ...(configured && !options.some((option) => option.value === configured)
+        ? [{ value: configured, label: configured }]
+        : []),
+      { value: false as const, label: language.t("session.websearch.disable") },
+    ]
+  })
+  const websearchCurrent = createMemo(() => {
+    const selection = preferences.latest.websearch
+    const value = selection === false ? false : (selection?.provider ?? "random")
+    return websearchOptions().find((option) => option.value === value) ?? websearchOptions()[0]
+  })
 
   return {
-    shells: () => shells.latest,
-    current,
-    select: (value: string) => {
-      if (value === current()) return
-      // TODO: Dax is considering the V2 shell discovery and config update APIs.
-      // void serverSync.updateConfig({ shell: value })
+    shell: {
+      shells: () => shells.latest,
+      current: () => preferences.latest.shell ?? "",
+      select: (value: string) => {
+        if (value === (preferences.latest.shell ?? "")) return
+        void update({ shell: value || null })
+      },
+    },
+    websearch: {
+      options: websearchOptions,
+      current: websearchCurrent,
+      select: (value: string | false) => {
+        void update({ websearch: value === false ? false : { provider: value } })
+      },
     },
   }
 }
@@ -139,6 +208,6 @@ export function createSoundSettingsController() {
   }
 }
 
-export type ShellSettingsController = ReturnType<typeof createShellSettingsController>
+export type ShellSettingsController = ReturnType<typeof createServerPreferencesController>["shell"]
 export type AppearanceSettingsController = ReturnType<typeof createAppearanceSettingsController>
 export type SoundSettingsController = ReturnType<typeof createSoundSettingsController>

@@ -60,6 +60,21 @@ export function update(adapter: Adapter, event: SessionEvent.DurableEvent) {
     )
   })
 
+  const idle = (outcome: SessionMessage.Idle["outcome"]) =>
+    clearCurrentRetry.pipe(
+      Effect.andThen(
+        adapter.appendMessage(
+          SessionMessage.Idle.make({
+            id: SessionMessage.ID.fromEvent(event.id),
+            type: "idle",
+            outcome,
+            metadata: event.metadata,
+            time: { created },
+          }),
+        ),
+      ),
+    )
+
   const project = pipe(
     Match.type<SessionEvent.DurableEvent>(),
     Match.discriminatorsExhaustive("type")({
@@ -116,6 +131,7 @@ export function update(adapter: Adapter, event: SessionEvent.DurableEvent) {
           )
         }),
       "session.renamed": () => Effect.void,
+      "session.permissions.updated": () => Effect.void,
       "session.deleted": () => Effect.void,
       "session.forked": () => Effect.void,
       "session.inbox.delivered": () => Effect.void,
@@ -123,9 +139,11 @@ export function update(adapter: Adapter, event: SessionEvent.DurableEvent) {
       "session.inbox.cancelled": () => Effect.void,
       "session.inbox.delivery.changed": () => Effect.void,
       "session.execution.started": () => Effect.void,
-      "session.execution.succeeded": () => clearCurrentRetry,
-      "session.execution.failed": () => clearCurrentRetry,
-      "session.execution.interrupted": () => clearCurrentRetry,
+      "session.execution.succeeded": () => idle("succeeded"),
+      "session.execution.failed": () => idle("failed"),
+      // Shutdown keeps the execution claim and the resumed drain continues the turn.
+      "session.execution.interrupted": (event) =>
+        event.data.reason === "shutdown" ? clearCurrentRetry : idle("interrupted"),
       "session.instructions.updated": (event) => {
         if (event.data.text === undefined) return Effect.void
         return adapter.appendMessage(
@@ -409,12 +427,15 @@ export function update(adapter: Adapter, event: SessionEvent.DurableEvent) {
             yield* adapter.updateCompaction({
               ...current,
               status: "completed",
+              metadata: event.metadata ? { ...current.metadata, ...event.metadata } : current.metadata,
               reason: event.data.reason,
               model: event.data.model,
               providerState: event.data.providerState,
               summary: event.data.text,
               providerContext: event.data.providerContext,
               recent: event.data.recent,
+              cost: event.data.cost,
+              tokens: event.data.tokens,
             })
             return
           }
@@ -430,6 +451,8 @@ export function update(adapter: Adapter, event: SessionEvent.DurableEvent) {
               summary: event.data.text,
               providerContext: event.data.providerContext,
               recent: event.data.recent,
+              cost: event.data.cost,
+              tokens: event.data.tokens,
               time: { created },
             }),
           )
@@ -444,6 +467,8 @@ export function update(adapter: Adapter, event: SessionEvent.DurableEvent) {
             metadata: current?.metadata ?? event.metadata,
             reason: event.data.reason,
             error: event.data.error,
+            cost: event.data.cost,
+            tokens: event.data.tokens,
             time: current?.time ?? { created },
           })
           if (current?.status === "running") return yield* adapter.updateCompaction(failed)

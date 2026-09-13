@@ -8,7 +8,7 @@ export interface IconButtonProps
     Pick<ComponentProps<"button">, "class" | "classList"> {
   icon?: JSX.Element
   size?: "small" | "normal" | "large"
-  variant?: "neutral" | "contrast" | "ghost" | "ghost-muted"
+  variant?: "neutral" | "contrast" | "submit" | "ghost" | "ghost-muted"
   state?: "rest" | "hover" | "pressed"
 }
 

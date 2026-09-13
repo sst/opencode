@@ -1136,10 +1136,9 @@ describe("unsupported promise surface", () => {
     expect(diagnostic.message).toContain("await it first")
   })
 
-  test("unknown Promise statics list what is available", async () => {
+  test("unknown Promise statics are not functions", async () => {
     const diagnostic = await error(`return await Promise.withResolvers()`)
-    expect(diagnostic.message).toContain("Promise.withResolvers is not available")
-    expect(diagnostic.message).toContain("Promise.any")
+    expect(diagnostic.message).toContain("Promise.withResolvers is not a function")
   })
 })
 

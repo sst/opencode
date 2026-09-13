@@ -635,6 +635,135 @@ describe("V2 mini transport", () => {
     await transport.close()
   })
 
+  test("hides tool-side assistant narration when tools are disabled", async () => {
+    const events = feed()
+    events.push(connected())
+    const ui = footer()
+    const transport = await createSessionTransport({
+      sdk: sdk({ streams: [events], messages: { ses_1: [] } }),
+      sessionID: "ses_1",
+      thinking: false,
+      tools: false,
+      footer: ui.api,
+    })
+    const tokens = { input: 1, output: 1, reasoning: 0, cache: { read: 0, write: 0 } }
+
+    events.push({
+      id: "evt_work_text",
+      created: 1,
+      type: "session.text.delta",
+      data: {
+        sessionID: "ses_1",
+        assistantMessageID: "msg_work",
+        ordinal: 0,
+        delta: "I'll check.",
+      },
+    })
+    events.push({
+      id: "evt_tool_start",
+      created: 2,
+      type: "session.tool.input.started",
+      durable: durable("ses_1", 1),
+      data: { sessionID: "ses_1", assistantMessageID: "msg_work", id: "call_read", name: "read" },
+    })
+    events.push({
+      id: "evt_tool_called",
+      created: 3,
+      type: "session.tool.called",
+      durable: durable("ses_1", 2),
+      data: { sessionID: "ses_1", assistantMessageID: "msg_work", id: "call_read", input: {}, executed: true },
+    })
+    events.push({
+      id: "evt_work_step",
+      created: 4,
+      type: "session.step.ended",
+      durable: durable("ses_1", 3),
+      data: {
+        sessionID: "ses_1",
+        assistantMessageID: "msg_work",
+        finish: "tool-calls",
+        cost: 0,
+        tokens,
+      },
+    })
+    events.push({
+      id: "evt_final_text",
+      created: 5,
+      type: "session.text.delta",
+      data: {
+        sessionID: "ses_1",
+        assistantMessageID: "msg_final",
+        ordinal: 0,
+        delta: "Done.",
+      },
+    })
+    events.push({
+      id: "evt_final_step",
+      created: 6,
+      type: "session.step.ended",
+      durable: durable("ses_1", 4),
+      data: {
+        sessionID: "ses_1",
+        assistantMessageID: "msg_final",
+        finish: "stop",
+        cost: 0,
+        tokens,
+      },
+    })
+
+    while (!ui.commits.some((commit) => commit.text === "Done.")) await Bun.sleep(0)
+    expect(ui.commits.filter((commit) => commit.kind === "assistant" || commit.kind === "tool").map((commit) => commit.text)).toEqual([
+      "Done.",
+    ])
+    await transport.close()
+  })
+
+  test("hides tool-side assistant narration from hydrated history when tools are disabled", async () => {
+    const events = feed()
+    events.push(connected())
+    const ui = footer()
+    const transport = await createSessionTransport({
+      sdk: sdk({
+        streams: [events],
+        messages: {
+          ses_1: [
+            {
+              id: "msg_final",
+              type: "assistant",
+              agent: "build",
+              model: { providerID: "test", id: "model" },
+              content: [{ type: "text", text: "Done." }],
+              time: { created: 4, completed: 5 },
+            },
+            {
+              id: "msg_work",
+              type: "assistant",
+              agent: "build",
+              model: { providerID: "test", id: "model" },
+              content: [
+                { type: "text", text: "I'll check." },
+                canonicalToolPart("read", { status: "completed", input: {}, content: [{ type: "text", text: "file" }] }),
+              ],
+              time: { created: 2, completed: 3 },
+            },
+            { id: "msg_user", type: "user", text: "what happened", files: [], agents: [], time: { created: 1 } },
+          ],
+        },
+      }),
+      sessionID: "ses_1",
+      thinking: false,
+      tools: false,
+      replay: true,
+      footer: ui.api,
+    })
+
+    while (!ui.commits.some((commit) => commit.text === "Done.")) await Bun.sleep(0)
+    expect(
+      ui.commits.filter((commit) => commit.kind === "user" || commit.kind === "assistant" || commit.kind === "tool").map((commit) => commit.text),
+    ).toEqual(["what happened", "Done."])
+    await transport.close()
+  })
+
   test("recursively hydrates blockers for direct and transitive descendants", async () => {
     const events = feed()
     events.push(connected())

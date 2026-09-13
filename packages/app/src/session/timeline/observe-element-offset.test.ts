@@ -16,6 +16,35 @@ test("matches only the scroll element or an ancestor containing it", () => {
   expect(mutationNodesContainElement([child, sibling], viewport)).toBe(false)
 })
 
+test("restores a view observed before its first attachment", async () => {
+  const targetWindow = new Window()
+  const mutations = controlledMutations(targetWindow)
+  const viewport = targetWindow.document.createElement("div")
+  const instance = {
+    scrollElement: viewport,
+    targetWindow,
+    scrollOffset: 240,
+    options: { horizontal: false, isRtl: false, isScrollingResetDelay: 0, useScrollendEvent: false },
+  } as unknown as Virtualizer<HTMLDivElement, HTMLDivElement>
+  const connections: boolean[] = []
+  const cleanup = observeElementOffsetReconnectAware(
+    instance,
+    (offset) => {
+      instance.scrollOffset = offset
+    },
+    () => connections.push(viewport.isConnected),
+  )
+  try {
+    mutations.append(targetWindow.document.body, viewport)
+    await frames(2, targetWindow)
+    expect(connections).toEqual([true])
+    expect(instance.scrollOffset).toBe(0)
+  } finally {
+    cleanup()
+    await targetWindow.happyDOM.close()
+  }
+})
+
 test("reports a divergent native offset once and ignores equal offsets and unrelated mutations", async () => {
   const targetWindow = new Window()
   const mutations = controlledMutations(targetWindow)

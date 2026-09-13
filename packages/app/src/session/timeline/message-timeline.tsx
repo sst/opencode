@@ -1,9 +1,19 @@
-import { createEffect, createMemo, createSignal, For, on, onCleanup, Show, type Accessor, type JSX } from "solid-js"
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  lazy,
+  on,
+  onCleanup,
+  Show,
+  Suspense,
+  type Accessor,
+  type JSX,
+} from "solid-js"
 import { createStore } from "solid-js/store"
 import { createAnimatedPresence } from "@/runtime/animated-presence"
 import type { SessionUserActions } from "@opencode/session-ui/actions"
 import { Button } from "@opencode/ui/button"
-import { DiffChanges } from "@opencode/ui/diff-changes"
 import { Icon } from "@opencode/ui/icon"
 import { IconButton } from "@opencode/ui/icon-button"
 import { InlineInput } from "@opencode/ui/inline-input"
@@ -11,34 +21,30 @@ import { Keybind } from "@opencode/ui/keybind"
 import { Menu } from "@opencode/ui/menu"
 import { TextShimmer } from "@opencode/ui/text-shimmer"
 import { ProjectAvatar } from "@opencode/ui/project-avatar"
-import type { Project } from "@/runtime/server/types"
-import { getFilename } from "@opencode/util/path"
-import { Popover } from "@kobalte/core/popover"
+import { SummaryPopover } from "../summary/popover"
 import { SessionContextUsage } from "@/session/timeline/session-context-usage"
 import { useLanguage } from "@/runtime/i18n/language"
-import { useData, useServer } from "@/runtime/server/current"
+import { useServer } from "@/runtime/server/current"
 import { useWorkspaceLocation } from "@/workspaces/location"
-import { Timeline, TimelineRow } from "@opencode/session-ui/timeline/projection"
+import { Timeline } from "@opencode/session-ui/timeline/projection"
 import { createSessionTimelineRowRenderer } from "@opencode/session-ui/timeline/row"
 import { getReadyMarkdown, preloadMarkdown } from "@opencode/session-ui/markdown-cache"
 import { createTimelineController, type TimelineController, type TimelineSessionSource } from "./controller"
 import { createTimelineVirtualizer } from "./virtualizer"
-import { containsDirectory, isWorkspaceDirectory, workspaceDirectories } from "@/workspaces/paths"
-import { SessionWorkspaceMenu } from "@/session/timeline/session-workspace-menu"
+import { containsDirectory, isWorkspaceDirectory } from "@/workspaces/paths"
 import { getProjectAvatarVariant } from "@/shell/state/layout"
 import { displayName, getProjectAvatarSource, projectForSession } from "@/shell/layout/helpers"
 import { parseCommentNote, readPromptPresentation } from "@/composer/comment-note"
 import { useCommand } from "@/shell/commands/command"
 import { useSettings } from "@/settings/model"
 import { SessionProjectMenu, SessionTitleHeader } from "../session-identity-header"
-import { SessionHeader } from "@/session/header/session-header"
+import { SessionHeaderSpacer } from "@/session/header/session-header"
+import type { BackgroundTask } from "../summary/background"
 
-type BackgroundTask = {
-  id: string
-  type: "shell" | "subagent"
-  label: string
-  agent?: string
-}
+const SessionSummaryPanel = lazy(async () => {
+  const { SessionSummaryPanel } = await import("../summary/panel")
+  return { default: SessionSummaryPanel }
+})
 
 type SessionBackground = {
   blocking: Accessor<{ type: "shell" | "subagent"; partID: string; id?: string; label?: string }[]>
@@ -68,274 +74,9 @@ export function BackgroundMoveHint(props: { keybind?: string[]; onMove?: () => v
   )
 }
 
-export function BackgroundWorkSummary(props: { tasks: BackgroundTask[]; mobile?: boolean }) {
-  const language = useLanguage()
-  const [open, setOpen] = createSignal(false)
-  const [triggerRef, setTriggerRef] = createSignal<HTMLButtonElement>()
-  const tasks = createMemo<BackgroundTask[]>((previous = []) => (props.tasks.length > 0 ? props.tasks : previous))
-  const presence = createAnimatedPresence(
-    () => (props.tasks.length > 0 ? true : undefined),
-    () => triggerRef() ?? null,
-  )
-  createEffect(() => {
-    if (props.tasks.length > 0) return
-    setOpen(false)
-  })
-  const taskType = (task: BackgroundTask) => {
-    if (task.type === "shell") return language.t("ui.tool.shell")
-    if (!task.agent) return language.t("ui.tool.agent.default")
-    return task.agent.slice(0, 1).toUpperCase() + task.agent.slice(1)
-  }
-
-  return (
-    <Popover
-      open={open()}
-      placement={props.mobile ? "top-end" : language.direction() === "rtl" ? "right-end" : "left-end"}
-      gutter={4}
-      onOpenChange={(value) => setOpen(value && props.tasks.length > 0)}
-    >
-      <Show when={presence.present()}>
-        <Popover.Trigger
-          ref={setTriggerRef}
-          as="button"
-          type="button"
-          data-component="session-background-summary"
-          class="flex h-7 w-full items-center gap-2 rounded-[4px] px-3 text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-base hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none data-[expanded]:bg-v2-overlay-simple-overlay-pressed duration-150 motion-reduce:animate-none"
-          classList={{
-            "animate-out fade-out fill-mode-forwards": presence.animate() && !presence.show(),
-          }}
-          aria-label={language.plural("session.background.tasksRunning", tasks().length)}
-        >
-          <Icon
-            name="outline-arrow-to-corner-top-right"
-            class="shrink-0 text-v2-icon-icon-muted"
-          />
-          <TextShimmer
-            as="span"
-            text={language.plural("session.background.tasksRunning", tasks().length)}
-            active
-            class="min-w-0 flex-1 truncate text-start"
-          />
-        </Popover.Trigger>
-      </Show>
-      <Popover.Portal>
-        <Popover.Content
-          data-component="session-background-list"
-          class="z-[60] w-[200px] overflow-hidden rounded-[6px] bg-v2-background-bg-layer-01 p-0.5 shadow-[var(--v2-elevation-floating)] outline-none data-[closed]:animate-out data-[closed]:fade-out data-[closed]:duration-150 motion-reduce:data-[closed]:animate-none"
-        >
-          <For each={tasks().slice(0, 10)}>
-            {(task) => (
-              <div
-                data-component="session-background-list-item"
-                class="flex h-7 min-w-0 items-center gap-2 rounded-[4px] px-3 text-[13px] font-[440] leading-none tracking-[-0.04px]"
-              >
-                <span class="shrink-0 text-v2-text-text-base">{taskType(task)}</span>
-                <span class="min-w-0 flex-1 truncate text-v2-text-text-faint">{task.label}</span>
-              </div>
-            )}
-          </For>
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover>
-  )
-}
-
-function WorkspaceMoveAction(props: {
-  variant: "inline" | "panel"
-  mobile?: boolean
-  eligible: boolean
-  sessionID: string
-  project: Project
-  directory: string
-  dismissed: boolean
-  onDismiss: () => void
-}) {
-  const language = useLanguage()
-  const inline = () => props.variant === "inline"
-  return (
-    <div
-      classList={{
-        "group/workspace-move relative shrink-0": true,
-        "ms-auto h-5 w-[167px]": inline(),
-        "-mt-2.5 h-[46px] w-full rounded-b-[6px] bg-v2-background-bg-layer-02 hover:bg-v2-background-bg-layer-03 transition-colors":
-          !inline(),
-        hidden: props.dismissed,
-      }}
-    >
-      <SessionWorkspaceMenu
-        eligible={props.eligible}
-        sessionID={props.sessionID}
-        project={props.project}
-        directory={props.directory}
-        placement={
-          props.mobile
-            ? "top-end"
-            : inline()
-              ? "bottom-end"
-              : language.direction() === "rtl"
-                ? "right-start"
-                : "left-start"
-        }
-        gutter={props.mobile || inline() ? 4 : -22}
-        contentClass={props.mobile || inline() ? undefined : "relative top-3.5"}
-        class={
-          inline()
-            ? "flex h-5 w-full items-center gap-1.5 rounded-[4px] pe-6 text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-faint hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none data-[expanded]:bg-v2-overlay-simple-overlay-pressed"
-            : "flex h-[46px] w-full items-center gap-2 rounded-b-[6px] px-3 pe-9 pt-2.5 text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-muted focus-visible:outline-none"
-        }
-      >
-        <Icon name="outline-worktree" class="shrink-0 text-v2-icon-icon-muted" />
-        <span class="min-w-0 truncate">{language.t("workspace.move.title")}</span>
-      </SessionWorkspaceMenu>
-      <button
-        type="button"
-        class={`absolute flex size-5 -translate-y-1/2 items-center justify-center rounded-[4px] text-v2-icon-icon-muted hover:bg-v2-overlay-simple-overlay-hover hover:text-v2-icon-icon-base focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:text-v2-icon-icon-base focus-visible:outline-none ${
-          inline()
-            ? "end-0 top-1/2"
-            : "hover-reveal end-3 top-[calc(50%+5px)] group-hover/workspace-move:opacity-100 group-focus-within/workspace-move:opacity-100"
-        }`}
-        aria-label={language.t("common.dismiss")}
-        onClick={(event) => {
-          event.stopPropagation()
-          props.onDismiss()
-        }}
-      >
-        <Icon name="xmark-small" />
-      </button>
-    </div>
-  )
-}
-
-export function SessionSummaryPanel(props: {
-  mobile?: boolean
-  project: Project
-  avatar?: JSX.Element
-  directory: string
-  local: boolean
-  branch?: string
-  baseBranch?: string
-  diffs?: { additions: number; deletions: number }[]
-  sessionID: string
-  moveEligible: boolean
-  moveDismissed: boolean
-  onMoveDismiss: () => void
-  onReview: () => void
-  backgroundTasks: BackgroundTask[]
-}) {
-  const language = useLanguage()
-  const location = () => {
-    if (props.local) return language.t("session.new.workspace.local")
-    const workspace = workspaceDirectories(props.project).find((item) => containsDirectory(item, props.directory))
-    return getFilename(workspace ?? props.directory)
-  }
-  const branch = () => props.branch ?? props.baseBranch
-  const row =
-    "flex h-7 w-full items-center gap-2 rounded-[4px] px-3 text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-base"
-
-  return (
-    <div data-component="session-summary-panel" class={props.mobile ? "w-full" : "w-[280px]"}>
-      <div class="relative z-10 flex flex-col gap-1 overflow-hidden rounded-[6px] bg-v2-background-bg-base px-0.5 py-1.5 shadow-[var(--v2-elevation-raised)]">
-        <div class={row}>
-          {props.avatar ?? (
-            <ProjectAvatar
-              fallback={displayName(props.project)}
-              src={getProjectAvatarSource(props.project.id, props.project.icon)}
-              variant={getProjectAvatarVariant(props.project.icon?.color)}
-            />
-          )}
-          <span dir="auto" class="min-w-0 flex-1 truncate text-v2-text-text-muted">
-            {displayName(props.project)}
-          </span>
-        </div>
-        <SessionWorkspaceMenu
-          eligible={props.moveEligible}
-          sessionID={props.sessionID}
-          project={props.project}
-          directory={props.directory}
-          placement={props.mobile ? "top-end" : language.direction() === "rtl" ? "right-start" : "left-start"}
-          gutter={props.mobile ? 4 : -22}
-          class={`${row} hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none data-[expanded]:bg-v2-overlay-simple-overlay-pressed`}
-        >
-          <Icon
-            name={props.local ? "monitor" : "outline-worktree"}
-            class={`shrink-0 ${props.local ? "text-v2-icon-icon-muted" : "text-v2-icon-icon-accent"}`}
-          />
-          <span dir="auto" class="min-w-0 flex-1 truncate text-start">
-            {location()}
-          </span>
-          <Icon name="chevron-down" size="small" class="shrink-0 text-v2-icon-icon-muted" />
-        </SessionWorkspaceMenu>
-        <div class={row}>
-          <Icon name="branch" class="shrink-0 text-v2-icon-icon-muted" />
-          <Show
-            when={props.branch}
-            fallback={
-              <span class="flex min-w-0 items-center gap-1.5">
-                <span class="shrink-0 whitespace-nowrap">{language.t("session.summary.noBranch")}</span>
-                <Show when={props.baseBranch}>
-                  {(base) => (
-                    <>
-                      <span class="text-v2-text-text-muted">·</span>
-                      <span class="truncate text-v2-text-text-faint">
-                        {language.t("session.summary.basedOn", { branch: base() })}
-                      </span>
-                    </>
-                  )}
-                </Show>
-              </span>
-            }
-          >
-            <span dir="auto" class="min-w-0 truncate">
-              {branch()}
-            </span>
-          </Show>
-        </div>
-        <button
-          type="button"
-          class={`${row} hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none`}
-          onClick={props.onReview}
-        >
-          <Icon name="review" class="shrink-0 text-v2-icon-icon-muted" />
-          <Show when={props.diffs} fallback={<span>{language.t("session.review.loadingChanges")}</span>}>
-            {(diffs) => (
-              <Show when={diffs().length > 0} fallback={<span>{language.t("session.review.noChanges")}</span>}>
-                <span>{language.plural("ui.sessionTurn.diffs.changed", diffs().length)}</span>
-                <span class="text-v2-text-text-muted">·</span>
-                <DiffChanges appearance="standard" changes={diffs()} />
-              </Show>
-            )}
-          </Show>
-        </button>
-        <div
-          class="grid transition-[grid-template-rows] duration-150 ease-out motion-reduce:transition-none"
-          classList={{
-            "grid-rows-[1fr]": props.backgroundTasks.length > 0,
-            "grid-rows-[0fr]": props.backgroundTasks.length === 0,
-          }}
-        >
-          <div class="min-h-0 overflow-hidden">
-            <BackgroundWorkSummary tasks={props.backgroundTasks} mobile={props.mobile} />
-          </div>
-        </div>
-      </div>
-      <Show when={props.local && props.diffs && props.diffs.length > 0 && props.moveEligible}>
-        <WorkspaceMoveAction
-          variant="panel"
-          mobile={props.mobile}
-          eligible={props.moveEligible}
-          sessionID={props.sessionID}
-          project={props.project}
-          directory={props.directory}
-          dismissed={props.moveDismissed}
-          onDismiss={props.onMoveDismiss}
-        />
-      </Show>
-    </div>
-  )
-}
-
 type MessageTimelineProps = {
   hideHeader?: boolean
+  active?: boolean
   session: TimelineSessionSource
   background: SessionBackground
   actions?: SessionUserActions
@@ -350,6 +91,7 @@ type MessageTimelineProps = {
   onSelectionInteraction: (event: MouseEvent) => void
   pinned: boolean
   centered: boolean
+  reserveReviewToggle: boolean
   setContentRef: (el: HTMLDivElement) => void
   diffs: Accessor<{ additions: number; deletions: number }[] | undefined>
   onReview: () => void
@@ -389,8 +131,8 @@ function MessageTimelineView(
   },
 ) {
   const language = useLanguage()
-  const data = useData()
   const server = useServer()
+  const data = server.ctx.data
   const settings = useSettings()
   const sdk = useWorkspaceLocation()
   const sessionID = props.data.sessionID
@@ -445,6 +187,7 @@ function MessageTimelineView(
   const pinned = createMemo(() => props.pinned)
   const messageByID = projection.messageByID
   const virtualized = createTimelineVirtualizer({
+    active: () => props.active !== false,
     sessionKey: () => `${server.key}/${props.data.sessionID()}`,
     presentationKey: () => JSON.stringify(props.data.timelineDetail()),
     projection,
@@ -537,6 +280,12 @@ function MessageTimelineView(
     if (!title.editing || props.pending.rename()) return
     if (await props.action.rename(title.draft)) setTitle("editing", false)
   }
+
+  createEffect(() => {
+    if (props.active !== false) return
+    setSummary(false)
+    setTitle({ draft: "", editing: false, menuOpen: false, pendingRename: false })
+  })
 
   const rowRenderer = createSessionTimelineRowRenderer({
     sessionID: () => sessionID()!,
@@ -797,42 +546,32 @@ function MessageTimelineView(
                     <SessionContextUsage placement="bottom" />
                     <Show when={!parentID() && project()}>
                       {(project) => (
-                        <Popover open={summaryOpen()} placement="bottom-end" gutter={6} onOpenChange={setSummary}>
-                          <Popover.Trigger
-                            as={IconButton}
-                            icon={<Icon name="window-analytics" />}
-                            variant="ghost-muted"
-                            size="large"
-                            state={summaryOpen() ? "pressed" : undefined}
-                            aria-label={language.t("session.summary.title")}
-                            aria-expanded={summaryOpen()}
-                          />
-                          <Popover.Portal>
-                            <Popover.Content class="z-50 border-0 bg-transparent p-0 outline-none">
-                              <SessionSummaryPanel
-                                project={project()}
-                                avatar={showProjectIcon() ? projectAvatar() : undefined}
-                                directory={sessionDirectory()}
-                                local={!workspaceSession()}
-                                branch={data.location.vcs.info({ directory: sdk().directory })?.branch.current}
-                                baseBranch={data.location.vcs.info({ directory: project().worktree })?.branch.current}
-                                diffs={sessionDiffs()}
-                                sessionID={id}
-                                moveEligible={props.workspaceMoveEligible}
-                                moveDismissed={workspaceSuggestionDismissed()}
-                                onMoveDismiss={() => setWorkspaceSuggestionDismissed(true)}
-                                onReview={() => {
-                                  setSummary(false)
-                                  props.onReview()
-                                }}
-                                backgroundTasks={props.background.tasks()}
-                              />
-                            </Popover.Content>
-                          </Popover.Portal>
-                        </Popover>
+                        <SummaryPopover active={props.active} open={summaryOpen()} onOpenChange={setSummary}>
+                          <Suspense>
+                            <SessionSummaryPanel
+                              shown={summaryOpen()}
+                              project={project()}
+                              avatar={showProjectIcon() ? projectAvatar() : undefined}
+                              directory={sessionDirectory()}
+                              local={!workspaceSession()}
+                              branch={data.location.vcs.info({ directory: sdk().directory })?.branch.current}
+                              baseBranch={data.location.vcs.info({ directory: project().worktree })?.branch.current}
+                              diffs={sessionDiffs()}
+                              sessionID={id}
+                              moveEligible={props.workspaceMoveEligible}
+                              moveDismissed={workspaceSuggestionDismissed()}
+                              onMoveDismiss={() => setWorkspaceSuggestionDismissed(true)}
+                              onReview={() => {
+                                setSummary(false)
+                                props.onReview()
+                              }}
+                              backgroundTasks={props.background.tasks()}
+                            />
+                          </Suspense>
+                        </SummaryPopover>
                       )}
                     </Show>
-                    <SessionHeader />
+                    <SessionHeaderSpacer visible={props.reserveReviewToggle} />
                   </div>
                 )}
               </Show>

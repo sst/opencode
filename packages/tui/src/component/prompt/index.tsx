@@ -615,11 +615,11 @@ export function Prompt(props: PromptProps) {
         },
       },
       {
-        title: "Move session",
-        desc: "Move to another project dir",
+        title: "Manage workspaces",
+        desc: "Manage workspaces",
         name: "session.move",
         category: "Session",
-        slash: { name: "move" },
+        slash: { name: "worktrees" },
         run: () => {
           move.open()
         },
@@ -1384,8 +1384,6 @@ export function Prompt(props: PromptProps) {
       if (pendingEditorSelection) editor.markSelectionSent()
     }
 
-    sessionTabs.promote(target)
-
     // Optimistic admission puts the message in the store synchronously, so
     // the session view renders it on arrival.
     if (!props.sessionID) {
@@ -1849,7 +1847,7 @@ export function Prompt(props: PromptProps) {
               <PromptMetadataRow
                 mode={store.mode}
                 agent={agentLabel()}
-                auto={local.permission.mode === "auto"}
+                auto={local.permission.mode === "autoaccept"}
                 model={promptDisplay().modelLabel}
                 provider={promptDisplay().providerLabel}
                 variant={promptDisplay().variant}

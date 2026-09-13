@@ -2,32 +2,28 @@
 title: "Intro"
 ---
 
-These docs are for the beta version of OpenCode, which will become OpenCode 2.0. The beta is still changing: things may
-break, and APIs, configuration, and plugin APIs may change.
+These docs describe OpenCode and its APIs, configuration, and plugin system.
 
-OpenCode 2 installs and runs as `opencode2`. It does not replace OpenCode 1's `opencode` binary, so you can keep both
-versions installed and run them side by side.
+OpenCode installs and runs as `opencode`.
 
 ## Install
 
 <div data-install-code>
   <CodeBlock
-    code={`$ npm install -g @opencode/cli@beta
-$ bun install -g --trust @opencode/cli@beta
-$ pnpm add -g --allow-build=@opencode/cli @opencode/cli@beta
-$ yarn global add @opencode/cli@beta
-$ paru -S opencode-beta
+    code={`$ npm install -g @opencode/cli
+$ bun install -g --trust @opencode/cli
+$ pnpm add -g --allow-build=@opencode/cli @opencode/cli
+$ yarn global add @opencode/cli
 $ curl -fsSL https://opencode.ai/v2/install | bash`}
   />
 </div>
 
-The npm package uses a trusted postinstall script to select the native `opencode2` binary for your platform. The Bun and pnpm
+The npm package uses a trusted postinstall script to select the native `opencode` binary for your platform. The Bun and pnpm
 commands above explicitly allow that script to run.
 
-On Arch Linux, install [`opencode-beta`](https://aur.archlinux.org/packages/opencode-beta) from the AUR with `paru`.
-It provides the `opencode2` command; manage updates through your AUR helper.
+Docker images use versioned tags, for example `ghcr.io/anomalyco/opencode:2.0.0`.
 
-Homebrew, Windows package managers, Docker, and standalone binaries are not supported during the beta.
+Homebrew, AUR, Windows package managers, and standalone binaries are not supported.
 
 ---
 

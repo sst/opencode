@@ -23,11 +23,11 @@ export type Config = Omit<RouteDefaultsInput, "providerOptions"> &
     readonly providerOptions?: ChatOptionsInput | MessagesOptionsInput | ResponsesOptionsInput
   }
 
-export interface Settings<Options = ChatOptionsInput> extends ProviderPackage.Settings {
-  readonly apiKey?: string
-  readonly baseURL?: string
-  readonly providerOptions?: Options
-}
+export type Settings<Options = ChatOptionsInput> = ProviderPackage.Settings &
+  Options & {
+    readonly apiKey?: string
+    readonly baseURL?: string
+  }
 
 const chatRoute = Route.make({
   id: "zai-coding-chat",
@@ -80,13 +80,16 @@ export const chat = provider.chat
 export const messages = provider.messages
 export const responses = provider.responses
 
-export const model: ProviderPackage.Definition<Settings, ChatOptionsInput>["model"] = (modelID, settings) =>
+export const model: ProviderPackage.Definition<Settings, ChatOptionsInput>["model"] = (
+  modelID,
+  { apiKey, baseURL, body, headers, ...providerOptions },
+) =>
   configure({
-    apiKey: settings.apiKey,
-    baseURL: settings.baseURL,
-    headers: settings.headers,
-    http: settings.body === undefined ? undefined : { body: { ...settings.body } },
-    providerOptions: settings.providerOptions,
+    apiKey,
+    baseURL,
+    headers,
+    http: body === undefined ? undefined : { body: { ...body } },
+    providerOptions,
   }).model(modelID)
 
 export * as ZAICodingPlan from "./zai-coding-plan.js"

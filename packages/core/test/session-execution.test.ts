@@ -561,7 +561,9 @@ describe("SessionRestart background recovery", () => {
         expect(yield* restarted.pendingBackground).toEqual([])
         expect(yield* SessionInbox.list(database.db, sessionID)).toHaveLength(delivered ? 0 : 1)
         yield* SessionInbox.promote(database.db, bus, sessionID, "steer")
-        expect(yield* sessions.messages({ sessionID })).toMatchObject([
+        // Recovery ends a busy period, so an idle marker follows the notification.
+        const messages = (yield* sessions.messages({ sessionID })).filter((message) => message.type !== "idle")
+        expect(messages).toMatchObject([
           {
             id: background.notificationID,
             type: "synthetic",
@@ -569,7 +571,6 @@ describe("SessionRestart background recovery", () => {
             metadata: { state: "completed" },
           },
         ])
-        expect(yield* sessions.messages({ sessionID })).toHaveLength(1)
       }),
     )
   }

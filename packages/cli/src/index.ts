@@ -15,23 +15,27 @@ import { Npm } from "@opencode/util/npm"
 import { Heap } from "./heap"
 import { CpuProfile } from "./cpu-profile"
 
+if (process.env.OPENCODE_SSH_ASKPASS_PORT) {
+  const { askpass } = await import("./ssh-askpass")
+  process.exit(await Effect.runPromise(askpass.pipe(Effect.provide(NodeServices.layer))))
+}
+
 const Handlers = Runtime.handlers(Commands, {
   $: () => import("./commands/handlers/default"),
   upgrade: () => import("./commands/handlers/upgrade"),
+  uninstall: () => import("./commands/handlers/uninstall"),
   acp: () => import("./commands/handlers/acp"),
   api: () => import("./commands/handlers/api"),
   auth: {
     list: () => import("./commands/handlers/auth/list"),
     login: () => import("./commands/handlers/auth/login"),
     logout: () => import("./commands/handlers/auth/logout"),
+    switch: () => import("./commands/handlers/auth/switch"),
   },
   debug: {
     agents: () => import("./commands/handlers/debug/agents"),
     config: () => import("./commands/handlers/debug/config"),
     paths: () => import("./commands/handlers/debug/paths"),
-  },
-  console: {
-    login: () => import("./commands/handlers/console/login"),
   },
   mcp: {
     list: () => import("./commands/handlers/mcp/list"),
@@ -48,14 +52,14 @@ const Handlers = Runtime.handlers(Commands, {
   },
   models: () => import("./commands/handlers/models"),
   stats: () => import("./commands/handlers/stats"),
-  export: () => import("./commands/handlers/export"),
-  import: () => import("./commands/handlers/import"),
   mini: () => import("./commands/handlers/mini"),
   run: () => import("./commands/handlers/run"),
   pair: () => import("./commands/handlers/pair"),
   session: {
     list: () => import("./commands/handlers/session/list"),
     delete: () => import("./commands/handlers/session/delete"),
+    export: () => import("./commands/handlers/session/export"),
+    import: () => import("./commands/handlers/session/import"),
   },
   service: {
     start: () => import("./commands/handlers/service/start"),

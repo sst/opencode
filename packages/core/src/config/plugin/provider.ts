@@ -58,6 +58,7 @@ export const Plugin = define({
           if (item.name !== undefined) provider.name = item.name
           if (item.package !== undefined) provider.package = item.package
           if (item.compaction !== undefined) provider.compaction = { ...item.compaction }
+          if (item.websocket !== undefined) provider.websocket = item.websocket
           if (item.settings !== undefined) provider.settings = Provider.mergeOverlay(provider.settings, item.settings)
           if (item.headers !== undefined) provider.headers = Provider.mergeHeaders(provider.headers, item.headers)
           if (item.body !== undefined) provider.body = Provider.mergeOverlay(provider.body, item.body)
@@ -78,6 +79,7 @@ export const Plugin = define({
               model.compatibility = { ...model.compatibility, ...config.compatibility }
             if (config.package !== undefined) model.package = config.package
             if (config.compaction !== undefined) model.compaction = { ...config.compaction }
+            if (config.websocket !== undefined) model.websocket = config.websocket
             if (config.settings !== undefined) model.settings = Provider.mergeOverlay(model.settings, config.settings)
             if (config.headers !== undefined) model.headers = Provider.mergeHeaders(model.headers, config.headers)
             if (config.body !== undefined) model.body = Provider.mergeOverlay(model.body, config.body)

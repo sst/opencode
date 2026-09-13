@@ -16,30 +16,6 @@ export class MessageNotFoundError extends Schema.TaggedError<MessageNotFoundErro
   messageID: SessionMessage.ID,
 }) {}
 
-export class MessageNotAssistantError extends Schema.TaggedError<MessageNotAssistantError>()(
-  "Session.MessageNotAssistantError",
-  {
-    sessionID: SessionSchema.ID,
-    messageID: SessionMessage.ID,
-  },
-) {}
-
-export class MessageIncompleteError extends Schema.TaggedError<MessageIncompleteError>()(
-  "Session.MessageIncompleteError",
-  {
-    sessionID: SessionSchema.ID,
-    messageID: SessionMessage.ID,
-  },
-) {}
-
-export class MessageToolIncompleteError extends Schema.TaggedError<MessageToolIncompleteError>()(
-  "Session.MessageToolIncompleteError",
-  {
-    sessionID: SessionSchema.ID,
-    messageID: SessionMessage.ID,
-  },
-) {}
-
 export class ForkEmptyError extends Schema.TaggedError<ForkEmptyError>()("Session.ForkEmptyError", {
   sessionID: SessionSchema.ID,
 }) {

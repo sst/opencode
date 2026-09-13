@@ -107,6 +107,8 @@ export const Info = Schema.Struct({
   compatibility: Compatibility.pipe(optional),
   package: Provider.Package.pipe(optional),
   compaction: Provider.Compaction.pipe(optional),
+  /** Session WebSocket policy; omitted inherits the provider policy, then defaults to disabled. */
+  websocket: Schema.Boolean.pipe(optional),
   ...Provider.Overlays,
   capabilities: Capabilities,
   variants: Schema.Array(Variant),

@@ -50,6 +50,7 @@ export function fromRow(row: typeof SessionTable.$inferSelect): SessionSchema.In
     }),
     subpath: row.path ? RelativePath.make(row.path) : undefined,
     metadata: row.metadata ?? undefined,
+    permissions: row.permission ?? undefined,
     revert: row.revert ? decodeRevert(row.revert) : undefined,
     outcome: row.idle_outcome ?? undefined,
     time: {

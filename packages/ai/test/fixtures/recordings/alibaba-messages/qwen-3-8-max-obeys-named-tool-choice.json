@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "metadata": {
+    "tags": [
+      "prefix:alibaba-messages",
+      "provider:alibaba",
+      "protocol:alibaba-messages",
+      "region:ap-southeast-1",
+      "tool",
+      "tool-choice"
+    ],
+    "name": "alibaba-messages/qwen-3-8-max-obeys-named-tool-choice",
+    "recordedAt": "2026-09-08T03:11:06.590Z"
+  },
+  "interactions": [
+    {
+      "transport": "http",
+      "request": {
+        "method": "POST",
+        "url": "https://dashscope-intl.aliyuncs.com/apps/anthropic/v1/messages",
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": "{\"model\":\"qwen3.8-max\",\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Find the current weather in Paris.\"}]}],\"tools\":[{\"name\":\"get_weather\",\"description\":\"Get weather in a city\",\"input_schema\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\",\"enum\":[\"Paris\"]}},\"required\":[\"city\"]}}],\"tool_choice\":{\"type\":\"tool\",\"name\":\"get_weather\"},\"stream\":true,\"max_tokens\":4096,\"thinking\":{\"type\":\"disabled\"}}"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "text/event-stream"
+        },
+        "body": "event:ping\ndata:{\"type\":\"ping\"}\n\nevent:message_start\ndata:{\"message\":{\"model\":\"qwen3.8-max\",\"id\":\"msg_0e8f1abf-f2bc-9a86-a6a7-14804ac17eac\",\"role\":\"assistant\",\"type\":\"message\",\"content\":[],\"usage\":{\"input_tokens\":45,\"output_tokens\":0}},\"type\":\"message_start\"}\n\nevent:content_block_start\ndata:{\"type\":\"content_block_start\",\"content_block\":{\"name\":\"get_weather\",\"input\":{},\"id\":\"toolu_cf9cab33261f4709ae096d8a\",\"type\":\"tool_use\"},\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"partial_json\":\"\",\"type\":\"input_json_delta\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"partial_json\":\"{\\\"city\\\": \\\"Paris\",\"type\":\"input_json_delta\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"partial_json\":\"\\\"\",\"type\":\"input_json_delta\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_delta\ndata:{\"delta\":{\"partial_json\":\"}\",\"type\":\"input_json_delta\"},\"type\":\"content_block_delta\",\"index\":0}\n\nevent:content_block_stop\ndata:{\"type\":\"content_block_stop\",\"index\":0}\n\nevent:message_delta\ndata:{\"delta\":{\"stop_reason\":\"end_turn\"},\"type\":\"message_delta\",\"usage\":{\"output_tokens\":19,\"cache_creation_input_tokens\":0,\"input_tokens\":288,\"cache_read_input_tokens\":0,\"prompt_tokens_details\":{\"cached_tokens\":0}}}\n\nevent:message_stop\ndata:{\"type\":\"message_stop\"}\n\n"
+      }
+    }
+  ]
+}

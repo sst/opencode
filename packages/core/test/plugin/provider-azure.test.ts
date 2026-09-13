@@ -1,6 +1,5 @@
 import { chmod } from "node:fs/promises"
 import { Agent } from "@opencode/core/agent"
-import { AISDK } from "@opencode/core/aisdk"
 import { describe, expect } from "bun:test"
 import { Effect, Schedule } from "effect"
 import { Catalog } from "@opencode/core/catalog"
@@ -15,7 +14,6 @@ import { Integration } from "@opencode/core/integration"
 import { Location } from "@opencode/core/location"
 import { Session } from "@opencode/core/session"
 import { AppProcess } from "@opencode/util/process"
-import { fakeSelectorSdk } from "../fixture/selector"
 import { testEffect } from "../lib/effect"
 import { PluginTestLayer } from "./fixture"
 
@@ -422,36 +420,6 @@ describe("AzurePlugin", () => {
     ),
   )
 
-  it.effect("allows configured baseURL without resourceName", () =>
-    withEnv({ AZURE_RESOURCE_NAME: undefined }, () =>
-      Effect.gen(function* () {
-        const aisdk = yield* AISDK.Service
-        const catalog = yield* Catalog.Service
-        yield* catalog.transform((catalog) =>
-          catalog.provider.update(Provider.ID.azure, (provider) => {
-            provider.settings = { ...provider.settings, baseURL: "https://proxy.example.com/openai" }
-          }),
-        )
-        yield* addPlugin()
-        const integrations = yield* Integration.Service
-        expect((yield* integrations.get(Integration.ID.make("azure")))?.methods).toContainEqual({
-          type: "key",
-          label: "API key",
-        })
-        const result = yield* aisdk.runSDK({
-          model: Model.Info.make({
-            ...Model.Info.default(Provider.ID.azure, Model.ID.make("deployment")),
-            modelID: Model.ID.make("deployment"),
-            package: Provider.aisdk("test-provider"),
-          }),
-          package: "@ai-sdk/azure",
-          options: { name: "azure", baseURL: "https://proxy.example.com/openai" },
-        })
-        expect(result.sdk).toBeDefined()
-      }),
-    ),
-  )
-
   it.effect("marks only Azure v1 Responses deployments as WebSocket capable", () =>
     withEnv({ AZURE_RESOURCE_NAME: undefined, AZURE_COGNITIVE_SERVICES_RESOURCE_NAME: undefined }, () =>
       Effect.gen(function* () {
@@ -488,149 +456,16 @@ describe("AzurePlugin", () => {
 
         yield* addPlugin()
 
-        expect(
-          required(yield* catalog.model.get(Provider.ID.azure, models.responses)).capabilities.responsesWebsockets,
-        ).toBe(true)
-        for (const modelID of [models.chat, models.preview, models.deploymentURL, models.gateway, models.nonAzure])
-          expect(
-            required(yield* catalog.model.get(Provider.ID.azure, modelID)).capabilities.responsesWebsockets,
-          ).toBeUndefined()
+        const responses = required(yield* catalog.model.get(Provider.ID.azure, models.responses))
+        expect(responses.capabilities.responsesWebsockets).toBe(true)
+        expect(responses.websocket).toBe(true)
+        for (const modelID of [models.chat, models.preview, models.deploymentURL, models.gateway, models.nonAzure]) {
+          const model = required(yield* catalog.model.get(Provider.ID.azure, modelID))
+          expect(model.capabilities.responsesWebsockets).toBeUndefined()
+          expect(model.websocket).toBeUndefined()
+        }
       }),
     ),
   )
 
-  it.effect("rejects missing resourceName when baseURL is not configured", () =>
-    withEnv({ AZURE_RESOURCE_NAME: undefined }, () =>
-      Effect.gen(function* () {
-        const aisdk = yield* AISDK.Service
-        yield* addPlugin()
-        const exit = yield* aisdk
-          .runSDK({
-            model: Model.Info.make({
-              ...Model.Info.default(Provider.ID.azure, Model.ID.make("deployment")),
-              modelID: Model.ID.make("deployment"),
-              package: Provider.aisdk("test-provider"),
-            }),
-            package: "@ai-sdk/azure",
-            options: { name: "azure" },
-          })
-          .pipe(Effect.exit)
-        expect(exit._tag).toBe("Failure")
-      }),
-    ),
-  )
-
-  it.effect("selects chat only for completion URLs", () =>
-    Effect.gen(function* () {
-      const aisdk = yield* AISDK.Service
-      const calls: string[] = []
-      yield* addPlugin()
-      yield* aisdk.runLanguage({
-        model: Model.Info.make({
-          ...Model.Info.default(Provider.ID.azure, Model.ID.make("deployment")),
-          modelID: Model.ID.make("deployment"),
-          package: Provider.aisdk("test-provider"),
-        }),
-        sdk: fakeSelectorSdk(calls),
-        options: { useCompletionUrls: true },
-      })
-      expect(calls).toEqual(["chat:deployment"])
-    }),
-  )
-
-  it.effect("selects chat from per-call useCompletionUrls", () =>
-    Effect.gen(function* () {
-      const aisdk = yield* AISDK.Service
-      const calls: string[] = []
-      yield* addPlugin()
-      yield* aisdk.runLanguage({
-        model: Model.Info.make({
-          ...Model.Info.default(Provider.ID.azure, Model.ID.make("deployment")),
-          modelID: Model.ID.make("deployment"),
-          package: Provider.aisdk("test-provider"),
-        }),
-        sdk: fakeSelectorSdk(calls),
-        options: { useCompletionUrls: true },
-      })
-      expect(calls).toEqual(["chat:deployment"])
-    }),
-  )
-
-  it.effect("ignores model useCompletionUrls when per-call option is unset", () =>
-    Effect.gen(function* () {
-      const aisdk = yield* AISDK.Service
-      const calls: string[] = []
-      yield* addPlugin()
-      yield* aisdk.runLanguage({
-        model: Model.Info.make({
-          ...Model.Info.default(Provider.ID.azure, Model.ID.make("deployment")),
-          modelID: Model.ID.make("deployment"),
-          package: Provider.aisdk("test-provider"),
-          body: { useCompletionUrls: true },
-        }),
-        sdk: fakeSelectorSdk(calls),
-        options: {},
-      })
-      expect(calls).toEqual(["responses:deployment"])
-    }),
-  )
-
-  it.effect("uses the legacy Azure selector order and provider guard", () =>
-    Effect.gen(function* () {
-      const aisdk = yield* AISDK.Service
-      const calls: string[] = []
-      yield* addPlugin()
-      yield* aisdk.runLanguage({
-        model: Model.Info.make({
-          ...Model.Info.default(Provider.ID.azure, Model.ID.make("deployment")),
-          modelID: Model.ID.make("deployment"),
-          package: Provider.aisdk("test-provider"),
-        }),
-        sdk: fakeSelectorSdk(calls),
-        options: {},
-      })
-      const ignored = yield* aisdk.runLanguage({
-        model: Model.Info.make({
-          ...Model.Info.default(Provider.ID.openai, Model.ID.make("deployment")),
-          modelID: Model.ID.make("deployment"),
-          package: Provider.aisdk("test-provider"),
-        }),
-        sdk: fakeSelectorSdk(calls),
-        options: {},
-      })
-      expect(calls).toEqual(["responses:deployment"])
-      expect(ignored.language).toBeUndefined()
-    }),
-  )
-
-  it.effect("falls back through the legacy Azure selector order", () =>
-    Effect.gen(function* () {
-      const aisdk = yield* AISDK.Service
-      const calls: string[] = []
-      const make = (method: string) => (id: string) => {
-        calls.push(`${method}:${id}`)
-        return { modelId: id, provider: method, specificationVersion: "v3" }
-      }
-      yield* addPlugin()
-      yield* aisdk.runLanguage({
-        model: Model.Info.make({
-          ...Model.Info.default(Provider.ID.azure, Model.ID.make("messages-deployment")),
-          modelID: Model.ID.make("messages-deployment"),
-          package: Provider.aisdk("test-provider"),
-        }),
-        sdk: { messages: make("messages"), chat: make("chat"), languageModel: make("languageModel") },
-        options: {},
-      })
-      yield* aisdk.runLanguage({
-        model: Model.Info.make({
-          ...Model.Info.default(Provider.ID.azure, Model.ID.make("language-deployment")),
-          modelID: Model.ID.make("language-deployment"),
-          package: Provider.aisdk("test-provider"),
-        }),
-        sdk: { languageModel: make("languageModel") },
-        options: {},
-      })
-      expect(calls).toEqual(["messages:messages-deployment", "languageModel:language-deployment"])
-    }),
-  )
 })

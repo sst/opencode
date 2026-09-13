@@ -13,12 +13,12 @@ Composable menu primitive built on Kobalte's \`DropdownMenu\` and \`ContextMenu\
 - \`Menu.Context\` namespace mirrors the same shape for right-click menus.
 - \`appearance\`: \`compact\` (default) or \`standard\`.
 - \`Menu.Item\` — supports a freeform \`children\` slot (avatar, icon, text — whatever) plus \`shortcut\` and \`badge\` props.
-- \`Menu.CheckboxItem\` / \`Menu.RadioItem\` — same item shape; auto-render a check indicator that turns blue when selected.
+- \`Menu.CheckboxItem\` / \`Menu.RadioItem\` — same item shape; auto-render a check indicator when selected.
 - \`Menu.Sub\` / \`Menu.SubTrigger\` / \`Menu.SubContent\` — nested submenus; \`SubTrigger\` auto-renders the trailing chevron.
 
 ### Behavior
 - Items expose Kobalte's data attributes — \`data-highlighted\`, \`data-checked\`, \`data-disabled\`.
-- Blue selected state is reserved for \`CheckboxItem\` / \`RadioItem\` (the rest just highlight on hover).
+- Selected state is reserved for \`CheckboxItem\` / \`RadioItem\` (the rest just highlight on hover).
 - Chevron is only rendered on \`SubTrigger\`.
 `
 

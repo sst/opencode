@@ -127,6 +127,41 @@ function stripNodeToken(token: string): string {
     .trim()
 }
 
+/** Split an `&`-joined node group, leaving `&` inside labels (brackets or quotes) untouched. */
+function splitNodeGroup(token: string): string[] {
+  const groups: string[] = []
+  const stack: string[] = []
+  let quote: '"' | "'" | undefined
+  let start = 0
+  const closes: Record<string, string> = { "[": "]", "(": ")", "{": "}" }
+
+  for (let index = 0; index < token.length; index++) {
+    const character = token[index]!
+    if (quote) {
+      if (character === quote && token[index - 1] !== "\\") quote = undefined
+      continue
+    }
+    if (character === '"' || character === "'") {
+      quote = character
+      continue
+    }
+    if (character in closes) {
+      stack.push(character)
+      continue
+    }
+    if (stack.length > 0 && character === closes[stack.at(-1)!]) {
+      stack.pop()
+      continue
+    }
+    if (stack.length === 0 && character === "&") {
+      groups.push(token.slice(start, index))
+      start = index + 1
+    }
+  }
+  groups.push(token.slice(start))
+  return groups
+}
+
 function edgeStyleFromArrow(...arrows: string[]): FlowchartEdgeStyle | undefined {
   if (arrows.some((arrow) => arrow.includes("=="))) return "thick"
   if (arrows.some((arrow) => arrow.includes("."))) return "dashed"
@@ -305,51 +340,57 @@ export function parseMermaidFlowchartDiagram(content: string): FlowchartDiagram 
 
     const edgeOperators = parseEdgeOperators(line)
     if (edgeOperators.length > 0) {
-      const nodeTokens = [
+      // Each chain position may be an `&` group (`A & B --> C`), so endpoints are lists of node tokens.
+      const nodeGroups = [
         line.slice(0, edgeOperators[0]!.index),
         ...edgeOperators.map((operator, index) =>
           line.slice(operator.end, edgeOperators[index + 1]?.index ?? line.length),
         ),
-      ]
+      ].map((group) => splitNodeGroup(group).map(stripNodeToken))
 
-      if (nodeTokens.every((token) => stripNodeToken(token).length > 0)) {
-        const unsupportedEndpoint = nodeTokens.find((token, index) => {
-          const stripped = stripNodeToken(token)
+      if (nodeGroups.every((group) => group.every((token) => token.length > 0))) {
+        const unsupportedEndpoint = nodeGroups.find((group, index) => {
           const orderOnlyEndpoint = edgeOperators[index - 1]?.orderOnly || edgeOperators[index]?.orderOnly
-          return (
-            !(orderOnlyEndpoint && subgraphs.some((subgraph) => subgraph.id === stripped)) &&
-            !isSupportedNodeToken(stripped)
+          return group.some(
+            (stripped) =>
+              !(orderOnlyEndpoint && subgraphs.some((subgraph) => subgraph.id === stripped)) &&
+              !isSupportedNodeToken(stripped),
           )
         })
         if (unsupportedEndpoint) throw new MermaidSyntaxError("flowchart", source.lineNumber, line)
-        const chainNodeIds = nodeTokens.map((token, index) => {
-          const stripped = stripNodeToken(token)
+        const chainNodeIds = nodeGroups.map((group, index) => {
           const orderOnlyEndpoint = edgeOperators[index - 1]?.orderOnly || edgeOperators[index]?.orderOnly
-          if (orderOnlyEndpoint && subgraphs.some((subgraph) => subgraph.id === stripped)) return stripped
-          return ensureNode(nodes, stripped).id
+          return group.map((stripped) => {
+            if (orderOnlyEndpoint && subgraphs.some((subgraph) => subgraph.id === stripped)) return stripped
+            return ensureNode(nodes, stripped).id
+          })
         })
-        for (const nodeId of chainNodeIds) {
+        for (const nodeId of chainNodeIds.flat()) {
           if (nodes.has(nodeId)) addNodeToSubgraph(currentSubgraph, nodeId)
         }
         for (let index = 0; index < edgeOperators.length; index++) {
           const operator = edgeOperators[index]!
-          const edge = createEdge(
-            chainNodeIds[index]!,
-            chainNodeIds[index + 1]!,
-            operator.label,
-            operator.style,
-            operator.arrowhead,
-            operator.sourceArrowhead,
-          )
-          edges.push(operator.orderOnly ? { ...edge, orderOnly: true } : edge)
+          for (const from of chainNodeIds[index]!) {
+            for (const to of chainNodeIds[index + 1]!) {
+              const edge = createEdge(
+                from,
+                to,
+                operator.label,
+                operator.style,
+                operator.arrowhead,
+                operator.sourceArrowhead,
+              )
+              edges.push(operator.orderOnly ? { ...edge, orderOnly: true } : edge)
+            }
+          }
         }
         continue
       }
     }
 
-    if (isSupportedNodeToken(line)) {
-      const node = ensureNode(nodes, line)
-      addNodeToSubgraph(currentSubgraph, node.id)
+    const nodeGroup = splitNodeGroup(line)
+    if (nodeGroup.every(isSupportedNodeToken)) {
+      for (const token of nodeGroup) addNodeToSubgraph(currentSubgraph, ensureNode(nodes, stripNodeToken(token)).id)
       continue
     }
 

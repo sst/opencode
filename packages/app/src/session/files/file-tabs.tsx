@@ -458,6 +458,11 @@ export function SessionFileView(props: SessionFileViewProps) {
           <Match when={state()?.loading}>
             <div class="px-6 py-4 text-text-weak">{language.t("common.loading")}…</div>
           </Match>
+          <Match when={state()?.notFound ? state()?.name : undefined}>
+            {(name) => (
+              <div class="px-6 py-4 text-text-weak">{language.t("file.error.notFound", { name: name() })}</div>
+            )}
+          </Match>
           <Match when={state()?.error}>{(err) => <div class="px-6 py-4 text-text-weak">{err()}</div>}</Match>
         </Switch>
       </ScrollView>

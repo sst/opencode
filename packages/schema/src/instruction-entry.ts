@@ -27,7 +27,7 @@ export const Snapshot = Schema.Array(
 ).annotate({ identifier: "InstructionEntry.Snapshot" })
 export type Snapshot = typeof Snapshot.Type
 
-export const MaxValueBytes = 8 * 1024
+export const MaxValueBytes = 256 * 1024
 
 export class ValueTooLargeError extends Schema.TaggedError<ValueTooLargeError>()(
   "InstructionEntryValueTooLargeError",

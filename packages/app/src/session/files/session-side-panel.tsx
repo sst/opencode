@@ -1,5 +1,6 @@
 import { For, Match, Show, Switch, createEffect, createMemo, onCleanup, type JSX } from "solid-js"
 import { createMediaQuery } from "@solid-primitives/media"
+import { createEventListener } from "@solid-primitives/event-listener"
 import { DragDropProvider, PointerSensor } from "@dnd-kit/solid"
 import { isSortable } from "@dnd-kit/solid/sortable"
 import { Accessibility, AutoScroller, Feedback, PointerActivationConstraints } from "@dnd-kit/dom"
@@ -191,6 +192,7 @@ export function SessionSidePanel(props: {
 
   let fileFilter: HTMLInputElement | undefined
   let tabList: HTMLDivElement | undefined
+  let selectionEvent: Event | undefined
   const temporaryTab = tabs().preview
   const previewTab = (value: string) => {
     const next = normalizeTab(value)
@@ -228,6 +230,7 @@ export function SessionSidePanel(props: {
     return active !== "review" && active !== "context" && active !== "empty" && !isSessionBrowserTab(active)
   })
   const openFileKeybind = createMemo(() => command.keybindParts("file.open"))
+  const openBrowserKeybind = createMemo(() => command.keybindParts("browser.open"))
   const closeTabKeybind = createMemo(() => command.keybindParts("file.close"))
   createEffect(() => {
     if (!file.ready()) return
@@ -269,7 +272,11 @@ export function SessionSidePanel(props: {
         style={{ width: panelWidth() }}
       >
         <Show when={visible()}>
-          <div class="size-full flex">
+          <div
+            data-slot="session-review-content"
+            class="h-full flex shrink-0"
+            style={{ width: "var(--session-side-content-width, 100%)" }}
+          >
             <Show when={reviewVisible()}>
               <div class="relative min-w-0 h-full flex-1 overflow-hidden bg-v2-background-bg-base">
                 <div class="size-full min-w-0 h-full bg-v2-background-bg-base">
@@ -298,11 +305,24 @@ export function SessionSidePanel(props: {
                       tabs().move(source.id.toString(), source.index)
                     }}
                   >
-                    <Tabs value={activeTab()} onChange={activateTab}>
+                    <Tabs
+                      value={activeTab()}
+                      onChange={(value) => {
+                        // Kobalte selects the first tab while session triggers register.
+                        // Persist input events only; createSessionTabs owns fallback selection.
+                        if (selectionEvent && selectionEvent.eventPhase !== Event.NONE) activateTab(value)
+                      }}
+                    >
                       <div class="session-review-v2-tabs-bar sticky top-0 shrink-0 flex items-center">
                         <Tabs.List
                           ref={(el: HTMLDivElement) => {
                             tabList = el
+                            createEventListener(
+                              el,
+                              ["pointerdown", "click", "keydown"],
+                              (event) => (selectionEvent = event),
+                              { capture: true },
+                            )
                             const stop = createFileTabListSync({ el, contextOpen })
                             onCleanup(stop)
                           }}
@@ -376,9 +396,11 @@ export function SessionSidePanel(props: {
                                         ariaControls={activeTab() === tab ? browserTabPanelID : undefined}
                                       >
                                         <div class="flex items-center gap-1.5">
-                                          <Icon name="window-cursor" size="small" />
+                                          <Icon name="globe" size="small" />
                                           <span class="max-w-40 truncate">
-                                            {item().title || language.t("session.tab.browser")}
+                                            {!item().url || item().url === "about:blank"
+                                              ? language.t("session.tab.browser")
+                                              : item().title || item().url}
                                           </span>
                                         </div>
                                       </SortableTab>
@@ -465,7 +487,7 @@ export function SessionSidePanel(props: {
                                 placement="bottom"
                                 class="flex items-center"
                               >
-                                <Menu appearance="standard" modal={false} placement="bottom-end" gutter={4}>
+                                <Menu appearance="standard" modal={false} placement="bottom-start" gutter={4}>
                                   <Menu.Trigger
                                     as={IconButton}
                                     icon={<Icon name="plus" />}
@@ -479,6 +501,7 @@ export function SessionSidePanel(props: {
                                   <Menu.Portal>
                                     <Menu.Content>
                                       <Menu.Item
+                                        class="!gap-6"
                                         onSelect={openFileBrowser}
                                         shortcut={
                                           <Show when={openFileKeybind().length > 0}>
@@ -487,13 +510,21 @@ export function SessionSidePanel(props: {
                                         }
                                       >
                                         <div class="flex items-center gap-2">
-                                          <Icon name="open-file" size="small" />
+                                          <Icon name="file-tree" size="small" />
                                           <span>{language.t("command.file.open")}</span>
                                         </div>
                                       </Menu.Item>
-                                      <Menu.Item onSelect={props.browser.open}>
+                                      <Menu.Item
+                                        class="!gap-6"
+                                        onSelect={props.browser.open}
+                                        shortcut={
+                                          <Show when={openBrowserKeybind().length > 0}>
+                                            <Keybind keys={openBrowserKeybind()} variant="neutral" />
+                                          </Show>
+                                        }
+                                      >
                                         <div class="flex items-center gap-2">
-                                          <Icon name="window-cursor" size="small" />
+                                          <Icon name="globe" size="small" />
                                           <span>{language.t("session.tab.browser")}</span>
                                         </div>
                                       </Menu.Item>
@@ -512,7 +543,7 @@ export function SessionSidePanel(props: {
                           onClick={(event) => event.stopPropagation()}
                         >
                           <OpenInAppButton directory={projectDirectory} />
-                          <Show when={reviewOpen()}>
+                          <Show when={reviewVisible()}>
                             <div class="size-7 shrink-0" aria-hidden />
                           </Show>
                         </div>
@@ -564,15 +595,7 @@ export function SessionSidePanel(props: {
                           classList={{ hidden: !isSessionBrowserTab(activeTab()) }}
                           inert={!isSessionBrowserTab(activeTab()) || undefined}
                         >
-                          <Show when={props.browser.registration()} keyed>
-                            {(registration) => (
-                              <SessionBrowserPane
-                                registration={registration}
-                                browser={props.browser}
-                                visible={isSessionBrowserTab(activeTab())}
-                              />
-                            )}
-                          </Show>
+                          <SessionBrowserPane browser={props.browser} visible={isSessionBrowserTab(activeTab())} />
                         </div>
                       </Show>
 

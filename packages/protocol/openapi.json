@@ -1621,14 +1621,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
-                    },
-                    {
-                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
                 }
               }
             }
@@ -3249,6 +3242,152 @@
         "summary": "Get session context"
       }
     },
+    "/api/session/{sessionID}/diff": {
+      "get": {
+        "tags": ["session"],
+        "operationId": "v2.session.diff",
+        "parameters": [
+          {
+            "name": "sessionID",
+            "in": "path",
+            "schema": {
+              "type": "string",
+              "pattern": "^ses"
+            },
+            "required": true
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^msg_"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "User message whose turn to diff. Defaults to the turn of the newest user message."
+            },
+            "required": false
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^msg_"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Later user message whose turn ends the range. Defaults to the turn of `from` alone."
+            },
+            "required": false
+          },
+          {
+            "name": "context",
+            "in": "query",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Unchanged lines around each hunk. Omit for full-file patches."
+            },
+            "required": false
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/FileDiff.Info"
+                      }
+                    }
+                  },
+                  "required": ["data"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestErrorEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InvalidRequestErrorEncoded"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "MessageNotFoundError | SessionNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/MessageNotFoundErrorEncoded"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "UnknownError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnknownErrorEncoded"
+                }
+              }
+            }
+          }
+        },
+        "description": "Structured per-file diffs of the files a turn changed. A turn runs from the first prompt after the session was last idle until its next idle marker, so prompts steered in while it was busy belong to the same turn; `to` extends the range through a later turn. Compares the range's first recorded snapshot with its last; a step still running in the active session compares against the working copy. Ranges that span a location change are rejected. In sessions without any idle marker, a prompt's turn spans until the next user message.",
+        "summary": "Diff session turns"
+      }
+    },
     "/api/session/{sessionID}/inbox": {
       "get": {
         "tags": ["session"],
@@ -4285,143 +4424,6 @@
         },
         "description": "Retrieve one projected message owned by the Session.",
         "summary": "Get session message"
-      },
-      "patch": {
-        "tags": ["session"],
-        "operationId": "v2.session.messageUpdate",
-        "parameters": [
-          {
-            "name": "sessionID",
-            "in": "path",
-            "schema": {
-              "type": "string",
-              "pattern": "^ses"
-            },
-            "required": true
-          },
-          {
-            "name": "messageID",
-            "in": "path",
-            "schema": {
-              "type": "string",
-              "pattern": "^msg_"
-            },
-            "required": true
-          }
-        ],
-        "security": [],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "$ref": "#/components/schemas/Session.Message.Assistant"
-                    }
-                  },
-                  "required": ["data"],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "InvalidRequestError",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/InvalidRequestErrorEncoded"
-                    },
-                    {
-                      "$ref": "#/components/schemas/InvalidRequestErrorEncoded"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "UnauthorizedError",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UnauthorizedErrorEncoded"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "SessionNotFoundError | MessageNotFoundError",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/SessionNotFoundErrorEncoded"
-                    },
-                    {
-                      "$ref": "#/components/schemas/MessageNotFoundErrorEncoded"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "SessionBusyError | ConflictError",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/SessionBusyErrorEncoded"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ConflictErrorEncoded"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "description": "Replace the content of a completed assistant message in an idle session.",
-        "summary": "Update assistant message content",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "content": {
-                    "type": "array",
-                    "items": {
-                      "anyOf": [
-                        {
-                          "$ref": "#/components/schemas/Session.Message.Assistant.Text"
-                        },
-                        {
-                          "$ref": "#/components/schemas/Session.Message.Assistant.Reasoning"
-                        },
-                        {
-                          "$ref": "#/components/schemas/Session.Message.Assistant.Tool"
-                        }
-                      ]
-                    }
-                  }
-                },
-                "required": ["content"],
-                "additionalProperties": false
-              }
-            }
-          },
-          "required": true
-        }
       }
     },
     "/api/session/{sessionID}/environment": {
@@ -4634,6 +4636,34 @@
               ]
             },
             "required": false
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "agent-switched",
+                    "model-switched",
+                    "location-switched",
+                    "user",
+                    "synthetic",
+                    "system",
+                    "skill",
+                    "shell",
+                    "assistant",
+                    "compaction"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by message type before pagination. When omitted, all message types are returned. Pass the same type when following cursors."
+            },
+            "required": false
           }
         ],
         "security": [],
@@ -4696,7 +4726,7 @@
             }
           }
         },
-        "description": "Retrieve projected messages for a session. Items keep the requested order across pages; use cursor.next or cursor.previous to move through the ordered timeline.",
+        "description": "Retrieve projected messages for a session, optionally filtered by type. Items keep the requested order across pages; use cursor.next or cursor.previous to move through the ordered timeline, passing the same type filter on each page.",
         "summary": "Get session messages"
       }
     },
@@ -8828,6 +8858,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UnauthorizedErrorEncoded"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "FileNotFoundError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileNotFoundErrorEncoded"
                 }
               }
             }
@@ -14387,6 +14427,9 @@
           "compaction": {
             "$ref": "#/components/schemas/Provider.Compaction"
           },
+          "websocket": {
+            "type": "boolean"
+          },
           "modelID": {
             "type": "string"
           },
@@ -14494,6 +14537,9 @@
         "properties": {
           "compaction": {
             "$ref": "#/components/schemas/Provider.Compaction"
+          },
+          "websocket": {
+            "type": "boolean"
           },
           "canonical": {
             "type": "string"
@@ -14698,6 +14744,23 @@
           }
         },
         "required": ["file", "patch", "additions", "deletions", "status"],
+        "additionalProperties": false
+      },
+      "FileNotFoundErrorEncoded": {
+        "type": "object",
+        "properties": {
+          "_tag": {
+            "type": "string",
+            "enum": ["FileNotFoundError"]
+          },
+          "path": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": ["_tag", "path", "message"],
         "additionalProperties": false
       },
       "FileSystem.Entry": {
@@ -16441,6 +16504,9 @@
           "compaction": {
             "$ref": "#/components/schemas/Provider.Compaction"
           },
+          "websocket": {
+            "type": "boolean"
+          },
           "settings": {
             "type": "object"
           },
@@ -17429,6 +17495,9 @@
           "compaction": {
             "$ref": "#/components/schemas/Provider.Compaction"
           },
+          "websocket": {
+            "type": "boolean"
+          },
           "settings": {
             "type": "object"
           },
@@ -18400,6 +18469,12 @@
           },
           "providerContext": {
             "$ref": "#/components/schemas/Session.ProviderContext"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/Money.USD"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/TokenUsage.Info"
           }
         },
         "required": ["type", "id", "time", "status", "reason", "summary", "recent"],
@@ -18439,6 +18514,12 @@
           },
           "error": {
             "$ref": "#/components/schemas/Session.StructuredError"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/Money.USD"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/TokenUsage.Info"
           }
         },
         "required": ["type", "id", "time", "status", "reason", "error"],
@@ -18486,6 +18567,38 @@
         "required": ["type", "id", "time", "status", "reason", "summary", "recent"],
         "additionalProperties": false
       },
+      "Session.Message.Idle": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^msg_"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "time": {
+            "type": "object",
+            "properties": {
+              "created": {
+                "type": "number"
+              }
+            },
+            "required": ["created"],
+            "additionalProperties": false
+          },
+          "type": {
+            "type": "string",
+            "enum": ["idle"]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": ["succeeded", "failed", "interrupted"]
+          }
+        },
+        "required": ["id", "time", "type", "outcome"],
+        "additionalProperties": false
+      },
       "Session.Message.Info": {
         "anyOf": [
           {
@@ -18517,6 +18630,9 @@
           },
           {
             "$ref": "#/components/schemas/Session.Message.Compaction"
+          },
+          {
+            "$ref": "#/components/schemas/Session.Message.Idle"
           }
         ]
       },

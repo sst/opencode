@@ -19,9 +19,11 @@ import PROMPT_GPT from "../../src/plugin/system-prompt/gpt.txt"
 import PROMPT_ASTRA from "../../src/plugin/system-prompt/gpt-astra.txt"
 import PROMPT_KIMI from "../../src/plugin/system-prompt/kimi.txt"
 import PROMPT_TRINITY from "../../src/plugin/system-prompt/trinity.txt"
+import PROMPT_ANTHROPIC from "../../src/plugin/system-prompt/anthropic.txt"
 
 const it = testEffect(PluginTestLayer)
 const fallback = SessionSystemPrompt.make([])
+const appended = `${fallback}\n\n${SessionSystemPrompt.render(PROMPT_ANTHROPIC, [])}`
 const makeHost = Effect.gen(function* () {
   const agents = yield* Agent.Service
   const plugins = yield* Plugin.Service
@@ -41,14 +43,14 @@ const context = (id: string, system = fallback): SessionHooks["context"] => ({
       { description: name, input: { type: "object" } },
     ]),
   ),
-  generation: {},
-  providerOptions: {},
+  options: {},
 })
 
 describe("OptimizePlugin", () => {
   test("enables prompt plugins without model-specific tool optimization", () => {
     expect(OptimizePlugin.Plugins.map((plugin) => plugin.id)).toEqual([
       "opencode.prompt.openai",
+      "opencode.prompt.anthropic",
       "opencode.prompt.kimi",
       "opencode.prompt.arcee",
       "opencode.prompt.meta",
@@ -77,7 +79,7 @@ describe("OptimizePlugin", () => {
         ["gpt-5-codex", PROMPT_GPT],
         ["gpt-6-astra", PROMPT_ASTRA],
         ["gemini-2.5-pro", fallback],
-        ["claude-sonnet-4", fallback],
+        ["claude-sonnet-4", appended],
         ["kimi-k2", PROMPT_KIMI],
         ["trinity", PROMPT_TRINITY],
         ["meta/muse-spark-1.1", PROMPT_META.replaceAll("{{MODEL_NAME}}", "Muse Spark")],
@@ -125,6 +127,30 @@ describe("OptimizePlugin", () => {
         "Project instructions",
       ])
       expect(event.system[0]?.text).not.toContain("${OPENCODE_TOOL_GUIDANCE}")
+      expect(Object.keys(event.tools).sort()).toEqual(["edit", "glob", "grep", "patch", "read", "shell", "write"])
+    }),
+  )
+
+  it.effect("appends the Anthropic prompt to the baseline without changing tools or project instructions", () =>
+    Effect.gen(function* () {
+      const catalog = yield* Catalog.Service
+      const hooks = yield* PluginHooks.Service
+      const pluginHost = yield* makeHost
+      yield* catalog.transform((editor) =>
+        editor.model.update(Provider.ID.make("test"), Model.ID.make("claude-sonnet-4"), () => {}),
+      )
+      yield* OptimizePlugin.AnthropicPlugin.effect(pluginHost)
+      const event = context("claude-sonnet-4")
+      event.system.push(SystemPart.make("Project instructions"))
+
+      yield* hooks.trigger("session", "context", event)
+
+      const baseline = SessionSystemPrompt.render(fallback, Object.keys(event.tools))
+      expect(event.system.map((part) => part.text)).toEqual([
+        `${baseline}\n\n${SessionSystemPrompt.render(PROMPT_ANTHROPIC, Object.keys(event.tools))}`,
+        "Project instructions",
+      ])
+      expect(event.system[0]?.text.startsWith(baseline)).toBe(true)
       expect(Object.keys(event.tools).sort()).toEqual(["edit", "glob", "grep", "patch", "read", "shell", "write"])
     }),
   )
@@ -299,7 +325,7 @@ describe("OptimizePlugin", () => {
         ["codex-family-alias", "custom-deployment", "GPT-CODEX", fallback],
         ["astra-api-alias", "gpt-6-astra", undefined, fallback],
         ["astra-family-alias", "custom-deployment", "gpt-6", fallback],
-        ["claude-catalog-alias", "custom-model", undefined, fallback],
+        ["claude-catalog-alias", "custom-model", undefined, appended],
         ["anthropic-api-alias", "Claude-Opus-4-8", undefined, fallback],
         ["anthropic-family-alias", "custom-deployment", "CLAUDE-SONNET", fallback],
       ] as const

@@ -39,6 +39,51 @@ test("restores review mode and selected file per session", async ({ page }) => {
   await expectSelectedFile(page, "gamma.ts")
 })
 
+for (const tab of ["Context", "Open file", "README.md"]) {
+  test(`restores the selected ${tab} pane tab after switching sessions and reloading`, async ({ page }) => {
+    await setup(page)
+    await page.goto(sessionHref(sessionA))
+    await expectSessionTitle(page, titleA)
+    await page.getByRole("button", { name: "Toggle review" }).click()
+
+    const panel = page.locator("#review-panel")
+    if (tab === "Context") await page.getByRole("button", { name: "View context usage" }).click()
+    if (tab !== "Context") await panel.getByRole("button", { name: "Open file" }).click()
+    if (tab === "README.md") await panel.getByRole("button", { name: "README.md" }).click()
+    await expect(panel.getByRole("tab", { name: tab, selected: true })).toBeVisible()
+
+    await switchSession(page, titleB)
+    await page.getByRole("button", { name: "Toggle review" }).click()
+    await expect(panel.locator("#session-side-panel-review-tab")).toHaveAttribute("aria-selected", "true")
+
+    await switchSession(page, titleA)
+    await expect(panel.getByRole("tab", { name: tab, selected: true })).toBeVisible()
+
+    await page.reload()
+    await expectSessionTitle(page, titleA)
+    await expect(panel.getByRole("tab", { name: tab, selected: true })).toBeVisible()
+
+    const selected = panel.getByRole("tab", { name: tab })
+    const review = panel.locator("#session-side-panel-review-tab")
+    await selected.press("Home")
+    await expect(review).toHaveAttribute("aria-selected", "true")
+    await review.press("End")
+    await expect(selected).toHaveAttribute("aria-selected", "true")
+    await review.click()
+    await expect(review).toHaveAttribute("aria-selected", "true")
+    await selected.click()
+    await expect(selected).toHaveAttribute("aria-selected", "true")
+
+    await switchSession(page, titleB)
+    await expect(review).toHaveAttribute("aria-selected", "true")
+    await switchSession(page, titleA)
+    await expect(selected).toHaveAttribute("aria-selected", "true")
+    await selected.press("Control+w")
+    await expect(selected).toHaveCount(0)
+    await expect(review).toHaveAttribute("aria-selected", "true")
+  })
+}
+
 async function selectFile(page: Page, file: string) {
   await page.getByRole("button", { name: file }).click()
   await expectSelectedFile(page, file)
@@ -76,6 +121,10 @@ async function setup(page: Page) {
       default: { providerID: "opencode", modelID: "test" },
     },
     sessions: [session(sessionA, titleA, 1700000000000), session(sessionB, titleB, 1700000001000)],
+    fileList: () => [
+      { name: "README.md", path: "README.md", absolute: `${directory}/README.md`, type: "file", ignored: false },
+    ],
+    fileContent: (path) => ({ type: "text", content: `contents:${path}` }),
     pageMessages: () => ({ items: [] }),
   })
   await page.route(/\/api\/vcs(?:\?.*)?$/, (route) =>

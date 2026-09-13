@@ -13,6 +13,10 @@ import { ThemeProvider, useThemes } from "../../../src/context/theme"
 // the context back, so the context must load first exactly as it does in the app.
 import type { usePlugin } from "../../../src/plugin/context"
 import "../../../src/plugin/context"
+import { ClientProvider } from "../../../src/context/client"
+import { DataProvider } from "../../../src/context/data"
+import { LocationProvider } from "../../../src/context/location"
+import { RouteProvider } from "../../../src/context/route"
 import { PluginsDialog } from "../../../src/feature-plugins/system/plugins"
 import { DialogProvider } from "../../../src/ui/dialog"
 import { ToastProvider } from "../../../src/ui/toast"
@@ -32,11 +36,19 @@ function packagePlugin(outdated: boolean): PluginInfo {
   }
 }
 
-async function renderPlugins(root: string, inventory: { list: PluginInfo[]; check: PluginInfo[] }) {
+async function renderPlugins(
+  root: string,
+  inventory: { list: PluginInfo[]; check: PluginInfo[] },
+  tui?: {
+    registered: { id: string; source: "builtin" | "external"; active: boolean }[]
+    list: { target: string; id?: string; status: "active" | "inactive" | "failed"; error?: string }[]
+  },
+) {
   const state = path.join(root, "state")
   await mkdir(state, { recursive: true })
   const requests: { path: string; body: unknown }[] = []
   const toasts: ToastOptions[] = []
+  const activations: string[] = []
   const location = { directory: root, project: { id: "proj_test", directory: root, canonical: root } }
   const transport = createFetch(async (url, request) => {
     if (url.pathname === "/api/plugin") return json({ location, data: inventory.list })
@@ -49,13 +61,14 @@ async function renderPlugins(root: string, inventory: { list: PluginInfo[]; chec
       return new Response(null, { status: 204 })
     }
   })
+  const api = createApi(transport.fetch)
 
   function Harness() {
     function Content() {
       onCleanup(Keymap.use().mode.push("modal"))
       const theme = useThemes().currentTokens()
       const context = {
-        client: createApi(transport.fetch),
+        client: api,
         data: { location: { default: () => ({ directory: root }) }, on: () => () => {} },
         get theme() {
           return theme
@@ -66,9 +79,12 @@ async function renderPlugins(root: string, inventory: { list: PluginInfo[]; chec
         },
       } as unknown as Context
       const plugins = {
-        registered: () => [],
-        list: () => [],
-        activate: async () => true,
+        registered: () => tui?.registered ?? [],
+        list: () => tui?.list ?? [],
+        activate: async (id: string) => {
+          activations.push(id)
+          return true
+        },
         deactivate: async () => true,
       } as unknown as ReturnType<typeof usePlugin>
       return <PluginsDialog context={context} plugins={plugins} />
@@ -77,15 +93,23 @@ async function renderPlugins(root: string, inventory: { list: PluginInfo[]; chec
     return (
       <TestTuiContexts directory={root} paths={{ home: root, state, worktree: root }}>
         <ConfigProvider config={createTuiResolvedConfig()}>
-          <Keymap.Provider>
-            <ThemeProvider mode="dark" source={emptyThemeSource}>
-              <ToastProvider>
-                <DialogProvider>
-                  <Content />
-                </DialogProvider>
-              </ToastProvider>
-            </ThemeProvider>
-          </Keymap.Provider>
+          <RouteProvider initialRoute={{ type: "home" }}>
+            <ClientProvider api={api}>
+              <DataProvider directory={root}>
+                <LocationProvider>
+                  <Keymap.Provider>
+                    <ThemeProvider mode="dark" source={emptyThemeSource}>
+                      <ToastProvider>
+                        <DialogProvider>
+                          <Content />
+                        </DialogProvider>
+                      </ToastProvider>
+                    </ThemeProvider>
+                  </Keymap.Provider>
+                </LocationProvider>
+              </DataProvider>
+            </ClientProvider>
+          </RouteProvider>
         </ConfigProvider>
       </TestTuiContexts>
     )
@@ -93,9 +117,45 @@ async function renderPlugins(root: string, inventory: { list: PluginInfo[]; chec
 
   const app = await testRender(() => <Harness />, { width: 80, height: 20, kittyKeyboard: true })
   app.renderer.start()
-  await app.waitForFrame((frame) => frame.includes("team.plugins") || frame.includes("local.plugin"))
-  return { app, requests, toasts }
+  const expected = tui?.list[0]?.id ?? inventory.list[0]?.id ?? "local.plugin"
+  await app.waitForFrame((frame) => frame.includes(expected))
+  return { app, requests, toasts, activations }
 }
+
+test("failed TUI plugins keep enter to enable and use space to show the error", async () => {
+  await using tmp = await tmpdir()
+  const fixture = await renderPlugins(
+    tmp.path,
+    { list: [], check: [] },
+    {
+      registered: [{ id: "broken.plugin", source: "external", active: false }],
+      list: [
+        {
+          target: "./broken.ts",
+          id: "broken.plugin",
+          status: "failed",
+          error: "Plugin setup failed",
+        },
+      ],
+    },
+  )
+
+  try {
+    await fixture.app.waitForFrame((frame) => frame.includes("broken.plugin") && frame.includes("view error"))
+    expect(fixture.app.captureCharFrame()).toContain("enable")
+
+    fixture.app.mockInput.pressEnter()
+    await fixture.app.waitFor(() => fixture.activations.length === 1)
+    expect(fixture.activations).toEqual(["broken.plugin"])
+
+    fixture.app.mockInput.pressKey(" ")
+    await fixture.app.waitForFrame(
+      (frame) => frame.includes("TUI plugin error") && frame.includes("Plugin setup failed"),
+    )
+  } finally {
+    fixture.app.renderer.destroy()
+  }
+})
 
 test("checking for updates refreshes the inventory and reveals the update action", async () => {
   await using tmp = await tmpdir()

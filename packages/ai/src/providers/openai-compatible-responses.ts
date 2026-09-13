@@ -16,12 +16,12 @@ export type Config = RouteDefaultsInput &
     readonly providerOptions?: OpenResponsesProviderOptionsInput
   }
 
-export interface Settings extends ProviderPackage.Settings {
-  readonly apiKey?: string
-  readonly baseURL: string
-  readonly provider?: string
-  readonly providerOptions?: OpenResponsesProviderOptionsInput
-}
+export type Settings = ProviderPackage.Settings &
+  OpenResponsesProviderOptionsInput & {
+    readonly apiKey?: string
+    readonly baseURL: string
+    readonly provider?: string
+  }
 
 export const routes = [OpenAICompatibleResponses.route]
 
@@ -48,13 +48,13 @@ export const provider = {
 
 export const model: ProviderPackage.Definition<Settings, OpenResponsesProviderOptionsInput>["model"] = (
   modelID,
-  settings,
+  { apiKey, baseURL, body, headers, provider, ...providerOptions },
 ) =>
   configure({
-    apiKey: settings.apiKey,
-    baseURL: settings.baseURL,
-    headers: settings.headers === undefined ? undefined : { ...settings.headers },
-    http: settings.body === undefined ? undefined : { body: { ...settings.body } },
-    provider: settings.provider,
-    providerOptions: settings.providerOptions,
+    apiKey,
+    baseURL,
+    headers: headers === undefined ? undefined : { ...headers },
+    http: body === undefined ? undefined : { body: { ...body } },
+    provider,
+    providerOptions,
   }).model(modelID)

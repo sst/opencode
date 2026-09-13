@@ -5,7 +5,8 @@ const docs = `### Overview
 Button v2 with visual variants and three sizes.
 
 ### API
-- \`variant\`: "neutral" | "danger" | "warning" | "contrast" | "ghost" | "ghost-muted" | "ghost-faint" | "loading".
+- \`variant\`: "neutral" | "danger" | "warning" | "contrast" | "submit" | "ghost" | "ghost-muted" | "ghost-faint" | "loading".
+- \`submit\` shares the brighter contrast icon-button styling for Composer submission actions.
 - \`size\`: "small" | "normal" | "large".
 - \`icon\`: Optional icon name.
 - Inherits Kobalte Button props and native button attributes.
@@ -40,7 +41,7 @@ export default {
     },
     variant: {
       control: "select",
-      options: ["neutral", "danger", "warning", "contrast", "ghost", "ghost-muted", "ghost-faint", "loading"],
+      options: ["neutral", "danger", "warning", "contrast", "submit", "ghost", "ghost-muted", "ghost-faint", "loading"],
     },
     size: {
       control: "select",
@@ -65,6 +66,7 @@ export const Variants = {
       <Button variant="danger">Danger</Button>
       <Button variant="warning">Warning</Button>
       <Button variant="contrast">Contrast</Button>
+      <Button variant="submit">Submit</Button>
       <Button variant="ghost">Ghost</Button>
       <Button variant="ghost-muted" icon="edit">
         Ghost muted
@@ -127,6 +129,7 @@ export const AllStates = {
       "danger",
       "warning",
       "contrast",
+      "submit",
       "ghost",
       "ghost-muted",
       "ghost-faint",

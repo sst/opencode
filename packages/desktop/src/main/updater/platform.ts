@@ -37,16 +37,21 @@ export const make = Effect.gen(function* () {
       },
       catch: (error) => error,
     }),
-    stageUpdate: stageUpdate(),
+    stageUpdate,
     installAndRestart,
     dispose: () => autoUpdater.off("before-quit-for-update", beforeQuit),
   } satisfies Platform
 })
 
-function stageUpdate() {
+function stageUpdate(options: { readonly differential: boolean }) {
   if (process.platform !== "darwin")
     return Effect.tryPromise({
-      try: () => updateClient.downloadUpdate(),
+      try: () => {
+        // Only the NSIS cache goes stale: macOS refreshes its cached zip with every download and AppImage reads the
+        // blockmap embedded in the running file.
+        updateClient.disableDifferentialDownload = process.platform === "win32" && !options.differential
+        return updateClient.downloadUpdate()
+      },
       catch: (error) => error,
     }).pipe(Effect.asVoid)
 

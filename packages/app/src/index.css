@@ -38,12 +38,97 @@
 }
 
 @layer components {
+  [data-slot="session-chat-panel"] {
+    container-name: session-chat;
+  }
+
+  [data-slot="session-chat-panel"]
+    :is([data-timeline-virtual-content], [data-component="session-composer-dock"] > div) {
+    translate: var(--session-summary-resize-translate, var(--session-summary-translate, none));
+    transition: translate 240ms cubic-bezier(0.4, 0, 0.2, 1);
+
+    @media (prefers-reduced-motion: reduce) {
+      transition: none;
+    }
+  }
+
+  [data-slot="session-chat-panel"][data-summary-resizing="true"]
+    :is([data-timeline-virtual-content], [data-component="session-composer-dock"] > div) {
+    transition: none;
+  }
+
+  /* Keep the 1000px conversation intact, with 320px for the summary and its gutters.
+     Move only as far as needed; wider panels already have enough space in the margin. */
+  @container session-chat (min-width: 1320px) {
+    [data-slot="session-chat-panel"][data-summary-open="true"]
+      :is([data-timeline-virtual-content], [data-component="session-composer-dock"] > div) {
+      --session-summary-translate: min(0px, calc(50cqi - 820px));
+
+      &:dir(rtl) {
+        --session-summary-translate: max(0px, calc(820px - 50cqi));
+      }
+    }
+  }
+
+  [data-slot="session-chat-panel"][data-scrollbar-hidden="true"]
+    [data-slot="session-timeline-scroll"]
+    > .scroll-view__thumb {
+    visibility: hidden;
+  }
+
   [data-slot="session-side-panel-presence"][data-opened="true"] {
-    animation: terminal-panel-presence-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: side-region-presence-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   [data-slot="session-side-panel-presence"][data-opened="false"] {
-    animation: terminal-panel-presence-out 240ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation: side-region-presence-out 240ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  #review-panel {
+    container-type: inline-size;
+  }
+
+  /* Like the composer toolbar, fade only clipped content without reserving layout space.
+     The fade contracts as overflow clears; the second mask preserves the header divider. */
+  #review-panel .session-review-v2-tabs-bar {
+    --session-review-header-fade: clamp(0px, calc(100% - 100cqi), 24px);
+    mask-image:
+      linear-gradient(
+        to right,
+        #000 calc(100cqi - 40px - var(--session-review-header-fade)),
+        transparent calc(100cqi - 40px)
+      ),
+      linear-gradient(to top, #000 1px, transparent 1px);
+
+    &:dir(rtl) {
+      mask-image:
+        linear-gradient(
+          to left,
+          #000 calc(100cqi - 40px - var(--session-review-header-fade)),
+          transparent calc(100cqi - 40px)
+        ),
+        linear-gradient(to top, #000 1px, transparent 1px);
+    }
+  }
+
+  /* The panel's width animation supplies the slide; only fade its fixed-width contents. */
+  [data-slot="session-side-region-presence"][data-opened] [data-slot="session-review-content"] {
+    transition: opacity 200ms ease-out 40ms;
+  }
+
+  /* Cached contents must stay transparent even after the presence animation finishes. */
+  #review-panel[aria-hidden="true"] > [data-slot="session-review-content"] {
+    opacity: 0;
+  }
+
+  [data-slot="session-side-region-presence"][data-opened="false"] [data-slot="session-review-content"] {
+    transition: opacity 160ms ease-out;
+  }
+
+  @starting-style {
+    [data-slot="session-side-region-presence"][data-opened="true"] [data-slot="session-review-content"] {
+      opacity: 0;
+    }
   }
 
   [data-slot="session-side-region-presence"][data-opened="true"] {
@@ -82,9 +167,14 @@
     [data-slot="terminal-panel-presence"],
     [data-slot="side-terminal-panel-presence"],
     [data-slot="session-side-panel-presence"],
+    [data-slot="session-review-content"],
     [data-slot="session-side-region-presence"],
     [data-component="terminal-panel"] {
       animation: none !important;
+    }
+
+    [data-slot="session-review-content"] {
+      transition: none !important;
     }
   }
 
@@ -125,13 +215,9 @@
     }
   }
 
+  /* Presence needs an animation lifetime, but the panel frame must never fade. */
   @keyframes side-region-presence-in {
-    from {
-      opacity: 0;
-    }
-    0.01% {
-      opacity: 0.999999;
-    }
+    from,
     to {
       opacity: 1;
     }
@@ -142,7 +228,7 @@
       opacity: 1;
     }
     to {
-      opacity: 0.999999;
+      opacity: 1;
       visibility: hidden;
     }
   }

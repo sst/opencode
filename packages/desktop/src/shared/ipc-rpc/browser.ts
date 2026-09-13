@@ -9,7 +9,12 @@ const endpoint = Schema.Struct({
   username: Schema.optionalKey(text(1_024)),
   password: Schema.optionalKey(text(4_096)),
 })
-const target = Schema.Struct({ sessionID: text(256).check(Schema.isStartsWith("ses")), endpoint })
+const target = Schema.Struct({
+  serverKey: text(16_384),
+  sessionID: text(256).check(Schema.isStartsWith("ses")),
+  endpoint,
+  restore: Schema.optionalKey(Browser.State),
+})
 const bounds = Schema.Struct({ x: Schema.Finite, y: Schema.Finite, width: Schema.Finite, height: Schema.Finite })
 const channel = Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 255 }))
 const layout = Schema.Struct({

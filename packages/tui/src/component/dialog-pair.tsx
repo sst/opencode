@@ -5,6 +5,7 @@ import { renderUnicodeCompact } from "uqr"
 import { useClient } from "../context/client"
 import { useTheme } from "../context/theme"
 import { useDialog } from "../ui/dialog"
+import { Link } from "../ui/link"
 import { errorMessage } from "../util/error"
 
 export type DialogPairCredentials = {
@@ -50,16 +51,34 @@ export function DialogPair(props: { credentials?: DialogPairCredentials }) {
   const content = () => {
     const value = info()
     if (!value) return
+    const href = (input: string) => {
+      const url = new URL(input)
+      url.username = encodeURIComponent(value.username)
+      url.password = encodeURIComponent(value.password)
+      return url.toString()
+    }
     return (
       <box flexDirection={horizontal() ? "row" : "column"} alignItems={horizontal() ? "flex-start" : "center"} gap={2}>
         <box width={horizontal() ? 29 : "100%"} flexShrink={0} gap={1}>
           <box>
             <text fg={theme.text.subdued}>This device</text>
-            <text fg={theme.text.default}>{localhost()}</text>
+            <Show when={localhost()}>
+              {(url) => (
+                <Link href={href(url())} fg={theme.text.default}>
+                  {url()}
+                </Link>
+              )}
+            </Show>
           </box>
           <box>
             <text fg={theme.text.subdued}>URLs</text>
-            <For each={value.urls}>{(url) => <text fg={theme.text.default}>{url}</text>}</For>
+            <For each={value.urls}>
+              {(url) => (
+                <Link href={href(url)} fg={theme.text.default}>
+                  {url}
+                </Link>
+              )}
+            </For>
           </box>
           <box>
             <text fg={theme.text.subdued}>Username</text>

@@ -7,7 +7,7 @@ for (const theme of ["light", "dark"]) {
       globals: { theme },
     })
     const group = root.locator('[data-component="collapsed-tool-group"]').filter({ hasText: "Patch" })
-    const disclosure = group.getByRole("button", { name: /^Used .*Edit.*Write.*Patch$/ })
+    const disclosure = group.getByRole("button", { name: /^Used \d+ .*Edit.*Write.*Patch$/ })
     await disclosure.click()
     for (const name of ["edit", "write", "patch"]) {
       const tool = group.locator(`[data-timeline-part-id="tool_family_${name}"]`)

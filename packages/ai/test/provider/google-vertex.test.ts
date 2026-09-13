@@ -378,7 +378,11 @@ describe("Google Vertex providers", () => {
 
   test("rejects tuned Gemini models in express mode", () => {
     expect(() => GoogleVertex.configure({ apiKey: "fixture" }).model("endpoints/1234567890")).toThrow(
-      "Google Vertex tuned models do not support Express Mode API keys",
+      expect.objectContaining({
+        _tag: "ProviderConfiguration",
+        provider: "google-vertex",
+        message: "Google Vertex tuned models do not support Express Mode API keys",
+      }),
     )
   })
 })

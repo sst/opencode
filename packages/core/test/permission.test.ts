@@ -224,6 +224,34 @@ describe("Permission", () => {
     }),
   )
 
+  it.effect("merges session rules after agent rules and before saved approvals", () =>
+    Effect.gen(function* () {
+      yield* setup([{ action: "*", resource: "*", effect: "allow" }])
+      const { db } = yield* Database.Service
+      const service = yield* Permission.Service
+      const setSession = (permission: Permission.Ruleset) =>
+        db
+          .update(SessionTable)
+          .set({ permission })
+          .where(eq(SessionTable.id, Session.ID.make("ses_test")))
+          .run()
+          .pipe(Effect.orDie)
+
+      yield* setSession([{ action: "edit", resource: "/original/**", effect: "deny" }])
+      expect(yield* service.ask(assertion({ action: "edit", resources: ["/original/src/index.ts"] }))).toMatchObject({
+        effect: "deny",
+      })
+
+      yield* setRules([])
+      const saved = yield* PermissionSaved.Service
+      yield* saved.add({ projectID: Project.ID.global, action: "bash", resources: ["pwd"] })
+      yield* setSession([{ action: "bash", resource: "*", effect: "deny" }])
+      expect(yield* service.ask(assertion({ action: "bash", resources: ["pwd"] }))).toMatchObject({ effect: "deny" })
+      yield* setSession([{ action: "bash", resource: "*", effect: "ask" }])
+      expect(yield* service.ask(assertion({ action: "bash", resources: ["pwd"] }))).toMatchObject({ effect: "allow" })
+    }),
+  )
+
   it.effect("uses saved bash approvals while preserving configured deny precedence", () =>
     Effect.gen(function* () {
       yield* setup()

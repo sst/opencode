@@ -173,6 +173,8 @@ const layer = Layer.effect(
             ...(input.hidden ? ["--hidden"] : []),
             ...(input.follow ? ["--follow"] : []),
             `--glob=${input.pattern}`,
+            // Positive globs override rg's hidden-file filter; exclude before applying the result limit.
+            ...(input.hidden ? [] : ["--glob=!**/.*"]),
             "--glob=!**/.git/**",
             ".",
           ],

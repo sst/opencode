@@ -33,7 +33,6 @@ for (const orientation of ["horizontal", "vertical"] as const) {
     const [status, setStatus] = createSignal<SessionTabsStatus>(EMPTY_SESSION_TAB_STATUS)
     const [active, setActive] = createSignal("second")
     const [newTab, setNewTab] = createSignal(false)
-    const [preview, setPreview] = createSignal(false)
     const settings: Info = { tabs: { enabled: true } }
     let config!: ReturnType<typeof useConfig>
     let theme!: ReturnType<typeof useTheme>
@@ -57,10 +56,6 @@ for (const orientation of ["horizontal", "vertical"] as const) {
       },
       close() {},
       move() {},
-      isPreview: (sessionID: string) => sessionID === "first" && preview(),
-      promote(sessionID: string) {
-        if (sessionID === "first") setPreview(false)
-      },
       detail: () => "project",
       status: (sessionID: string) => (sessionID === "first" ? status() : EMPTY_SESSION_TAB_STATUS),
     } satisfies SessionTabsController
@@ -212,30 +207,6 @@ for (const orientation of ["horizontal", "vertical"] as const) {
       expect(active()).toBe("second")
       app.mockInput.pressKey("c", { ctrl: true })
       await app.waitForFrame((frame) => !frame.includes("Rename"))
-
-      setPreview(true)
-      await app.mockMouse.click(column, row, MouseButton.RIGHT)
-      await app.waitForFrame((frame) => frame.includes("Keep open"))
-      expect(app.captureCharFrame()).toContain("Rename")
-      expect(app.captureCharFrame()).toContain("Close")
-      expect(active()).toBe("second")
-      for (const size of [
-        { width: 18, height: 4, row: 1, column: 3 },
-        { width: 60, height: 10, row: row + 1, column: column + 1 },
-      ]) {
-        app.resize(size.width, size.height)
-        await app.waitForFrame((frame) => frame.split("\n")[0]?.length === size.width && frame.includes("Keep open"))
-        const rows = app.captureCharFrame().split("\n")
-        expect(rows[size.row]?.indexOf("Keep open")).toBe(size.column)
-        expect(rows[size.row + 1]?.indexOf("Rename")).toBe(size.column)
-        expect(rows[size.row + 2]?.indexOf("Close")).toBe(size.column)
-      }
-      const menu = app.captureCharFrame().split("\n")
-      const keepOpen = menu.findIndex((line) => line.includes("Keep open"))
-      await app.mockMouse.click(menu[keepOpen]!.indexOf("Keep open"), keepOpen)
-      await app.waitForFrame((frame) => !frame.includes("Rename"))
-      expect(preview()).toBe(false)
-      expect(active()).toBe("second")
 
       setNewTab(true)
       await app.waitForFrame((frame) => frame.includes("+ New session"))

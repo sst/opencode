@@ -37,7 +37,7 @@ export const layer = Layer.effect(
       if (!cli.binary) return yield* Effect.fail(new Error("Bundled CLI executable is unavailable"))
       const home = app.getPath("home")
       yield* runInstaller(cli.binary, home)
-      return path.join(home, ".opencode", "bin", "opencode2")
+      return path.join(home, ".opencode", "bin", "opencode")
     })
     return Service.of({ resolve, install })
   }),

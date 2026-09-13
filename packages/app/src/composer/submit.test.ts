@@ -91,6 +91,8 @@ function session(input: {
   admitted?: (messageID: string) => boolean
   shell?: () => Promise<unknown>
   command?: ComposerSession["api"]["command"]
+  switchAgent?: ComposerSession["api"]["switchAgent"]
+  switchModel?: ComposerSession["api"]["switchModel"]
 }): ComposerSession {
   return {
     id: "session-1",
@@ -99,12 +101,16 @@ function session(input: {
     current: input.current ?? (() => undefined),
     admitted: input.admitted ?? (() => false),
     api: {
-      switchAgent: async () => {
-        input.calls.push("switch-agent")
-      },
-      switchModel: async () => {
-        input.calls.push("switch-model")
-      },
+      switchAgent:
+        input.switchAgent ??
+        (async () => {
+          input.calls.push("switch-agent")
+        }),
+      switchModel:
+        input.switchModel ??
+        (async () => {
+          input.calls.push("switch-model")
+        }),
       shell: input.shell ?? (async () => undefined),
       command: input.command ?? (async () => undefined),
     },
@@ -122,6 +128,146 @@ function session(input: {
 }
 
 describe("Composer submission", () => {
+  test("applies the captured agent and model before a custom command without passing over its overrides", async () => {
+    const state = createMemoryComposerState({ prompt: "/review changes" }).capture()
+    const calls: string[] = []
+    const selected = controls()
+    const agent = Promise.withResolvers<void>()
+    const started = Promise.withResolvers<void>()
+    const committed = Promise.withResolvers<void>()
+    const completed = Promise.withResolvers<void>()
+    const target = session({
+      calls,
+      prompt: async () => {
+        throw new Error("command must not call prompt")
+      },
+      switchAgent: async (request) => {
+        expect(request.agent).toBe("build")
+        calls.push("agent")
+        started.resolve()
+        await agent.promise
+      },
+      switchModel: async (request) => {
+        expect(request.model).toEqual({ providerID: "provider-1", id: "model-1", variant: "balanced" })
+        calls.push("model")
+        await committed.promise
+      },
+      command: async (request) => {
+        expect(request).toMatchObject({ command: "review", text: "changes", delivery: "steer" })
+        expect(request).not.toHaveProperty("model")
+        expect(request).not.toHaveProperty("agent")
+        calls.push("command")
+        completed.resolve()
+      },
+    })
+    selected.model.selection = {
+      ...selection,
+      trackSessionCommit: (_id, value) => {
+        expect(value).toEqual({
+          agent: "build",
+          model: { providerID: "provider-1", modelID: "model-1" },
+          variant: "balanced",
+        })
+        calls.push("track")
+        return () => calls.push("cancel")
+      },
+    }
+    const adapter: ActiveComposerAdapter = {
+      kind: "active-session",
+      state,
+      ready: () => true,
+      controls: () => selected,
+      working: () => false,
+      session: () => target,
+      interrupt: async () => undefined,
+      submitted() {},
+      setEditor() {},
+    }
+    await submitInput(adapter, undefined, "normal", () => [{ name: "review" }]).submit(new Event("submit"))
+    await started.promise
+    expect(calls).toEqual(["track", "agent"])
+    selected.agents.current = "plan"
+    selected.model.selection = { ...selection, variant: { ...selection.variant, current: () => "high" } }
+    agent.resolve()
+    committed.resolve()
+    await completed.promise
+    expect(calls).toEqual(["track", "agent", "model", "command"])
+  })
+
+  test("commits the model even when cached session state already matches", async () => {
+    const state = createMemoryComposerState({ prompt: "continue" }).capture()
+    const calls: string[] = []
+    const done = Promise.withResolvers<void>()
+    const target = session({
+      calls,
+      current: () => ({ agent: "build", model: { providerID: "provider-1", id: "model-1", variant: "balanced" } }),
+      prompt: async () => done.resolve(),
+    })
+    const adapter: ActiveComposerAdapter = {
+      kind: "active-session",
+      state,
+      ready: () => true,
+      controls,
+      working: () => false,
+      session: () => target,
+      interrupt: async () => undefined,
+      submitted() {},
+      setEditor() {},
+    }
+    await submitInput(adapter).submit(new Event("submit"))
+    await done.promise
+    expect(calls).toEqual(["switch-model", "prompt"])
+  })
+
+  test("cancels selection tracking and does not execute a command when selection fails", async () => {
+    const state = createMemoryComposerState({ prompt: "/review changes" }).capture()
+    const calls: string[] = []
+    const selected = controls()
+    const failed = Promise.withResolvers<unknown>()
+    const error = new Error("model unavailable")
+    const target = session({
+      calls,
+      prompt: async () => {
+        calls.push("prompt")
+      },
+      switchModel: async () => {
+        throw error
+      },
+      command: async () => {
+        calls.push("command")
+      },
+    })
+    selected.model.selection = {
+      ...selection,
+      trackSessionCommit: () => {
+        calls.push("track")
+        return () => {
+          calls.push("cancel")
+        }
+      },
+    }
+    const adapter: ActiveComposerAdapter = {
+      kind: "active-session",
+      state,
+      ready: () => true,
+      controls: () => selected,
+      working: () => false,
+      session: () => target,
+      interrupt: async () => undefined,
+      submitted() {},
+      setEditor() {},
+    }
+    await submitInput(
+      adapter,
+      { missingSelection() {}, failed: (_kind, error) => failed.resolve(error) },
+      "normal",
+      () => [{ name: "review" }],
+    ).submit(new Event("submit"))
+    expect(await failed.promise).toBe(error)
+    expect(calls).toEqual(["track", "switch-agent", "cancel"])
+    expect(state.current()[0]).toMatchObject({ content: "/review changes" })
+  })
+
   test("submits a slash skill with its trailing text and attachments", async () => {
     const state = createMemoryComposerState({ prompt: "/show-me explain " }).capture()
     state.set([

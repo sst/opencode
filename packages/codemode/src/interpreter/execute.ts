@@ -1,22 +1,26 @@
-import { parse } from "acorn"
+import { parse, type Program } from "acorn"
 import { Cause, Effect, Scope } from "effect"
 // #transpile: conditional import — full typescript on node/bun, an identity
 // pass-through on workerd (the compiler is ~11 MiB and can't init there).
 import { transpile } from "#transpile"
-import type { DataValue, Diagnostic, ExecuteOptions, ResolvedExecutionLimits, Result } from "../codemode.js"
-import { copyIn, copyOut, ToolRuntime, type Services } from "../tool-runtime.js"
-import type { Tools } from "../tools.js"
+import type { DataValue, Diagnostic, ResolvedExecutionLimits, Result } from "../codemode.js"
+import { toData } from "../data.js"
+import { ToolRuntime } from "../tool-runtime.js"
 import { normalizeError } from "./errors.js"
-import { InterpreterRuntimeError, isRecord, type ProgramNode } from "./model.js"
+import { createPrototypes } from "./intrinsics.js"
+import type { Host } from "./globals.js"
+import { InterpreterRuntimeError } from "./model.js"
 import { PromiseRuntime } from "./promises.js"
-import { Interpreter } from "./runtime.js"
+import { Runtime } from "./runtime.js"
 
-export const executeWithLimits = <const Provided extends Record<string, unknown>>(
-  options: ExecuteOptions<Provided>,
+export const executeProgram = <R>(
+  code: string,
+  prepared: ToolRuntime.Prepared<R>,
   limits: ResolvedExecutionLimits,
-  searchIndex: ToolRuntime.DiscoveryPlan["searchIndex"],
-): Effect.Effect<Result, never, Services<Provided>> => {
-  if (options.code.trim().length === 0) {
+  hooks: ToolRuntime.ToolCallHooks<R>,
+  extraGlobals?: (host: Host<R>) => ReadonlyArray<readonly [string, unknown]>,
+): Effect.Effect<Result, never, R> => {
+  if (code.trim().length === 0) {
     return Effect.succeed({
       ok: false,
       error: { kind: "ParseError", message: "Code cannot be empty." },
@@ -26,35 +30,29 @@ export const executeWithLimits = <const Provided extends Record<string, unknown>
 
   // Allocate execution state inside suspension so reused Effects never share it.
   return Effect.suspend(() => {
-    const tools = ToolRuntime.make(
-      (options.tools ?? {}) as Tools<Services<Provided>>,
-      limits.maxToolCalls,
-      searchIndex,
-      {
-        onToolCallStart: options.onToolCallStart,
-        onToolCallEnd: options.onToolCallEnd,
-      },
-    )
+    const prototypes = createPrototypes()
+    const tools = ToolRuntime.make(prepared, prototypes, limits.maxToolCalls, hooks)
     const logs: Array<string> = []
     const logged = () => (logs.length > 0 ? { logs: [...logs] } : {})
     // Set only after copy-out so timeouts cannot report invalid values as completed.
-    let returned: { value: DataValue; promises: PromiseRuntime<Services<Provided>> } | undefined
+    let returned: { value: DataValue; promises: PromiseRuntime<R> } | undefined
 
     const base = Effect.acquireUseRelease(
       Scope.make("parallel"),
       (scope) =>
         Effect.gen(function* () {
-          const program = parseProgram(options.code)
-          const promises = new PromiseRuntime<Services<Provided>>(scope)
-          const interpreter = new Interpreter<Services<Provided>>(
+          const program = parseProgram(code)
+          const promises = new PromiseRuntime<R>(scope, prototypes.Promise)
+          const value = yield* new Runtime<R>(
             tools.execute,
             tools.search,
             tools.keys,
             promises,
+            prototypes,
             logs,
-          )
-          const value = yield* interpreter.run(program)
-          const result = copyOut(copyIn(value, "Execution result"), "nullify") as DataValue
+            extraGlobals,
+          ).run(program)
+          const result = toData(value, "Execution result", "result") as DataValue
           returned = { value: result, promises }
           const warnings = yield* promises.interrupt()
           return {
@@ -120,7 +118,7 @@ export const executeWithLimits = <const Provided extends Record<string, unknown>
   })
 }
 
-const parseProgram = (code: string): ProgramNode => {
+const parseProgram = (code: string): Program => {
   const transpiled = transpile(`async function __codemode__() {\n${code}\n}`)
 
   if (transpiled.error !== undefined) {
@@ -130,19 +128,13 @@ const parseProgram = (code: string): ProgramNode => {
   const bodyStart = transpiled.outputText.indexOf("{") + 1
   const bodyEnd = transpiled.outputText.lastIndexOf("}")
   const executableCode = transpiled.outputText.slice(bodyStart, bodyEnd)
-  const parsed = parse(executableCode, {
+  return parse(executableCode, {
     ecmaVersion: "latest",
     sourceType: "script",
     allowReturnOutsideFunction: true,
     allowAwaitOutsideFunction: true,
     locations: true,
-  }) as unknown
-
-  if (!isRecord(parsed) || parsed.type !== "Program" || !Array.isArray(parsed.body)) {
-    throw new InterpreterRuntimeError("Failed to parse script as a Program node.")
-  }
-
-  return parsed as ProgramNode
+  })
 }
 
 const utf8ByteLength = (value: string): number => new TextEncoder().encode(value).byteLength

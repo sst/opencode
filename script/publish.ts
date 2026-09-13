@@ -34,6 +34,8 @@ if (Script.release && !Script.preview) {
 
 await prepareReleaseFiles()
 
+if (Script.release) await $`bun ./packages/desktop/scripts/publish.ts --dry-run`
+
 console.log("\n=== schema ===\n")
 await $`bun ./packages/schema/script/publish.ts`
 
@@ -80,16 +82,18 @@ console.log("\n=== ui ===\n")
 await $`bun ./packages/ui/script/publish.ts`
 
 if (Script.release && !Script.preview) {
-  await $`git commit -am "release: ${tag}"`
+  if ((await $`git diff --quiet`.nothrow()).exitCode !== 0) await $`git commit -am "release: ${tag}"`
   await $`git tag -d ${tag}`.nothrow()
   await $`git tag ${tag}`
   await $`git push origin refs/tags/${tag} --force-with-lease --no-verify`
   await new Promise((resolve) => setTimeout(resolve, 5_000))
   await $`git fetch origin`
-  await $`git checkout -B dev origin/dev`
+  await $`git checkout -B v2 origin/v2`
   await prepareReleaseFiles()
-  await $`git commit -am "sync release versions for ${tag}"`
-  await $`git push origin HEAD:dev --no-verify`
+  if ((await $`git diff --quiet`.nothrow()).exitCode !== 0) {
+    await $`git commit -am "sync release versions for ${tag}"`
+    await $`git push origin HEAD:v2 --no-verify`
+  }
 }
 
 if (Script.release) {

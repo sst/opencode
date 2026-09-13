@@ -23,6 +23,7 @@ import {
   LanguageModel,
   LLMEvent,
   InvalidProviderOutputError,
+  ProviderConfigurationError,
   ProviderID,
   mergeGenerationOptions,
   mergeHttpOptions,
@@ -128,7 +129,10 @@ const makeRouteLanguageModel = <Options extends ProviderOptions, Compact extends
   const provider = route.provider ?? ("provider" in mapped ? mapped.provider : undefined)
   if (!provider) throw new Error(`Route.model(${route.id}) requires a provider`)
   if (!endpointBaseURL(route.endpoint))
-    throw new Error(`Route.model(${route.id}) requires an endpoint baseURL — configure it on the route first`)
+    throw new ProviderConfigurationError({
+      provider: ProviderID.make(provider),
+      message: `Route.model(${route.id}) requires an endpoint baseURL — configure it on the route first`,
+    })
   return LanguageModel.make<Options, Compact>({
     ...mapped,
     provider,

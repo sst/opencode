@@ -19,6 +19,23 @@ export const SessionMessagesQuery = Schema.Struct({
         "Opaque pagination cursor returned as cursor.previous or cursor.next in the previous response. Do not combine with order.",
     }),
   ),
+  type: Schema.optional(
+    Schema.Literals([
+      "agent-switched",
+      "model-switched",
+      "location-switched",
+      "user",
+      "synthetic",
+      "system",
+      "skill",
+      "shell",
+      "assistant",
+      "compaction",
+    ] satisfies ReadonlyArray<SessionMessage.Type>),
+  ).annotate({
+    description:
+      "Filter by message type before pagination. When omitted, all message types are returned. Pass the same type when following cursors.",
+  }),
 }).annotate({ identifier: "SessionMessagesQuery" })
 
 export const MessageGroup = HttpApiGroup.make("server.message")
@@ -39,7 +56,7 @@ export const MessageGroup = HttpApiGroup.make("server.message")
         identifier: "v2.message.list",
         summary: "Get session messages",
         description:
-          "Retrieve projected messages for a session. Items keep the requested order across pages; use cursor.next or cursor.previous to move through the ordered timeline.",
+          "Retrieve projected messages for a session, optionally filtered by type. Items keep the requested order across pages; use cursor.next or cursor.previous to move through the ordered timeline, passing the same type filter on each page.",
       }),
     ),
   )

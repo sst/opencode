@@ -3,7 +3,7 @@ import { Auth } from "../route/auth.js"
 import { type AtLeastOne, type ProviderAuthOption } from "../route/auth-options.js"
 import type { Route, RouteDefaultsInput, CompactionOperations } from "../route/client.js"
 import type { ProviderPackage } from "../provider-package.js"
-import { ProviderID, type ModelID } from "../schema/index.js"
+import { ProviderConfigurationError, ProviderID, type ModelID } from "../schema/index.js"
 import * as OpenAIChat from "../protocols/openai-chat.js"
 import * as OpenAIResponses from "../protocols/openai-responses.js"
 import { ProviderShared } from "../protocols/shared.js"
@@ -28,12 +28,12 @@ export type LanguageModelOptions = AzureURL &
 export type Config = LanguageModelOptions
 
 export type Settings = ProviderPackage.Settings &
+  OpenAIProviderOptionsInput &
   AzureURL & {
     readonly apiKey?: string
     readonly apiVersion?: string
     readonly queryParams?: Readonly<Record<string, string>>
     readonly useDeploymentBasedUrls?: boolean
-    readonly providerOptions?: OpenAIProviderOptionsInput
   }
 
 const resourceBaseURL = (resourceName: string) => `https://${resourceName.trim()}.openai.azure.com/openai`
@@ -151,19 +151,29 @@ export const provider = {
   configure,
 }
 
-const config = (settings: Settings): Config => {
+const config = ({
+  apiKey,
+  apiVersion,
+  baseURL,
+  body,
+  headers,
+  queryParams,
+  resourceName,
+  useDeploymentBasedUrls,
+  ...providerOptions
+}: Settings): Config => {
   const common = {
-    apiKey: settings.apiKey,
-    apiVersion: settings.apiVersion,
-    headers: settings.headers === undefined ? undefined : { ...settings.headers },
-    http: settings.body === undefined ? undefined : { body: { ...settings.body } },
-    providerOptions: settings.providerOptions,
-    queryParams: settings.queryParams === undefined ? undefined : { ...settings.queryParams },
-    useDeploymentBasedUrls: settings.useDeploymentBasedUrls,
+    apiKey,
+    apiVersion,
+    headers: headers === undefined ? undefined : { ...headers },
+    http: body === undefined ? undefined : { body: { ...body } },
+    providerOptions,
+    queryParams: queryParams === undefined ? undefined : { ...queryParams },
+    useDeploymentBasedUrls,
   }
-  if (settings.baseURL !== undefined) return { ...common, baseURL: settings.baseURL }
-  if (settings.resourceName !== undefined) return { ...common, resourceName: settings.resourceName }
-  throw new Error("Azure requires resourceName or baseURL")
+  if (baseURL !== undefined) return { ...common, baseURL }
+  if (resourceName !== undefined) return { ...common, resourceName }
+  throw new ProviderConfigurationError({ provider: id, message: "Azure requires resourceName or baseURL" })
 }
 
 export const responsesModel: ProviderPackage.Definition<

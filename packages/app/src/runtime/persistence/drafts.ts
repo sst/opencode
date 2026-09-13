@@ -28,21 +28,75 @@ export const draftTextThreshold = 16 * 1024
 export const draftTextChunk = 64 * 1024
 const textCacheLimit = 64
 
-const urls = new Map<string, string>()
-// The object URL already pins the Blob for the page's lifetime; keeping the Blob itself lets a
-// collected image be uploaded again without fetching the URL.
-const held = new Map<string, Blob>()
+// Decoded image bytes the renderer pins through object URLs. Every consumer of a `blob.url` is a
+// persisted draft document (composer prompt, prompt history), so an image is pinned exactly while a
+// stored document references it. Once the last reference disappears (removed from a draft, sent, or
+// a discarded duplicate paste) the URL is revoked after this grace, which covers the persist delay
+// between a paste and the save that references it, and the submit → history handoff.
+export const retainedBlobGrace = 30_000
+
+type Retained = { blob: Blob; url: string; release: ReturnType<typeof setTimeout> | undefined }
+const retained = new Map<string, Retained>()
+// Document keys that reference each image id; an id with no keys is released after the grace.
+const refs = new Map<string, Set<string>>()
 // Image ids that were restored under a different id (a store without WebCrypto assigns fresh
 // ones); live references still carry the original.
 const aliases = new Map<string, string>()
 
-function blobUrl(id: string, blob: Blob) {
-  const existing = urls.get(id)
-  if (existing) return existing
+function blobUrl(id: string, blob: Blob, grace?: number) {
+  const existing = retained.get(id)
+  if (existing) return existing.url
   const url = URL.createObjectURL(blob)
-  urls.set(id, url)
-  held.set(id, blob)
+  // Without a grace the image has no store to reference it from and stays for the page's lifetime.
+  const release = grace === undefined || refs.get(id)?.size ? undefined : setTimeout(() => revoke(id), grace)
+  retained.set(id, { blob, url, release })
   return url
+}
+
+// Record which image ids `key` now references; ids it dropped are released once no other document
+// references them, ids it gained stay pinned.
+function retain(key: string, ids: ReadonlySet<string>, grace: number) {
+  for (const [id, keys] of refs) {
+    if (ids.has(id) || !keys.delete(key) || keys.size) continue
+    refs.delete(id)
+    const entry = retained.get(id)
+    if (entry) entry.release = setTimeout(() => revoke(id), grace)
+  }
+  for (const id of ids) {
+    const keys = refs.get(id) ?? new Set<string>()
+    keys.add(key)
+    refs.set(id, keys)
+    const entry = retained.get(id)
+    if (!entry) continue
+    clearTimeout(entry.release)
+    entry.release = undefined
+  }
+}
+
+function revoke(id: string) {
+  const entry = retained.get(id)
+  if (!entry) return
+  URL.revokeObjectURL(entry.url)
+  retained.delete(id)
+  for (const [from, to] of aliases) if (to === id) aliases.delete(from)
+}
+
+// Image ids a document references: `{ blob: { id } }` parts, not text chunk lists.
+function imageIDs(value: unknown, into = new Set<string>()): Set<string> {
+  if (Array.isArray(value)) {
+    value.forEach((entry) => imageIDs(entry, into))
+    return into
+  }
+  if (!value || typeof value !== "object") return into
+  const item = value as Record<string, unknown>
+  const blob = item.blob
+  if (blob && typeof blob === "object" && !("kind" in blob)) {
+    const id = (blob as Record<string, unknown>).id
+    if (typeof id === "string") into.add(id)
+    return into
+  }
+  Object.values(item).forEach((entry) => imageIDs(entry, into))
+  return into
 }
 
 async function blobID(blob: Blob) {
@@ -60,24 +114,25 @@ export async function createBlobReference(blob: Blob): Promise<BlobReference> {
   return { id, url: blobUrl(id, blob) }
 }
 
-export function createDraftStore(driver: Driver): DraftStore {
+export function createDraftStore(driver: Driver, options: { grace?: number } = {}): DraftStore {
+  const grace = options.grace ?? retainedBlobGrace
   const versions = new Map<string, number>()
   const loading = new Map<string, Promise<string | undefined>>()
   const loadBlobUrl = (id: string) => {
-    const existing = urls.get(id)
-    if (existing) return existing
+    const existing = retained.get(id)
+    if (existing) return existing.url
     const pending = loading.get(id)
     if (pending) return pending
     const next = driver
       .getBlob(id)
-      .then((blob) => (blob ? blobUrl(id, blob) : undefined))
+      .then((blob) => (blob ? blobUrl(id, blob, grace) : undefined))
       .finally(() => loading.delete(id))
     loading.set(id, next)
     return next
   }
   const putBlob = async (blob: Blob) => {
     const id = await driver.putBlob(blob)
-    return { id, url: blobUrl(id, blob) }
+    return { id, url: blobUrl(id, blob, grace) }
   }
   // Keyed by chunk content so unchanged chunks are never hashed or sent again while the draft is
   // edited. Bounded because each entry pins up to draftTextChunk characters. A hit is safe even if
@@ -145,8 +200,8 @@ export function createDraftStore(driver: Driver): DraftStore {
       if (typeof blob.id === "string") {
         // A live reference keeps the id it was created with; publish the id its bytes now live under.
         const id = aliases.get(blob.id) ?? blob.id
-        const kept = held.get(id)
-        const url = typeof blob.url === "string" ? blob.url : urls.get(id)
+        const kept = retained.get(id)?.blob
+        const url = typeof blob.url === "string" ? blob.url : retained.get(id)?.url
         if (kept) sources.set(id, { blob: async () => kept })
         else if (url) sources.set(id, { blob: () => fetch(url).then((response) => response.blob()) })
         return { ...item, blob: { id } }
@@ -192,8 +247,7 @@ export function createDraftStore(driver: Driver): DraftStore {
           remember(chunks, next, source.chunk)
           return
         }
-        held.set(next, blob)
-        blobUrl(next, blob)
+        blobUrl(next, blob, grace)
         if (next === id) return
         // Later encodes of the still-live reference resolve straight to the new id. Re-point any
         // earlier alias chain so lookups stay one step.
@@ -225,14 +279,19 @@ export function createDraftStore(driver: Driver): DraftStore {
     // stays visible until the bytes are back. Covers a blob collected while a cache, another tab,
     // or the composer's history still held its id.
     const missing = await driver.set(key, JSON.stringify(encoded), true)
-    if (missing.length === 0) return
+    if (missing.length === 0) {
+      retain(key, imageIDs(encoded), grace)
+      return
+    }
     const renamed = await restore(missing, sources)
     if (versions.get(key) !== version) return
     const unrestored = missing.filter((id) => !renamed.has(id))
     if (unrestored.length)
       console.error(`[persistence] draft ${key} references blobs with no bytes to restore`, unrestored)
     // Anything still missing has no bytes anywhere; the owning codec drops such references on read.
-    await driver.set(key, JSON.stringify(rename(encoded, renamed)), false)
+    const final = rename(encoded, renamed)
+    await driver.set(key, JSON.stringify(final), false)
+    retain(key, imageIDs(final), grace)
   }
   return {
     getItem: async (key) => {
@@ -241,6 +300,8 @@ export function createDraftStore(driver: Driver): DraftStore {
       const parsed = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Unknown))(value)
       // Let the owning persistence codec apply its invalid-document policy.
       if (Option.isNone(parsed)) return value
+      // A loaded document is live in the composer: pin its images before decode mints their URLs.
+      retain(key, imageIDs(parsed.value), grace)
       return JSON.stringify(await decode(parsed.value))
     },
     setItem: (key, value) => setDocument(key, JSON.parse(value)),
@@ -248,6 +309,7 @@ export function createDraftStore(driver: Driver): DraftStore {
     removeItem: async (key) => {
       versions.set(key, (versions.get(key) ?? 0) + 1)
       await driver.remove(key)
+      retain(key, new Set(), grace)
     },
     putBlob,
   }
@@ -360,7 +422,8 @@ function referenced(json: string) {
 }
 
 export async function blobDataUrl(blob: BlobReference, mime: string) {
-  const data = await fetch(blob.url).then((response) => response.blob())
+  const kept = retained.get(aliases.get(blob.id) ?? blob.id)
+  const data = kept ? kept.blob : await fetch(blob.url).then((response) => response.blob())
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.addEventListener("error", () => reject(reader.error))

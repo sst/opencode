@@ -84,17 +84,23 @@ export function createRequestQueue(input: {
     if (index === -1) return
     waiting.splice(index, 1)[0]?.start()
   }
-  const acquire = (entry: Entry) =>
-    new Promise<void>((resolve) => {
+  const acquire = (entry: Entry) => {
+    // A free slot must start fetch before the caller's synchronous UI work.
+    // Awaiting an already-resolved promise postpones that dispatch until after it.
+    if (canStart(entry)) {
+      inflight.add(entry)
+      return
+    }
+    return new Promise<void>((resolve) => {
       const start = () => {
         entry.at = now()
         inflight.add(entry)
         resolve()
       }
-      if (canStart(entry)) return start()
       waiting.push({ entry, start })
       watcher ??= setTimeout(watch, stallMs)
     })
+  }
 
   const fetch: typeof globalThis.fetch = Object.assign(
     async (resource: RequestInfo | URL, init?: RequestInit) => {
@@ -103,7 +109,8 @@ export function createRequestQueue(input: {
       // The event stream is long-lived; never count it against the request budget.
       if (pathname === "/api/event") return base(request)
       const entry = { method: request.method, url: request.url, at: now(), slow: isSlowRequest(pathname) }
-      await acquire(entry)
+      const queued = acquire(entry)
+      if (queued) await queued
       if (request.signal.aborted) {
         release(entry)
         throw request.signal.reason ?? new DOMException("The operation was aborted.", "AbortError")

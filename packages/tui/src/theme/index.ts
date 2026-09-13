@@ -15,17 +15,16 @@ const listeners = new Set<(themes: Record<string, ThemeDocumentSource>) => void>
 const parsed = new WeakMap<object, ThemeDocument>()
 const decodeThemeDocument = Schema.decodeUnknownSync(ThemeDocument, { reportInput: true })
 
-function listThemes() {
+function listThemes(): Record<string, ThemeDocumentSource> {
   // Priority: defaults < plugin installs < custom files < generated system.
   const themes: Record<string, ThemeDocumentSource> = {
     ...DEFAULT_THEMES,
     ...pluginThemes,
     ...customThemes,
   }
-  if (!systemTheme) return themes
   return {
     ...themes,
-    system: systemTheme,
+    system: systemTheme ?? themes.system ?? themes.opencode,
   }
 }
 

@@ -69,7 +69,7 @@ it.live(
                         )
                         yield* ctx.session.hook("context", (event) =>
                           Effect.sync(() => {
-                            event.generation.temperature = 0.25
+                            event.options.temperature = 0.25
                           }),
                         )
                         yield* ctx.tool.transform((editor) =>

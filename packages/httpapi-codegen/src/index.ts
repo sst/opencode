@@ -46,7 +46,10 @@ export type EffectOutputType = {
   readonly import: string
 }
 
-type ResolvedEffectTypeReference = Omit<EffectTypeReference, "schema"> & { readonly ast: SchemaAST.AST }
+type ResolvedEffectTypeReference = Omit<EffectTypeReference, "schema"> & {
+  readonly ast: SchemaAST.AST
+  readonly type: string | undefined
+}
 
 export class GenerationError extends Schema.TaggedError<GenerationError>()("GenerationError", {
   reason: Schema.String,
@@ -454,7 +457,6 @@ function effectTypeReferences(input: ReadonlyArray<EffectTypeReference>) {
   const asts = new Map<SchemaAST.AST, ResolvedEffectTypeReference>()
   const brands = new Map<string, ResolvedEffectTypeReference>()
   for (const reference of input) {
-    const value = { name: reference.name, import: reference.import, ast: reference.schema.ast }
     const document = SchemaRepresentation.toCodeDocument(
       SchemaRepresentation.toRepresentations([codegenAst(Schema.toType(reference.schema).ast)]),
     )
@@ -463,6 +465,7 @@ function effectTypeReferences(input: ReadonlyArray<EffectTypeReference>) {
       name === undefined
         ? undefined
         : (document.references.nonRecursives.find((item) => item.$ref === name)?.code.Type ?? name)
+    const value = { name: reference.name, import: reference.import, ast: reference.schema.ast, type }
     if (type?.includes("Brand.Brand<") && !brands.has(type)) brands.set(type, value)
     if (SchemaAST.resolveIdentifier(reference.schema.ast) !== undefined || type?.includes("Brand.Brand<")) {
       asts.set(reference.schema.ast, value)
@@ -499,7 +502,10 @@ function effectType(schema: Schema.Top, references: ReturnType<typeof effectType
         "g",
       )
       if (!pattern.test(type)) continue
-      const reference = references.names.get(name)
+      // Optional/encoded occurrences can acquire a numeric suffix. Reuse the named
+      // type only when its definition matches; a suffix can also denote a different shape.
+      const candidate = references.names.get(name.replace(/_\d+$/, ""))
+      const reference = references.names.get(name) ?? (candidate?.type === value ? candidate : undefined)
       if (reference !== undefined) {
         imports.add(reference.import)
         type = type.replace(pattern, reference.name)

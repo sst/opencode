@@ -99,8 +99,19 @@ export const layer = Layer.effect(
                           },
                     )
                     const text = content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n")
+                    const output = () => {
+                      if (result.structured !== undefined) return result.structured
+                      if (text === "") return null
+                      // Agents assume JSON returned as text is already an object, so parse it when the server declares no schema.
+                      if (tool.outputSchema === undefined && (text.startsWith("{") || text.startsWith("["))) {
+                        try {
+                          return JSON.parse(text)
+                        } catch {}
+                      }
+                      return text
+                    }
                     return {
-                      output: result.structured ?? (text === "" ? null : text),
+                      output: output(),
                       ...(content.length === 0 ? {} : { content }),
                     }
                   }).pipe(

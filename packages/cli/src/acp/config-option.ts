@@ -76,7 +76,10 @@ export function buildEffortSelectOption(input: {
     category: "thought_level",
     type: "select",
     currentValue: selectVariant(input.currentVariant, input.variants),
-    options: input.variants.map((variant) => ({ value: variant, name: formatVariantName(variant) })),
+    options: [...new Set([...input.variants, DEFAULT_VARIANT_VALUE])].map((variant) => ({
+      value: variant,
+      name: formatVariantName(variant),
+    })),
   }
 }
 
@@ -125,6 +128,7 @@ export function formatVariantName(variant: string) {
 }
 
 function selectVariant(variant: string | undefined, variants: readonly string[]) {
+  if (!variant || variant === DEFAULT_VARIANT_VALUE) return DEFAULT_VARIANT_VALUE
   if (variant && variants.includes(variant)) return variant
   if (variants.includes(DEFAULT_VARIANT_VALUE)) return DEFAULT_VARIANT_VALUE
   return variants[0] ?? DEFAULT_VARIANT_VALUE

@@ -25,11 +25,15 @@ type FormMode = "list" | "add" | "edit"
 export const DialogServer: Component<{
   mode: "add" | "edit"
   server?: ServerConnection.Http
+  onSave?: (server: ServerConnection.Http) => void
 }> = (props) => {
   const dialog = useDialog()
   const language = useLanguage()
   const form = createFormController({
-    onSelect: () => dialog.close(),
+    onSelect: (server) => {
+      props.onSave?.(server)
+      dialog.close()
+    },
   })
   const [opened, setOpened] = createSignal(false)
 
@@ -133,7 +137,7 @@ export const DialogServer: Component<{
   )
 }
 
-function createFormController(options: { onSelect?: () => void } = {}) {
+function createFormController(options: { onSelect?: (server: ServerConnection.Http) => void } = {}) {
   const platform = usePlatform()
   const server = useServers()
   const tabs = useTabs()
@@ -220,13 +224,14 @@ function createFormController(options: { onSelect?: () => void } = {}) {
       if (original?.type === "http") {
         if (normalized === original.http.url) add(connection)
         if (normalized !== original.http.url) replace(ServerConnection.key(original), connection)
+        options.onSelect?.(connection)
         reset()
         return
       }
 
       reset()
       add(connection)
-      options.onSelect?.()
+      options.onSelect?.(connection)
     },
   }))
 

@@ -1,6 +1,25 @@
 import { expect, test } from "bun:test"
 import type { Page, Route } from "@playwright/test"
-import { mockOpenCodeServer } from "../../utils/mock-server"
+import { createMockServerHandler, mockOpenCodeServer } from "../../utils/mock-server"
+
+test("serves an empty config document list for composer defaults", async () => {
+  const server = createMockServerHandler({
+    provider: {},
+    directory: "C:/OpenCode",
+    project: {},
+    sessions: [],
+    pageMessages: () => ({ items: [] }),
+  })
+  try {
+    const response = await server.handler(
+      new Request("http://localhost/api/config?location%5Bdirectory%5D=C%3A%2FOpenCode"),
+    )
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual([])
+  } finally {
+    await server.dispose()
+  }
+})
 
 test("applies message latency after a list response gate is released", async () => {
   const events: string[] = []

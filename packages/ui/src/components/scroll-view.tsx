@@ -20,6 +20,10 @@ export interface ScrollViewProps extends ComponentProps<"div"> {
   thumbContainer?: HTMLElement
   /** Element whose hover reveals the thumb. Defaults to the ScrollView root when unset. */
   thumbHoverTarget?: HTMLElement
+  /** Reconcile native scroll geometry before keyboard or scrollbar navigation reads it. */
+  onBeforeScroll?: () => void
+  /** Offset/extent correction for a virtualized vertical scrollbar. */
+  verticalScrollAdjustment?: number
 }
 
 export const scrollKey = (event: Pick<KeyboardEvent, "key" | "altKey" | "ctrlKey" | "metaKey" | "shiftKey">) => {
@@ -124,6 +128,8 @@ export function ScrollView(props: ScrollViewProps) {
       "thumbVisibility",
       "thumbContainer",
       "thumbHoverTarget",
+      "onBeforeScroll",
+      "verticalScrollAdjustment",
       "style",
     ],
     [
@@ -189,17 +195,19 @@ export function ScrollView(props: ScrollViewProps) {
     const minThumbSize = 32
 
     if (vertical()) {
+      const adjustment = local.verticalScrollAdjustment ?? 0
+      const scrollHeight = viewportRef.scrollHeight + adjustment
       const trackSize = Math.max(0, (thumbMount()?.clientHeight || viewportRef.clientHeight) - trackPadding * 2)
       const size = trackSize
-        ? Math.min(trackSize, Math.max((viewportRef.clientHeight / viewportRef.scrollHeight) * trackSize, minThumbSize))
+        ? Math.min(trackSize, Math.max((viewportRef.clientHeight / scrollHeight) * trackSize, minThumbSize))
         : 0
-      const maxScroll = viewportRef.scrollHeight - viewportRef.clientHeight
+      const maxScroll = scrollHeight - viewportRef.clientHeight
       const maxStart = trackSize - size
       setState("showVerticalThumb", maxScroll > 0)
       setState("verticalThumbSize", size)
       setState(
         "verticalThumbStart",
-        trackPadding + (maxScroll > 0 ? (viewportRef.scrollTop / maxScroll) * maxStart : 0),
+        trackPadding + (maxScroll > 0 ? ((viewportRef.scrollTop + adjustment) / maxScroll) * maxStart : 0),
       )
     } else {
       setState("showVerticalThumb", false)
@@ -263,9 +271,17 @@ export function ScrollView(props: ScrollViewProps) {
     })
   })
 
+  const prepareScroll = () => {
+    if (local.onBeforeScroll) {
+      local.onBeforeScroll()
+      updateThumb()
+    }
+  }
+
   const onThumbPointerDown = (axis: "vertical" | "horizontal", e: PointerEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    prepareScroll()
     setState("dragging", axis)
     const thumb = axis === "vertical" ? verticalThumbRef : horizontalThumbRef
     const grabOffset =
@@ -277,6 +293,7 @@ export function ScrollView(props: ScrollViewProps) {
     thumb.setPointerCapture(e.pointerId)
 
     const onPointerMove = (e: PointerEvent) => {
+      prepareScroll()
       const vertical = axis === "vertical"
       const rtl = !vertical && getComputedStyle(viewportRef).direction === "rtl"
       const offset = scrollOffsetFromThumbPointer({
@@ -355,10 +372,23 @@ export function ScrollView(props: ScrollViewProps) {
       return
     }
     const next = scrollKey(e)
-    if (!next) return
-    if (!isScrollKeyTarget(e.target, next)) return
-    if (scrollKeyOwner(viewportRef, e.target, next) !== viewportRef) return
+    // Modified navigation (for example Ctrl+Home) stays native, but must read
+    // the same reconciled geometry as the keys handled by this component.
+    const intent =
+      next ??
+      scrollKey({
+        key: e.key,
+        shiftKey: e.key === " " && e.shiftKey,
+        altKey: false,
+        ctrlKey: false,
+        metaKey: false,
+      })
+    if (!intent) return
+    if (!isScrollKeyTarget(e.target, intent)) return
+    if (scrollKeyOwner(viewportRef, e.target, intent) !== viewportRef) return
 
+    prepareScroll()
+    if (!next) return
     const scrollAmount = viewportRef.clientHeight * 0.8
     const lineAmount = 40
 

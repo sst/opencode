@@ -43,6 +43,7 @@ export type MessagesInput = {
   sessionID: Session.ID
   limit?: number
   order?: "asc" | "desc"
+  type?: SessionMessage.Type
   cursor?: {
     id: SessionMessage.ID
     direction: "previous" | "next"
@@ -156,13 +157,16 @@ const layer = Layer.effect(
             ? gt(SessionMessageTable.seq, anchor.seq)
             : lt(SessionMessageTable.seq, anchor.seq)
           : undefined
-        const where = boundary
-          ? and(eq(SessionMessageTable.session_id, input.sessionID), boundary)
-          : eq(SessionMessageTable.session_id, input.sessionID)
         const query = db
           .select()
           .from(SessionMessageTable)
-          .where(where)
+          .where(
+            and(
+              eq(SessionMessageTable.session_id, input.sessionID),
+              boundary,
+              input.type === undefined ? undefined : eq(SessionMessageTable.type, input.type),
+            ),
+          )
           .orderBy(order === "asc" ? asc(SessionMessageTable.seq) : desc(SessionMessageTable.seq))
         const rows = yield* (input.limit === undefined ? query.all() : query.limit(input.limit).all()).pipe(
           Effect.orDie,

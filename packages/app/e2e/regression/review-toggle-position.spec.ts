@@ -1,5 +1,5 @@
 import { base64Encode } from "@opencode/util/encode"
-import { expect, test, type Locator } from "@playwright/test"
+import { expect, test, type Locator, type Page } from "@playwright/test"
 import { mockOpenCodeServer } from "../utils/mock-server"
 import { expectSessionTitle } from "../utils/waits"
 
@@ -85,6 +85,38 @@ for (const width of [1000, 1440]) {
       await expect.poll(() => toggle.boundingBox()).toEqual(closed)
     })
 
+    test(`keeps moving header content out of the toggle area (${width}px, ${direction})`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto(`/server/${base64Encode(server)}/session/${sessionID}`)
+      await expectSessionTitle(page, "Review toggle position")
+      await page.locator("html").evaluate((element, dir) => element.setAttribute("dir", dir), direction)
+
+      const toggle = page.getByRole("button", { name: "Toggle review", exact: true })
+      await expect(toggle).toHaveAttribute("aria-expanded", "false")
+      for (const opened of [true, false]) {
+        // Pause in the same task as the click so even the first painted state can be inspected.
+        await toggle.evaluate((element) => {
+          ;(element as HTMLButtonElement).click()
+          document
+            .getAnimations()
+            .filter((animation) => animation.timeline instanceof DocumentTimeline)
+            .forEach((animation) => animation.pause())
+        })
+        await expect(toggle).toHaveAttribute("aria-expanded", String(opened))
+        await expect(page.locator("#review-panel")).toHaveAttribute("aria-hidden", String(!opened))
+        for (const progress of [0.08, 0.16, 0.25, 0.5, 0.8, 0.96]) {
+          await expectHeaderClearOfToggle(page, toggle, progress)
+        }
+        await page.evaluate(() => {
+          document
+            .getAnimations()
+            .filter((animation) => animation.timeline instanceof DocumentTimeline)
+            .forEach((animation) => animation.finish())
+        })
+      }
+      await expect(page.locator("#review-panel")).toBeHidden()
+    })
+
     test(`keeps terminal controls clear of the review toggle (${width}px, ${direction})`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
       const ptys: { id: string; title: string }[] = []
@@ -166,8 +198,73 @@ for (const width of [1000, 1440]) {
       await expect(toggle).toBeFocused()
       await expect.poll(() => toggle.boundingBox()).toEqual(position)
       await expectTerminalControlsAligned(terminal, toggle)
+
+      // Closing the terminal clears the region's animation flag while retaining the review contents.
+      await page.keyboard.press("Control+Backquote")
+      await expect(terminal).toBeHidden()
+      await expect
+        .poll(() =>
+          page
+            .locator('[data-slot="session-chat-panel"]')
+            .evaluate((element) => element.getAnimations().every((animation) => animation.playState === "finished")),
+        )
+        .toBe(true)
+      await expect(page.locator('[data-slot="session-review-content"]')).toHaveCSS("opacity", "0")
+      await toggle.evaluate((element) => {
+        ;(element as HTMLButtonElement).click()
+        document
+          .getAnimations()
+          .filter((animation) => animation.timeline instanceof DocumentTimeline)
+          .forEach((animation) => animation.pause())
+      })
+      await expect(toggle).toHaveAttribute("aria-expanded", "true")
+      await expectHeaderClearOfToggle(page, toggle, 0.25)
     })
   }
+}
+
+async function expectHeaderClearOfToggle(page: Page, toggle: Locator, progress: number) {
+  const geometry = await page.locator('[data-slot="session-chat-panel"]').evaluate((chat, progress) => {
+    const row = chat.parentElement!
+    const animations = row
+      .getAnimations({ subtree: true })
+      .filter((animation) => animation.timeline instanceof DocumentTimeline)
+    const width = animations.find(
+      (animation) => animation instanceof CSSTransition && animation.transitionProperty === "width",
+    )!
+    animations.forEach((animation) => {
+      animation.pause()
+      animation.currentTime = Number(width.effect!.getTiming().duration) * progress
+    })
+    const chatBounds = chat.getBoundingClientRect()
+    const panelBounds = document.querySelector("#review-panel")!.getBoundingClientRect()
+    return {
+      row: row.getBoundingClientRect().width,
+      panelWidth: panelBounds.width,
+      gap:
+        getComputedStyle(row).direction === "rtl"
+          ? chatBounds.left - panelBounds.right
+          : panelBounds.left - chatBounds.right,
+      contentOpacity: Number(getComputedStyle(document.querySelector('[data-slot="session-review-content"]')!).opacity),
+      panels: chatBounds.width + panelBounds.width + parseFloat(getComputedStyle(row).columnGap),
+    }
+  }, progress)
+  expect(geometry.gap).toBeCloseTo(8, 1)
+  if (geometry.panelWidth > 0) expect(Math.abs(geometry.row - geometry.panels)).toBeLessThanOrEqual(1)
+  if (progress === 0.25) {
+    expect(geometry.contentOpacity).toBeGreaterThan(0)
+    expect(geometry.contentOpacity).toBeLessThan(1)
+  }
+
+  const clip = await toggle.boundingBox()
+  if (!clip) throw new Error("Review toggle bounds are unavailable")
+  // Header contents must make no difference to the pixels behind the fixed toggle.
+  expect(await page.screenshot({ clip })).toEqual(
+    await page.screenshot({
+      clip,
+      style: ".session-review-v2-tabs-bar { visibility: hidden !important; }",
+    }),
+  )
 }
 
 async function expectTerminalControlsAligned(terminal: Locator, toggle: Locator) {

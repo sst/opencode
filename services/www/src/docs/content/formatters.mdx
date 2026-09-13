@@ -2,91 +2,200 @@
 title: "Formatters"
 ---
 
-OpenCode V2 accepts formatter configuration, but it does not yet include a
-formatter runtime. File writes and edits are not automatically formatted.
+OpenCode can format files after its `write`, `edit`, or `patch` tools change
+them. Formatters are disabled by default, so enable them in your configuration:
 
-<Callout type="warning">
-  V2 currently has no built-in formatters. The built-in formatter list and automatic post-edit formatting documented for
-  V1 do not apply to V2.
-</Callout>
+```jsonc title="opencode.jsonc"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "formatter": true,
+}
+```
 
-## Configuration
+## Enable
 
-The `formatter` field accepts a boolean or an object keyed by formatter name:
+Set `formatter` to `true` to enable every built-in formatter. OpenCode runs a
+built-in only when its executable and any project-specific requirements are
+available.
+
+```jsonc title="opencode.jsonc"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "formatter": true,
+}
+```
+
+An object also enables the built-ins and lets you override them or add custom
+formatters. An empty object is therefore equivalent to `true`.
+
+```jsonc title="opencode.jsonc"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "formatter": {},
+}
+```
+
+## Builtins
+
+OpenCode includes these formatter definitions. Most require the named command
+to be available; definitions with extra detection rules list them below.
+
+| Formatter | Extensions | Requirement |
+| --- | --- | --- |
+| `gofmt` | `.go` | `gofmt` command |
+| `mix` | `.ex`, `.exs`, `.eex`, `.heex`, `.leex`, `.neex`, `.sface` | `mix` command |
+| `oxfmt` | `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts`, `.cts` | `oxfmt` dependency in `package.json` |
+| `prettier` | `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts`, `.cts`, `.html`, `.htm`, `.css`, `.scss`, `.sass`, `.less`, `.vue`, `.svelte`, `.json`, `.jsonc`, `.yaml`, `.yml`, `.toml`, `.xml`, `.md`, `.mdx`, `.graphql`, `.gql` | `prettier` dependency in `package.json` |
+| `biome` | Same extensions as `prettier` above | `biome.json` or `biome.jsonc` and an installed `@biomejs/biome` binary |
+| `zig` | `.zig`, `.zon` | `zig` command |
+| `clang-format` | `.c`, `.cc`, `.cpp`, `.cxx`, `.c++`, `.h`, `.hh`, `.hpp`, `.hxx`, `.h++`, `.ino`, `.C`, `.H` | `clang-format` command and `.clang-format` |
+| `ktlint` | `.kt`, `.kts` | `ktlint` command |
+| `ruff` | `.py`, `.pyi` | `ruff` command and a Ruff config or dependency declaration |
+| `air` | `.R` | `air` command that identifies itself as the R formatter |
+| `uv` | `.py`, `.pyi` | `uv` command with `uv format` support |
+| `rubocop` | `.rb`, `.rake`, `.gemspec`, `.ru` | `rubocop` command |
+| `standardrb` | `.rb`, `.rake`, `.gemspec`, `.ru` | `standardrb` command |
+| `htmlbeautifier` | `.erb` | `htmlbeautifier` command |
+| `dart` | `.dart` | `dart` command |
+| `ocamlformat` | `.ml`, `.mli` | `ocamlformat` command and `.ocamlformat` |
+| `terraform` | `.tf`, `.tfvars` | `terraform` command |
+| `latexindent` | `.tex` | `latexindent` command |
+| `gleam` | `.gleam` | `gleam` command |
+| `shfmt` | `.sh`, `.bash` | `shfmt` command |
+| `nixfmt` | `.nix` | `nixfmt` command |
+| `rustfmt` | `.rs` | `rustfmt` command |
+| `pint` | `.php` | `laravel/pint` in `composer.json` |
+| `ormolu` | `.hs` | `ormolu` command |
+| `cljfmt` | `.clj`, `.cljs`, `.cljc`, `.edn` | `cljfmt` command |
+| `dfmt` | `.d` | `dfmt` command |
+
+For example, enabling built-ins lets OpenCode discover and run a project-local
+Prettier dependency for matching files:
+
+```jsonc title="opencode.jsonc"
+{
+  "formatter": true,
+}
+```
+
+## Customize
+
+Add a named entry to change a built-in or define a custom formatter. A custom
+formatter needs both `command` and `extensions` to run.
 
 ```jsonc title="opencode.jsonc"
 {
   "$schema": "https://opencode.ai/config.json",
   "formatter": {
     "prettier": {
-      "disabled": false,
-      "command": ["prettier", "--write", "$FILE"],
       "environment": {
         "NODE_ENV": "development",
       },
-      "extensions": [".js", ".jsx", ".ts", ".tsx"],
+      "extensions": [".js", ".ts"],
+    },
+    "deno-markdown": {
+      "command": ["deno", "fmt", "$FILE"],
+      "extensions": [".md"],
     },
   },
 }
 ```
 
-This example is valid V2 configuration, but V2 does not currently execute the
-command.
+| Field | Type | Behavior |
+| --- | --- | --- |
+| `disabled` | `boolean` | Removes the named formatter when `true`. |
+| `command` | `string[]` | Replaces the built-in command or defines a custom command. |
+| `environment` | `Record<string, string>` | Adds environment variables while preserving the parent environment. |
+| `extensions` | `string[]` | Replaces the built-in extension list or defines the custom list. Include the leading dot. |
 
-Each named formatter entry supports these optional fields:
+All fields are optional. A built-in entry inherits omitted values, while a new
+entry without a command or extensions cannot run.
 
-| Field         | Type                     | Current V2 behavior                                                                   |
-| ------------- | ------------------------ | ------------------------------------------------------------------------------------- |
-| `disabled`    | `boolean`                | Accepted, but there is no runtime formatter to enable or disable.                     |
-| `command`     | `string[]`               | Accepted as an argument array, but not executed.                                      |
-| `environment` | `Record<string, string>` | Accepts string environment variable names and values, but they are not applied.       |
-| `extensions`  | `string[]`               | Accepted without extension-specific validation, but files are not matched against it. |
-
-All entry fields are optional. The schema therefore also accepts an empty entry
-such as `"prettier": {}`.
-
-## Enable and disable
-
-The schema accepts all of the following forms:
-
-```jsonc
-// Omit `formatter`, or use false, when formatting is not requested.
-{
-  "formatter": false,
-}
-```
-
-```jsonc
-// Reserved for enabling all built-ins once a V2 runtime provides them.
-{
-  "formatter": true,
-}
-```
-
-```jsonc
-// Configure named entries or mark one as disabled.
+```jsonc title="opencode.jsonc"
 {
   "formatter": {
-    "prettier": { "disabled": true },
+    "prettier": {
+      "extensions": [".md", ".mdx"],
+    },
+  },
+}
+```
+
+## Commands
+
+`command` is an argument array, not a shell command string. OpenCode replaces
+`$FILE` with the file's absolute path and runs the command from the active
+project directory.
+
+```jsonc title="opencode.jsonc"
+{
+  "formatter": {
     "custom": {
-      "command": ["custom-fmt", "$FILE"],
+      "command": ["custom-fmt", "--write", "$FILE"],
+      "extensions": [".custom"],
+    },
+  },
+}
+```
+
+## Matching
+
+OpenCode compares the file's final extension with `extensions`. Matching is
+case-sensitive, and compound entries such as `.part.md` do not match
+`notes.part.md` because its final extension is `.md`.
+
+```jsonc title="opencode.jsonc"
+{
+  "formatter": {
+    "markdown": {
+      "command": ["deno", "fmt", "$FILE"],
+      "extensions": [".md"],
+    },
+  },
+}
+```
+
+When several formatters match, OpenCode tries them in registered order and
+stops after the first successful command. Built-ins retain their built-in
+order; custom entries follow in object order. If one exits unsuccessfully,
+OpenCode logs the failure and tries the next match.
+
+```jsonc title="opencode.jsonc"
+{
+  "formatter": {
+    "preferred": {
+      "command": ["preferred-fmt", "$FILE"],
+      "extensions": [".foo"],
+    },
+    "fallback": {
+      "command": ["fallback-fmt", "$FILE"],
       "extensions": [".foo"],
     },
   },
 }
 ```
 
-At present, omitted, `false`, `true`, and object forms have the same runtime
-result: V2 runs no formatter. `disabled` is retained as configuration data but
-does not control an executable formatter.
+## Disable
 
-## Commands and placeholders
+Omit `formatter` or set it to `false` to disable all formatting. An explicit
+`false` can override a lower-priority configuration that enabled formatters.
 
-`command` is an array of strings, not a shell command string. `$FILE` is the V1
-file-path placeholder and is often retained in migrated configuration. V2 does
-not currently substitute `$FILE` or define another formatter placeholder.
+```jsonc title="opencode.jsonc"
+{
+  "$schema": "https://opencode.ai/config.json",
+  "formatter": false,
+}
+```
 
-Likewise, V2 does not currently use `extensions` to select commands, merge
-`environment` into a child process, discover formatter executables or project
-configuration, or run multiple matching formatters. These behaviors will only
-be available after a V2 formatter runtime is implemented.
+To disable one built-in while leaving the others enabled, mark its named entry
+as disabled.
+
+```jsonc title="opencode.jsonc"
+{
+  "formatter": {
+    "prettier": {
+      "disabled": true,
+    },
+  },
+}
+```

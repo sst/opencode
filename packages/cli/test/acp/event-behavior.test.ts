@@ -91,7 +91,7 @@ describe("acp event behavior", () => {
     }
   })
 
-  test("preserves text and reasoning order before returning the terminal response", async () => {
+  test("preserves reasoning boundaries and update order during streaming and replay", async () => {
     const firstUpdate = Promise.withResolvers<void>()
     const releaseUpdate = Promise.withResolvers<void>()
     const allUpdates = Promise.withResolvers<void>()
@@ -109,6 +109,14 @@ describe("acp event behavior", () => {
           }),
         )
         send(
+          ephemeralEvent("session.reasoning.delta", {
+            sessionID: "ses_order",
+            assistantMessageID: "msg_order",
+            ordinal: 0,
+            delta: " continued",
+          }),
+        )
+        send(
           ephemeralEvent("session.text.delta", {
             sessionID: "ses_order",
             assistantMessageID: "msg_order",
@@ -120,7 +128,7 @@ describe("acp event behavior", () => {
           ephemeralEvent("session.reasoning.delta", {
             sessionID: "ses_order",
             assistantMessageID: "msg_order",
-            ordinal: 2,
+            ordinal: 1,
             delta: "think-2",
           }),
         )
@@ -144,7 +152,7 @@ describe("acp event behavior", () => {
           firstUpdate.resolve()
           await releaseUpdate.promise
         }
-        if (updates.length === 3) allUpdates.resolve()
+        if (updates.length === 4) allUpdates.resolve()
       },
       requestPermission: async () => ({ outcome: { outcome: "cancelled" } }),
     } satisfies Connection
@@ -171,18 +179,48 @@ describe("acp event behavior", () => {
           ) {
             return [
               item.update.sessionUpdate,
+              item.update.messageId,
               item.update.content.type === "text" ? item.update.content.text : undefined,
             ]
           }
           return [item.update.sessionUpdate, undefined]
         }),
       ).toEqual([
-        ["agent_thought_chunk", "think-1"],
-        ["agent_message_chunk", "answer"],
-        ["agent_thought_chunk", "think-2"],
+        ["agent_thought_chunk", "msg_order:reasoning:0", "think-1"],
+        ["agent_thought_chunk", "msg_order:reasoning:0", " continued"],
+        ["agent_message_chunk", "msg_order", "answer"],
+        ["agent_thought_chunk", "msg_order:reasoning:1", "think-2"],
       ])
       expect(fixture.requests.at(-1)?.path).toBe("/api/session/ses_order/message/msg_order")
       expect(response).toMatchObject({ stopReason: "end_turn", usage: { totalTokens: 2 } })
+
+      const replayed: SessionUpdateParams[] = []
+      await replayMessages(recordingConnection(replayed), "ses_order", "/workspace", [
+        {
+          id: "msg_order",
+          type: "assistant",
+          agent: "build",
+          model: { providerID: "test", id: "test-model" },
+          time: { created: 1 },
+          content: [
+            { type: "reasoning", text: "think-1 continued" },
+            { type: "text", text: "answer" },
+            { type: "reasoning", text: "think-2" },
+          ],
+        },
+      ])
+      expect(replayed).toEqual([
+        {
+          sessionId: "ses_order",
+          update: {
+            sessionUpdate: "agent_thought_chunk",
+            messageId: "msg_order:reasoning:0",
+            content: { type: "text", text: "think-1 continued" },
+          },
+        },
+        updates[2],
+        updates[3],
+      ])
     } finally {
       releaseUpdate.resolve()
       releaseSubmit.resolve()

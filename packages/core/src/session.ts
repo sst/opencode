@@ -18,6 +18,7 @@ import { SessionMessageTable } from "./session/sql.js"
 import { SessionSchema } from "./session/schema.js"
 import { RelativePath } from "./schema.js"
 import { Agent } from "@opencode/schema/agent"
+import type { Permission } from "@opencode/schema/permission"
 import { App } from "./app.js"
 import { Slug } from "./util/slug.js"
 import path from "path"
@@ -31,10 +32,7 @@ import {
   ForkEmptyError,
   InboxConflictError,
   MessageDecodeError,
-  MessageIncompleteError,
-  MessageNotAssistantError,
   MessageNotFoundError,
-  MessageToolIncompleteError,
   NotFoundError,
   PromptConflictError,
   SkillNotFoundError,
@@ -57,8 +55,11 @@ import { SessionModelTransport } from "./session/model-transport.js"
 import { llmClient } from "./effect/app-node-platform.js"
 import { Snapshot } from "./snapshot.js"
 import { Session } from "./session/session.js"
+import { SessionDiff, TurnRangeError } from "./session/diff.js"
+import { LocationServiceMap } from "./location-service-map.js"
 import { FSUtil } from "@opencode/util/fs-util"
 import type { EventLog } from "@opencode/schema/event-log"
+import type { FileDiff } from "@opencode/schema/file-diff"
 import { Job } from "./job.js"
 import type { Command } from "./command.js"
 import { SessionEnvironment } from "./session/environment.js"
@@ -84,6 +85,7 @@ type CreateBaseInput = {
   agent?: Agent.ID
   model?: Model.Ref
   metadata?: SessionSchema.Metadata
+  permissions?: Permission.Ruleset
 }
 type CreateInput = CreateBaseInput &
   ({ location: Location.Ref; parentID?: never } | { parentID: SessionSchema.ID; location?: never })
@@ -101,10 +103,7 @@ export {
   CompactionConflictError,
   InboxConflictError,
   MessageDecodeError,
-  MessageIncompleteError,
-  MessageNotAssistantError,
   MessageNotFoundError,
-  MessageToolIncompleteError,
   NotFoundError,
   PromptConflictError,
   SkillNotFoundError,
@@ -113,6 +112,7 @@ export {
 type InboxItemRef = { readonly sessionID: SessionSchema.ID; readonly inboxID: SessionMessage.ID }
 
 export { DestinationNotFoundError, DestinationNotDirectoryError, DestinationUnavailableError }
+export { TurnRangeError }
 
 export interface Interface {
   readonly list: (input?: ListInput) => Effect.Effect<{
@@ -136,12 +136,16 @@ export interface Interface {
     sessionID: SessionSchema.ID
     messageID: SessionMessage.ID
   }) => Effect.Effect<SessionMessage.Info | undefined>
-  readonly updateMessage: (
-    input: Parameters<Session.Handle["updateMessage"]>[0] & { readonly sessionID: SessionSchema.ID },
-  ) => ReturnType<Session.Handle["updateMessage"]>
   readonly context: (
     sessionID: SessionSchema.ID,
   ) => Effect.Effect<SessionMessage.Info[], NotFoundError | MessageDecodeError>
+  /** Structured diffs of the files changed by a turn or range of turns; see `SessionDiff.turn`. */
+  readonly diff: (input: {
+    readonly sessionID: SessionSchema.ID
+    readonly from?: SessionMessage.ID
+    readonly to?: SessionMessage.ID
+    readonly context?: number
+  }) => Effect.Effect<readonly FileDiff.Info[], NotFoundError | MessageNotFoundError | TurnRangeError | Snapshot.Error>
   /**
    * Durable admitted session work not yet visible in projected history,
    * ordered by admission. Includes unpromoted user and synthetic inputs and
@@ -166,6 +170,10 @@ export interface Interface {
   readonly switchAgent: (input: { sessionID: SessionSchema.ID; agent: Agent.ID }) => Effect.Effect<void, NotFoundError>
   readonly switchModel: (input: { sessionID: SessionSchema.ID; model: Model.Ref }) => Effect.Effect<void, NotFoundError>
   readonly rename: (input: { sessionID: SessionSchema.ID; title: string }) => Effect.Effect<void, NotFoundError>
+  readonly setPermissions: (input: {
+    sessionID: SessionSchema.ID
+    permissions: Permission.Ruleset
+  }) => Effect.Effect<void, NotFoundError>
   readonly move: SessionMove.Interface["move"]
   readonly prompt: (
     input: Parameters<Session.Handle["prompt"]>[0] & { sessionID: SessionSchema.ID },
@@ -230,6 +238,7 @@ const layer = Layer.effect(
     const moves = yield* SessionMove.Service
     const jobs = yield* Job.Service
     const environments = yield* SessionEnvironment.Service
+    const locations = yield* LocationServiceMap.Service
     const sessions = yield* Session.make()
     const isDurableSessionEvent = Schema.is(SessionEvent.Durable)
 
@@ -257,9 +266,10 @@ const layer = Layer.effect(
               subpath: RelativePath.make(path.relative(project.directory, location.directory).replaceAll("\\", "/")),
               title: input.title,
               agent: input.agent,
-              // Children inherit metadata the way they inherit location, so
-              // host policies that read it treat the family uniformly.
+              // Children inherit metadata and permissions the way they inherit
+              // location, so host policies that read them treat the family uniformly.
               metadata: input.metadata ?? parent?.metadata,
+              permissions: input.permissions ?? parent?.permissions,
               model: input.model
                 ? {
                     id: Model.ID.make(input.model.id),
@@ -357,10 +367,20 @@ const layer = Layer.effect(
         return yield* store.messages(input)
       }),
       message: (input) => sessions.forSession(input.sessionID).message(input.messageID),
-      updateMessage: (input) => sessions.forSession(input.sessionID).updateMessage(input),
       context: Effect.fn("Session.context")(function* (sessionID) {
         yield* result.get(sessionID)
         return yield* store.context(sessionID)
+      }),
+      diff: Effect.fn("Session.diff")(function* (input) {
+        const session = yield* result.get(input.sessionID)
+        const active = yield* execution.isActive(input.sessionID)
+        return yield* SessionDiff.turn(db, locations, {
+          session,
+          active,
+          from: input.from,
+          to: input.to,
+          context: input.context,
+        })
       }),
       inbox: (sessionID) => sessions.forSession(sessionID).inbox(),
       cancelInbox: (input) => sessions.forSession(input.sessionID).cancelInbox(input.inboxID),
@@ -397,6 +417,7 @@ const layer = Layer.effect(
       switchAgent: (input) => sessions.forSession(input.sessionID).switchAgent(input),
       switchModel: (input) => sessions.forSession(input.sessionID).switchModel(input),
       rename: (input) => sessions.forSession(input.sessionID).rename(input),
+      setPermissions: (input) => sessions.forSession(input.sessionID).setPermissions(input),
       move: moves.move,
       compact: (input) => sessions.forSession(input.sessionID).compact(input),
       wait: (sessionID) => sessions.forSession(sessionID).wait(),
@@ -450,6 +471,7 @@ export const node: LayerNode.Provider<Service, never, typeof Node.tags.values.gl
     SessionInbox.node,
     SessionMove.node,
     SessionProjector.node,
+    LocationServiceMap.node,
     FSUtil.node,
     App.node,
   ],

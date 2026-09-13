@@ -4,7 +4,7 @@ import { createStore } from "solid-js/store"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { Key } from "@solid-primitives/keyed"
 import type { SessionInfo } from "@opencode/client/promise"
-import { useQuery } from "@tanstack/solid-query"
+import { useQuery, useQueryClient } from "@tanstack/solid-query"
 import { Button } from "@opencode/ui/button"
 import { Dialog, DialogFooter, DialogHeader, DialogTitleGroup } from "@opencode/ui/dialog"
 import { Icon } from "@opencode/ui/icon"
@@ -14,14 +14,13 @@ import { Tooltip } from "@opencode/ui/tooltip"
 import { useDialog } from "@opencode/ui/context/dialog"
 import { getFilename } from "@opencode/util/path"
 import { useLanguage } from "@/runtime/i18n/language"
-import { useServerSDK } from "@/runtime/server/client"
-import { useData } from "@/runtime/server/current"
+import { useServer } from "@/runtime/server/current"
 import { showToast } from "@/shell/notifications/toast"
 import { getRelativeTime } from "@/shell/time"
 import { sessionLabel } from "@/session/title"
 import { pathKey } from "@/workspaces/path-key"
+import { worktreeInventoryKey } from "@/workspaces/inventory"
 import { SettingsList } from "@/settings/list"
-import { InlineServerSelect } from "@/settings/server-select"
 import { useTabs } from "@/shell/tabs/tabs"
 import { usePlatform } from "@/runtime/platform/platform"
 import { clearWorkspaceTerminals } from "@/session/terminal/context"
@@ -40,7 +39,7 @@ import {
 } from "@/workspaces/paths"
 import { listAllSessions } from "@/session/list"
 import type { ServerScope } from "@/runtime/server/scope"
-import { normalizeProjectInfo } from "@/runtime/server/global-sync/utils"
+import { workspaceInventoryQuery } from "./queries"
 import "@/settings/settings.css"
 
 type Workspace = {
@@ -48,13 +47,17 @@ type Workspace = {
   project: Project
 }
 
-export const SettingsWorkspaces: Component<{ activeDirectory?: string; resetProjectFilter: () => number }> = (
-  props,
-) => {
+export const SettingsWorkspaces: Component<{
+  activeDirectory?: string
+  resetProjectFilter?: () => number
+  projectID?: string
+}> = (props) => {
   const dialog = useDialog()
   const language = useLanguage()
-  const serverSDK = useServerSDK()
-  const data = useData()
+  const server = useServer()
+  const serverSDK = server.ctx.sdk
+  const queryClient = useQueryClient()
+  const data = server.ctx.data
   const tabs = useTabs()
   const platform = usePlatform()
   const [store, setStore] = createStore({
@@ -64,23 +67,18 @@ export const SettingsWorkspaces: Component<{ activeDirectory?: string; resetProj
     removing: [] as string[],
   })
   createEffect(() => {
-    props.resetProjectFilter()
+    if (props.projectID) {
+      setStore("project", props.projectID)
+      return
+    }
+    props.resetProjectFilter?.()
     setStore("project", "all")
   })
 
   const projectQuery = useQuery(() => ({
-    queryKey: [serverSDK.scope, "settings-workspace-projects"] as const,
+    ...workspaceInventoryQuery(server.ctx, queryClient, props.projectID),
     enabled: serverSDK.connection.status() === "connected",
-    queryFn: async () =>
-      Promise.all(
-        (await serverSDK.api.project.list()).map(async (project) => {
-          const worktrees = await serverSDK.api.worktree
-            .list({ location: { directory: project.canonical } })
-            .catch(() => [{ directory: project.canonical }, ...project.sandboxes.map((directory) => ({ directory }))])
-          return normalizeProjectInfo({ ...project, worktrees })
-        }),
-      ),
-    refetchOnMount: "always",
+    refetchOnMount: true,
   }))
   const inventory = createMemo(() => (projectQuery.isPending ? [] : (projectQuery.data ?? [])))
   const workspaces = createMemo(() => workspaceInventory(inventory()))
@@ -91,7 +89,11 @@ export const SettingsWorkspaces: Component<{ activeDirectory?: string; resetProj
     ...projects().map((project) => ({ id: project.id, label: projectName(project) })),
   ])
   const selectedProject = createMemo(() =>
-    store.project === "all" || projects().some((project) => project.id === store.project) ? store.project : "all",
+    props.projectID
+      ? props.projectID
+      : store.project === "all" || projects().some((project) => project.id === store.project)
+        ? store.project
+        : "all",
   )
   const filtered = createMemo(() => filterWorkspaceInventory(workspaces(), selectedProject()))
   const captureDeleteContext = () => {
@@ -125,7 +127,10 @@ export const SettingsWorkspaces: Component<{ activeDirectory?: string; resetProj
     refetchOnMount: "always",
   }))
   const sessionsByWorkspace = createMemo(() => {
-    const sessions = sessionQuery.isPending ? [] : (sessionQuery.data ?? [])
+    const sessions = mergeWorkspaceSessionInventory(
+      sessionQuery.isPending ? [] : (sessionQuery.data ?? []),
+      data.session.list(),
+    )
     return new Map(
       workspaces().map((workspace) => [
         pathKey(workspace.directory),
@@ -135,13 +140,13 @@ export const SettingsWorkspaces: Component<{ activeDirectory?: string; resetProj
   })
   const workspaceSessions = (workspace: Workspace) => sessionsByWorkspace().get(pathKey(workspace.directory)) ?? []
   const workspacesWithoutSessions = createMemo(() => {
-    if (sessionQuery.isPending || sessionQuery.isError) return []
+    if (sessionQuery.isPending || sessionQuery.isError || sessionQuery.isPlaceholderData) return []
     return filtered().filter((workspace) => workspaceSessions(workspace).length === 0)
   })
   const sessionCount = (workspace: Workspace) => {
-    if (sessionQuery.isPending) return language.t("session.messages.loading")
-    if (sessionQuery.isError) return language.t("common.requestFailed")
     const count = workspaceSessions(workspace).length
+    if (!count && sessionQuery.isPending) return language.t("session.messages.loading")
+    if (!count && sessionQuery.isError) return language.t("common.requestFailed")
     if (selectedProject() !== "all") return language.plural("settings.workspaces.sessions.filtered", count, { count })
     const project = projectName(workspace.project)
     const label = language.plural("settings.workspaces.sessions", count, {
@@ -237,7 +242,10 @@ export const SettingsWorkspaces: Component<{ activeDirectory?: string; resetProj
         })
       })
       clearWorkspaceTerminals(workspace.directory, platform, context.sdk.scope)
-      await projectQuery.refetch()
+      await queryClient.invalidateQueries({
+        queryKey: worktreeInventoryKey(context.sdk.scope, workspace.project.worktree),
+      })
+      await queryClient.invalidateQueries({ queryKey: [context.sdk.scope, "settings-workspace-inventory"] })
     } finally {
       setStore("deleting", (items) => items.filter((item) => item !== key))
       setStore("removing", (items) => items.filter((item) => item !== key))
@@ -328,18 +336,17 @@ export const SettingsWorkspaces: Component<{ activeDirectory?: string; resetProj
             <h2 class="settings-tab-title">{language.t("settings.tab.workspaces")}</h2>
             <span class="text-11-regular text-v2-text-text-muted">{language.t("settings.workspaces.description")}</span>
           </div>
-          <InlineServerSelect />
         </div>
       </div>
 
       <div class="settings-tab-body settings-workspaces">
         <Show when={filtered().length > 0}>
           <div class="settings-workspaces-toolbar">
-            <span class="settings-workspaces-count">
+            <span class="settings-section-title">
               {language.plural("settings.workspaces.count", filtered().length)}
             </span>
             <div class="settings-workspaces-toolbar-actions">
-              <Show when={projects().length > 1}>
+              <Show when={!props.projectID && projects().length > 1}>
                 <Menu placement="bottom-end" gutter={6}>
                   <Menu.Trigger as={Button} size="small" variant="ghost-muted" class="max-w-48">
                     <span class="min-w-0 truncate">

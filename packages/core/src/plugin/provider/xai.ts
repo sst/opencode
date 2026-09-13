@@ -101,6 +101,7 @@ export const XAIPlugin = define({
       for (const model of provider.models.values()) {
         catalog.model.update(providerID, model.id, (draft) => {
           draft.capabilities.responsesWebsockets = true
+          draft.websocket = true
         })
       }
     })
