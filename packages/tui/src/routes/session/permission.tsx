@@ -19,6 +19,14 @@ import { usePathFormatter } from "../../context/path-format"
 
 type PermissionStage = "permission" | "always" | "reject"
 
+type PatchFileMetadata = {
+  type?: string
+  relativePath?: string
+  filePath?: string
+  movePath?: string
+  patch?: string
+}
+
 function EditBody(props: { request: PermissionRequest }) {
   const themeState = useTheme()
   const theme = themeState.theme
@@ -26,6 +34,7 @@ function EditBody(props: { request: PermissionRequest }) {
   const config = useTuiConfig()
   const dimensions = useTerminalDimensions()
 
+  const pathFormatter = usePathFormatter()
   const filepath = createMemo(() => {
     const value = props.request.metadata?.filepath
     return typeof value === "string" ? value : ""
@@ -33,6 +42,24 @@ function EditBody(props: { request: PermissionRequest }) {
   const diff = createMemo(() => {
     const value = props.request.metadata?.diff
     return typeof value === "string" ? value : ""
+  })
+  const files = createMemo(() => {
+    const value = props.request.metadata?.files
+    if (!Array.isArray(value)) return []
+    return value.flatMap((item): PatchFileMetadata[] => {
+      if (!item || typeof item !== "object") return []
+      const file = item as Record<string, unknown>
+      return [
+        {
+          type: typeof file.type === "string" ? file.type : undefined,
+          relativePath: typeof file.relativePath === "string" ? file.relativePath : undefined,
+          filePath: typeof file.filePath === "string" ? file.filePath : undefined,
+          movePath: typeof file.movePath === "string" ? file.movePath : undefined,
+          patch:
+            typeof file.patch === "string" ? file.patch : typeof file.diff === "string" ? file.diff : undefined,
+        },
+      ]
+    })
   })
 
   const view = createMemo(() => {
@@ -44,9 +71,59 @@ function EditBody(props: { request: PermissionRequest }) {
   const ft = createMemo(() => filetype(filepath()))
   const scrollAcceleration = createMemo(() => getScrollAcceleration(config))
 
+  function title(file: PatchFileMetadata) {
+    const label = pathFormatter.format(file.relativePath ?? file.movePath ?? file.filePath)
+    if (file.type === "delete") return "# Deleted " + label
+    if (file.type === "add") return "# Created " + label
+    if (file.type === "move") return "# Moved " + pathFormatter.format(file.filePath) + " -> " + label
+    return "# Patched " + label
+  }
+
   return (
     <box flexDirection="column" gap={1}>
-      <Show when={diff()}>
+      <Show when={files().length > 0}>
+        <scrollbox
+          height="100%"
+          verticalScrollbarOptions={{
+            trackOptions: {
+              backgroundColor: theme.background,
+              foregroundColor: theme.borderActive,
+            },
+          }}
+        >
+          <box flexDirection="column" gap={1}>
+            <For each={files()}>
+              {(file) => (
+                <box flexDirection="column" gap={1}>
+                  <box paddingLeft={1}>
+                    <text fg={theme.textMuted}>{title(file)}</text>
+                  </box>
+                  <diff
+                    diff={file.patch ?? ""}
+                    view={view()}
+                    filetype={filetype(file.movePath ?? file.filePath ?? file.relativePath)}
+                    syntaxStyle={syntax()}
+                    showLineNumbers={true}
+                    width="100%"
+                    wrapMode="word"
+                    fg={theme.text}
+                    addedBg={theme.diffAddedBg}
+                    removedBg={theme.diffRemovedBg}
+                    contextBg={theme.diffContextBg}
+                    addedSignColor={theme.diffHighlightAdded}
+                    removedSignColor={theme.diffHighlightRemoved}
+                    lineNumberFg={theme.diffLineNumber}
+                    lineNumberBg={theme.diffContextBg}
+                    addedLineNumberBg={theme.diffAddedLineNumberBg}
+                    removedLineNumberBg={theme.diffRemovedLineNumberBg}
+                  />
+                </box>
+              )}
+            </For>
+          </box>
+        </scrollbox>
+      </Show>
+      <Show when={!files().length && diff()}>
         <scrollbox
           height="100%"
           scrollAcceleration={scrollAcceleration()}
@@ -78,7 +155,7 @@ function EditBody(props: { request: PermissionRequest }) {
           />
         </scrollbox>
       </Show>
-      <Show when={!diff()}>
+      <Show when={!files().length && !diff()}>
         <box paddingLeft={1}>
           <text fg={theme.textMuted}>No diff provided</text>
         </box>

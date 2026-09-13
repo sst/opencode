@@ -401,17 +401,28 @@ function runSkill(p: ToolProps<typeof SkillTool>): ToolInline {
 }
 
 function runPatch(p: ToolProps<typeof ApplyPatchTool>): ToolInline {
-  const files = p.metadata.files?.length ?? 0
-  if (files === 0) {
+  const files = list<PatchFile>(p.metadata.files)
+  if (files.length === 0) {
     return {
       icon: "%",
       title: "Patch",
+      mode: "block",
+      body: text(p.metadata.diff),
     }
   }
 
+  const body = files
+    .flatMap((file) => {
+      const diff = patchDiff(file).trimEnd()
+      if (!diff.trim()) return []
+      return [`${patchTitle(file)}\n${diff}`]
+    })
+    .join("\n\n")
+
   return {
     icon: "%",
-    title: `Patch ${files} file${files === 1 ? "" : "s"}`,
+    title: `Patch ${files.length} file${files.length === 1 ? "" : "s"}`,
+    ...(body && { mode: "block" as const, body }),
   }
 }
 
@@ -495,6 +506,11 @@ function patchTitle(file: PatchFile): string {
   }
 
   return `# Patched ${rel || toolPath(from)}`
+}
+
+function patchDiff(file: PatchFile): string {
+  if (typeof file.patch === "string") return file.patch
+  return text(dict(file).diff)
 }
 
 function snapWrite(p: ToolProps<typeof WriteTool>): ToolSnapshot | undefined {

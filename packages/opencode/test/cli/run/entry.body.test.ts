@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { ToolPart } from "@opencode-ai/sdk/v2"
 import { entryBody, entryCanStream, entryDone } from "@/cli/cmd/run/entry.body"
+import { toolInlineInfo } from "@/cli/cmd/run/tool"
 import type { StreamCommit, ToolSnapshot } from "@/cli/cmd/run/types"
 
 function commit(input: Partial<StreamCommit> & Pick<StreamCommit, "kind" | "text" | "phase" | "source">): StreamCommit {
@@ -219,6 +220,41 @@ describe("run entry body", () => {
       ),
     ).toEqual({
       type: "none",
+    })
+  })
+
+  test("renders apply_patch run output with per-file diffs", () => {
+    expect(
+      toolInlineInfo(
+        toolPart("apply_patch", {
+          status: "completed",
+          input: {},
+          output: "",
+          title: "",
+          metadata: {
+            files: [
+              {
+                type: "update",
+                filePath: "src/a.ts",
+                relativePath: "src/a.ts",
+                patch: "@@ -1 +1 @@\n-old\n+new\n",
+              },
+              {
+                type: "add",
+                filePath: "src/b.ts",
+                relativePath: "src/b.ts",
+                patch: "@@ -0,0 +1 @@\n+added\n",
+              },
+            ],
+          },
+          time: { start: 1, end: 2 },
+        }),
+      ),
+    ).toEqual({
+      icon: "%",
+      title: "Patch 2 files",
+      mode: "block",
+      body: "# Patched src/a.ts\n@@ -1 +1 @@\n-old\n+new\n\n# Created src/b.ts\n@@ -0,0 +1 @@\n+added",
     })
   })
 
