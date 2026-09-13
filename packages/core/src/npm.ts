@@ -1,6 +1,9 @@
 export * as Npm from "./npm"
 
+import fs from "fs"
 import path from "path"
+import { createRequire } from "module"
+import { pathToFileURL } from "url"
 import npa from "npm-package-arg"
 import { Effect, Schema, Context, Layer, Option, FileSystem } from "effect"
 import { NodeFileSystem } from "@effect/platform-node"
@@ -47,10 +50,84 @@ export function sanitize(pkg: string) {
   return Array.from(pkg, (char) => (illegal.has(char) || char.charCodeAt(0) < 32 ? "_" : char)).join("")
 }
 
+// Conditions enabled for a dynamic import() from ESM, in the spirit of Node's own
+// resolver. The fallback set additionally allows "require" targets — importing a CJS
+// file via import() is fine, and it beats failing to load the provider at all.
+const IMPORT_CONDITIONS = new Set(["node", "import", "module-sync", "default"])
+const IMPORT_CONDITIONS_WITH_REQUIRE = new Set(["node", "import", "module-sync", "require", "default"])
+
+const resolveExportsTarget = (value: unknown, conditions: ReadonlySet<string>): string | undefined => {
+  if (typeof value === "string") return value
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const target = resolveExportsTarget(entry, conditions)
+      if (target) return target
+    }
+    return undefined
+  }
+  if (value && typeof value === "object") {
+    // Condition objects are matched in key order, per the package exports spec.
+    for (const [key, entry] of Object.entries(value)) {
+      if (!conditions.has(key)) continue
+      const target = resolveExportsTarget(entry, conditions)
+      if (target) return target
+    }
+  }
+  return undefined
+}
+
+const resolveRootExports = (exportsField: unknown, conditions: ReadonlySet<string>): string | undefined => {
+  if (exportsField && typeof exportsField === "object" && !Array.isArray(exportsField)) {
+    const keys = Object.keys(exportsField)
+    // Keys starting with "." are subpaths; the package root is the "." entry.
+    if (keys.some((key) => key.startsWith("."))) {
+      return resolveExportsTarget((exportsField as Record<string, unknown>)["."], conditions)
+    }
+  }
+  return resolveExportsTarget(exportsField, conditions)
+}
+
+// Node's ESM loader cannot import a directory (ERR_UNSUPPORTED_DIR_IMPORT), and
+// import.meta.resolve in Node only accepts a parent URL argument behind
+// --experimental-import-meta-resolve, so resolve the entry file manually from the
+// installed package's manifest: exports ("." entry) -> module -> main -> index.js,
+// with a createRequire fallback for anything exotic.
+export const resolveNodeEntryPoint = (name: string, dir: string): string | undefined => {
+  const manifestPath = path.join(dir, "package.json")
+  let manifest: Record<string, unknown> | undefined
+  try {
+    manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"))
+  } catch {
+    manifest = undefined
+  }
+  const candidates: (string | undefined)[] = []
+  if (manifest?.exports != null) {
+    candidates.push(resolveRootExports(manifest.exports, IMPORT_CONDITIONS))
+    candidates.push(resolveRootExports(manifest.exports, IMPORT_CONDITIONS_WITH_REQUIRE))
+  }
+  if (typeof manifest?.module === "string") candidates.push(manifest.module)
+  if (typeof manifest?.main === "string") candidates.push(manifest.main)
+  candidates.push("./index.js")
+  for (const candidate of candidates) {
+    if (!candidate) continue
+    const resolved = path.resolve(dir, candidate)
+    // Reject targets that escape the package directory.
+    const relative = path.relative(dir, resolved)
+    if (relative.startsWith("..") || path.isAbsolute(relative)) continue
+    if (!fs.existsSync(resolved) || fs.statSync(resolved).isDirectory()) continue
+    return pathToFileURL(resolved).href
+  }
+  try {
+    return pathToFileURL(createRequire(manifestPath).resolve(name)).href
+  } catch {
+    return undefined
+  }
+}
+
 const resolveEntryPoint = (name: string, dir: string): EntryPoint => {
   let entrypoint: string | undefined
   try {
-    entrypoint = typeof Bun !== "undefined" ? import.meta.resolve(name, dir) : import.meta.resolve(dir)
+    entrypoint = typeof Bun !== "undefined" ? import.meta.resolve(name, dir) : resolveNodeEntryPoint(name, dir)
   } catch {
     entrypoint = undefined
   }

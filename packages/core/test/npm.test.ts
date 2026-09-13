@@ -1,5 +1,6 @@
 import fs from "fs/promises"
 import path from "path"
+import { pathToFileURL } from "url"
 import { describe, expect, test } from "bun:test"
 import { Effect, Option } from "effect"
 import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
@@ -80,5 +81,117 @@ describe("Npm.install", () => {
 
     await expect(fs.stat(path.join(tmp.path, "node_modules", "prod-pkg"))).resolves.toBeDefined()
     await expect(fs.stat(path.join(tmp.path, "node_modules", "dev-pkg"))).rejects.toThrow()
+  })
+})
+
+describe("Npm.resolveNodeEntryPoint", () => {
+  const makeEntry = async (root: string, manifest: Record<string, unknown> | string | undefined, files: string[]) => {
+    const dir = path.join(root, "pkg")
+    await fs.mkdir(dir, { recursive: true })
+    if (manifest !== undefined)
+      await Bun.write(
+        path.join(dir, "package.json"),
+        typeof manifest === "string" ? manifest : JSON.stringify(manifest),
+      )
+    for (const file of files) await Bun.write(path.join(dir, file), "export {}\n")
+    return dir
+  }
+
+  const fileURL = (dir: string, file: string) => pathToFileURL(path.join(dir, file)).href
+
+  test("resolves conditional exports to the import target", async () => {
+    await using tmp = await tmpdir()
+    const dir = await makeEntry(
+      tmp.path,
+      {
+        name: "esm-provider",
+        exports: {
+          "./package.json": "./package.json",
+          ".": {
+            types: "./dist/index.d.ts",
+            import: "./dist/index.mjs",
+            require: "./dist/index.js",
+          },
+        },
+      },
+      ["dist/index.mjs", "dist/index.js"],
+    )
+    expect(Npm.resolveNodeEntryPoint("esm-provider", dir)).toBe(fileURL(dir, "dist/index.mjs"))
+  })
+
+  test("resolved entrypoint is a file URL, never the package directory", async () => {
+    await using tmp = await tmpdir()
+    const dir = await makeEntry(tmp.path, { name: "p", exports: "./dist/index.mjs" }, ["dist/index.mjs"])
+    const entrypoint = Npm.resolveNodeEntryPoint("p", dir)!
+    expect(entrypoint.startsWith("file://")).toBe(true)
+    expect(entrypoint).not.toBe(pathToFileURL(dir).href)
+  })
+
+  test("resolves array export targets to the first usable entry", async () => {
+    await using tmp = await tmpdir()
+    const dir = await makeEntry(
+      tmp.path,
+      { name: "p", exports: { ".": [{ import: "./dist/a.mjs" }, "./dist/b.js"] } },
+      ["dist/a.mjs", "dist/b.js"],
+    )
+    expect(Npm.resolveNodeEntryPoint("p", dir)).toBe(fileURL(dir, "dist/a.mjs"))
+  })
+
+  test("falls back to require condition when no import target exists", async () => {
+    await using tmp = await tmpdir()
+    const dir = await makeEntry(tmp.path, { name: "p", exports: { ".": { require: "./dist/index.cjs" } } }, [
+      "dist/index.cjs",
+    ])
+    expect(Npm.resolveNodeEntryPoint("p", dir)).toBe(fileURL(dir, "dist/index.cjs"))
+  })
+
+  test("falls back to module then main without exports", async () => {
+    await using tmp = await tmpdir()
+    const withModule = await makeEntry(tmp.path, { name: "p", module: "./dist/index.mjs", main: "./dist/index.js" }, [
+      "dist/index.mjs",
+      "dist/index.js",
+    ])
+    expect(Npm.resolveNodeEntryPoint("p", withModule)).toBe(fileURL(withModule, "dist/index.mjs"))
+  })
+
+  test("falls back to main and then index.js", async () => {
+    await using tmp = await tmpdir()
+    const withMain = await makeEntry(tmp.path, { name: "p", main: "./dist/index.js" }, ["dist/index.js"])
+    expect(Npm.resolveNodeEntryPoint("p", withMain)).toBe(fileURL(withMain, "dist/index.js"))
+  })
+
+  test("falls back to index.js when the manifest names no entry", async () => {
+    await using tmp = await tmpdir()
+    const dir = await makeEntry(tmp.path, { name: "p" }, ["index.js"])
+    expect(Npm.resolveNodeEntryPoint("p", dir)).toBe(fileURL(dir, "index.js"))
+  })
+
+  test("skips export targets pointing at missing files", async () => {
+    await using tmp = await tmpdir()
+    const dir = await makeEntry(
+      tmp.path,
+      { name: "p", exports: { ".": { import: "./dist/missing.mjs" } }, main: "./dist/real.js" },
+      ["dist/real.js"],
+    )
+    expect(Npm.resolveNodeEntryPoint("p", dir)).toBe(fileURL(dir, "dist/real.js"))
+  })
+
+  test("rejects targets that escape the package directory", async () => {
+    await using tmp = await tmpdir()
+    const dir = await makeEntry(tmp.path, { name: "p", exports: "../outside.js" }, [])
+    await Bun.write(path.join(tmp.path, "outside.js"), "export {}\n")
+    expect(Npm.resolveNodeEntryPoint("p", dir)).toBeUndefined()
+  })
+
+  test("returns undefined for an empty directory", async () => {
+    await using tmp = await tmpdir()
+    const dir = await makeEntry(tmp.path, undefined, [])
+    expect(Npm.resolveNodeEntryPoint("does-not-exist-anywhere", dir)).toBeUndefined()
+  })
+
+  test("returns undefined for a malformed manifest with no entry files", async () => {
+    await using tmp = await tmpdir()
+    const dir = await makeEntry(tmp.path, "{ not json", [])
+    expect(Npm.resolveNodeEntryPoint("does-not-exist-anywhere", dir)).toBeUndefined()
   })
 })
