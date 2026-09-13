@@ -2,10 +2,7 @@ import { describe, expect } from "bun:test"
 import { Document, Event, Info, type Entry } from "@opencode/schema/config"
 import { Catalog } from "@opencode/core/catalog"
 import { Config } from "@opencode/core/config"
-import { ConfigPolicyPlugin } from "@opencode/core/config/plugin/policy"
 import { Bus } from "@opencode/core/bus"
-import { Plugin } from "@opencode/core/plugin"
-import { PluginHost } from "@opencode/core/plugin/host"
 import { Provider } from "@opencode/core/provider"
 import { Effect, Schema } from "effect"
 import { testEffect } from "../lib/effect"
@@ -24,13 +21,13 @@ const policies = (...items: { effect: "allow" | "deny"; resource: string }[]) =>
     }),
   })
 
-const addPlugin = Effect.fn(function* (entries: Entry[]) {
-  const plugin = yield* Plugin.Service
-  const host = yield* PluginHost.make(plugin)
-  yield* ConfigPolicyPlugin.Plugin.effect(host).pipe(Effect.provide(Config.testLayer(entries)))
+const setEntries = Effect.fn(function* (entries: Entry[]) {
+  const config = yield* Config.Service
+  const current = yield* config.entries()
+  current.splice(0, current.length, ...entries)
 })
 
-describe("ConfigPolicyPlugin.Plugin", () => {
+describe("Provider policy catalog boundary", () => {
   it.effect("filters plugin-provided providers with ordered wildcard policies", () =>
     Effect.gen(function* () {
       const catalog = yield* Catalog.Service
@@ -39,7 +36,7 @@ describe("ConfigPolicyPlugin.Plugin", () => {
         catalog.provider.update(Provider.ID.anthropic, () => {})
         catalog.provider.update(Provider.ID.make("company-internal"), () => {})
       })
-      yield* addPlugin([
+      yield* setEntries([
         policies(
           { effect: "deny", resource: "*" },
           { effect: "allow", resource: "anthropic" },
@@ -57,7 +54,7 @@ describe("ConfigPolicyPlugin.Plugin", () => {
     Effect.gen(function* () {
       const catalog = yield* Catalog.Service
       yield* catalog.transform((catalog) => catalog.provider.update(Provider.ID.openai, () => {}))
-      yield* addPlugin([
+      yield* setEntries([
         policies({ effect: "deny", resource: "openai" }),
         policies({ effect: "allow", resource: "openai" }),
       ])
@@ -70,17 +67,14 @@ describe("ConfigPolicyPlugin.Plugin", () => {
     Effect.gen(function* () {
       const catalog = yield* Catalog.Service
       const bus = yield* Bus.Service
-      const test = yield* Config.Test
-      const plugin = yield* Plugin.Service
-      const host = yield* PluginHost.make(plugin)
       yield* catalog.transform((catalog) => catalog.provider.update(Provider.ID.openai, () => {}))
-      yield* ConfigPolicyPlugin.Plugin.effect(host)
+      yield* setEntries([policies({ effect: "deny", resource: "openai" })])
       expect(yield* catalog.provider.get(Provider.ID.openai)).toBeUndefined()
 
-      yield* test.setEntries([policies({ effect: "allow", resource: "openai" })])
+      yield* setEntries([policies({ effect: "allow", resource: "openai" })])
       yield* bus.publish(Event.Updated, {})
       yield* waitUntil(catalog.provider.get(Provider.ID.openai).pipe(Effect.map((provider) => provider !== undefined)))
-    }).pipe(Effect.provide(Config.testLayer([policies({ effect: "deny", resource: "openai" })]))),
+    }),
   )
 })
 

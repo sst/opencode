@@ -1,3 +1,4 @@
+import { ProviderPolicy } from "@opencode/core/provider-policy"
 import { describe, expect } from "bun:test"
 import { LLM, LanguageModel, Message } from "@opencode/ai"
 import { OpenAIChat } from "@opencode/ai/protocols"
@@ -384,7 +385,10 @@ describe("ModelResolver", () => {
       },
       model: () => Effect.die("unused"),
     })
-    const layer = ModelResolver.layer.pipe(Layer.provide(Layer.mergeAll(catalog, integrations, npm, aisdk)))
+    const layer = ModelResolver.layer.pipe(
+      Layer.provide(Layer.mock(ProviderPolicy.Service, { assert: () => Effect.void })),
+      Layer.provide(Layer.mergeAll(catalog, integrations, npm, aisdk)),
+    )
 
     return withConfigEnv({}, () =>
       Effect.gen(function* () {

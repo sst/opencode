@@ -10,6 +10,7 @@ import { LayerNode } from "@opencode/util/effect/layer-node"
 import { Global } from "@opencode/util/global"
 import { Npm } from "@opencode/util/npm"
 import { Bus } from "@opencode/core/bus"
+import { Config } from "@opencode/core/config"
 import { Command } from "@opencode/core/command"
 import { Database } from "@opencode/core/database/database"
 import { Watcher } from "@opencode/core/filesystem/watcher"
@@ -111,6 +112,36 @@ const failed = (plugins: Plugin.Interface) =>
   )
 
 describe("PluginSupervisor reload", () => {
+  for (const selector of ["-*", "-opencode.*", "-opencode.provider.opencode"]) {
+    it.live(`keeps the managed policy source active despite ${selector}`, () =>
+      Effect.gen(function* () {
+        const directory = yield* tmpdirScoped()
+        yield* Effect.promise(() =>
+          Bun.write(path.join(directory.path, ".opencode/opencode.json"), JSON.stringify({ plugins: [selector] })),
+        )
+        const locations = yield* LocationServiceMap.Service
+        yield* Effect.gen(function* () {
+          const plugins = yield* Plugin.Service
+          yield* plugins.awaitActivation
+          const config = yield* Config.Service
+          expect(
+            (yield* config.entries()).some(
+              (entry) => entry.type === "document" && entry.info.plugins?.includes(selector),
+            ),
+          ).toBe(true)
+          const inventory = yield* plugins.list()
+          expect(inventory.find((plugin) => plugin.id === "opencode.provider.opencode")?.state.status).toBe("active")
+          if (selector !== "-opencode.provider.opencode")
+            expect(
+              inventory.some((plugin) => plugin.id === "opencode.provider.openai" && plugin.state.status === "active"),
+            ).toBe(false)
+        }).pipe(
+          Effect.scoped,
+          Effect.provide(locations.get(Location.Ref.make({ directory: AbsolutePath.make(directory.path) }))),
+        )
+      }),
+    )
+  }
   ;(
     [
       { name: "on a helper-only save", helper: "nested/helper.ts", touchEntry: false },

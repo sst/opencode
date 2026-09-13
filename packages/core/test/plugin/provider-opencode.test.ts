@@ -89,6 +89,10 @@ function eventually<A>(
   })
 }
 
+function managedPolicy(workspaceID = "org_test") {
+  return { experimental: { policies: [] }, managedPolicy: { schemaVersion: 1, workspaceID, revision: 0 } }
+}
+
 const cost = (input: number, output = 0) => [
   {
     input: Money.USDPerMillionTokens.make(input),
@@ -366,6 +370,7 @@ describe("OpencodePlugin", () => {
               requests.push(`${request.method} ${new URL(request.url).pathname}`)
               const origin = new URL(request.url).origin
               return Response.json({
+                ...managedPolicy(request.headers.get("x-org-id") ?? "org_test"),
                 providers: {
                   remote: {
                     canonical: "openai",
@@ -544,9 +549,10 @@ describe("OpencodePlugin", () => {
         const state = { advertised: false, requests: 0 }
         const server = Bun.serve({
           port: 0,
-          fetch: () => {
+          fetch: (request) => {
             state.requests++
             return Response.json({
+              ...managedPolicy(request.headers.get("x-org-id") ?? "org_test"),
               providers: {},
               ...(state.advertised ? { websearch: { providerID: "opencode" } } : {}),
             })
@@ -634,6 +640,7 @@ describe("OpencodePlugin", () => {
             if (path === "/api/v2/config") {
               if (state.waitForConfig) await gate.promise
               return Response.json({
+                ...managedPolicy(request.headers.get("x-org-id") ?? "org_test"),
                 providers: {},
                 ...(state.advertised
                   ? {
@@ -781,6 +788,7 @@ describe("OpencodePlugin", () => {
           fetch: (request) => {
             if (new URL(request.url).pathname === "/console/api/v2/config") {
               return Response.json({
+                ...managedPolicy(request.headers.get("x-org-id") ?? "org_test"),
                 providers: {},
                 websearch: {
                   providerID: "managed-search",
@@ -843,6 +851,7 @@ describe("OpencodePlugin", () => {
             requests.push(url.pathname)
             if (url.pathname === "/console/api/v2/config") {
               return Response.json({
+                ...managedPolicy(request.headers.get("x-org-id") ?? "org_test"),
                 providers: {},
                 websearch: {
                   providerID: "opencode",
@@ -893,6 +902,7 @@ describe("OpencodePlugin", () => {
             const url = new URL(request.url)
             if (url.pathname === "/api/v2/config") {
               return Response.json({
+                ...managedPolicy(request.headers.get("x-org-id") ?? "org_test"),
                 providers: {},
                 websearch: {
                   providerID: "opencode",
@@ -987,6 +997,7 @@ describe("OpencodePlugin", () => {
                 })
               }
               return Response.json({
+                ...managedPolicy(request.headers.get("x-org-id") ?? "org_test"),
                 providers: {
                   remote: {
                     canonical: "openai",
@@ -1152,13 +1163,12 @@ describe("OpencodePlugin", () => {
             draft.cost = cost(1)
           })
         })
-        // An env credential has no server metadata, so the plugin would ask the
-        // default Console for remote config; answer 404 (no remote config) locally.
+        // Environment credentials also require a valid managed-policy response.
         yield* addPlugin().pipe(
           Effect.provideService(
             HttpClient.HttpClient,
             HttpClient.make((request) =>
-              Effect.succeed(HttpClientResponse.fromWeb(request, new Response(null, { status: 404 }))),
+              Effect.succeed(HttpClientResponse.fromWeb(request, Response.json({ providers: {}, ...managedPolicy() }))),
             ),
           ),
         )

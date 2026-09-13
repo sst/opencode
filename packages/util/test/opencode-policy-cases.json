@@ -1,0 +1,146 @@
+[
+  {
+    "name": "no organization override",
+    "rules": [],
+    "resource": "openai",
+    "unix": "inherit",
+    "windows": "inherit",
+    "index": null
+  },
+  {
+    "name": "last match wins",
+    "rules": [
+      {
+        "action": "provider.use",
+        "effect": "deny",
+        "resource": "*"
+      },
+      {
+        "action": "provider.use",
+        "effect": "allow",
+        "resource": "openai"
+      }
+    ],
+    "resource": "openai",
+    "unix": "allow",
+    "windows": "allow",
+    "index": 1
+  },
+  {
+    "name": "wildcard after exact wins",
+    "rules": [
+      {
+        "action": "provider.use",
+        "effect": "allow",
+        "resource": "openai"
+      },
+      {
+        "action": "provider.use",
+        "effect": "deny",
+        "resource": "*"
+      }
+    ],
+    "resource": "openai",
+    "unix": "deny",
+    "windows": "deny",
+    "index": 1
+  },
+  {
+    "name": "anchored wildcard",
+    "rules": [
+      {
+        "action": "provider.use",
+        "effect": "deny",
+        "resource": "company-*"
+      }
+    ],
+    "resource": "not-company-a",
+    "unix": "inherit",
+    "windows": "inherit",
+    "index": null
+  },
+  {
+    "name": "question matches one",
+    "rules": [
+      {
+        "action": "provider.use",
+        "effect": "deny",
+        "resource": "company-?"
+      }
+    ],
+    "resource": "company-ab",
+    "unix": "inherit",
+    "windows": "inherit",
+    "index": null
+  },
+  {
+    "name": "slash normalization",
+    "rules": [
+      {
+        "action": "provider.use",
+        "effect": "allow",
+        "resource": "company/*"
+      }
+    ],
+    "resource": "company\\model",
+    "unix": "allow",
+    "windows": "allow",
+    "index": 0
+  },
+  {
+    "name": "case differs by platform",
+    "rules": [
+      {
+        "action": "provider.use",
+        "effect": "deny",
+        "resource": "OpenAI"
+      }
+    ],
+    "resource": "openai",
+    "unix": "inherit",
+    "windows": "deny",
+    "index": 0
+  },
+  {
+    "name": "regex characters are literal",
+    "rules": [
+      {
+        "action": "provider.use",
+        "effect": "deny",
+        "resource": "company.[ab]"
+      }
+    ],
+    "resource": "company.a",
+    "unix": "inherit",
+    "windows": "inherit",
+    "index": null
+  },
+  {
+    "name": "trailing wildcard space",
+    "rules": [
+      {
+        "action": "provider.use",
+        "effect": "allow",
+        "resource": "company *"
+      }
+    ],
+    "resource": "company",
+    "unix": "allow",
+    "windows": "allow",
+    "index": 0
+  },
+  {
+    "name": "question matches exactly one",
+    "rules": [
+      {
+        "action": "provider.use",
+        "effect": "deny",
+        "resource": "comp?ny"
+      }
+    ],
+    "resource": "company",
+    "unix": "deny",
+    "windows": "deny",
+    "index": 0
+  }
+]

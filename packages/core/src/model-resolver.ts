@@ -12,6 +12,7 @@ import { Integration } from "./integration.js"
 import { Capabilities, ID, Info, Ref, VariantID } from "./model.js"
 import { Npm } from "@opencode/util/npm"
 import { Provider } from "./provider.js"
+import { ProviderPolicy } from "./provider-policy.js"
 
 export class VariantUnavailableError extends Schema.TaggedError<VariantUnavailableError>()(
   "SessionRunnerModel.VariantUnavailableError",
@@ -100,6 +101,8 @@ export class UnsupportedCompactionError extends Schema.TaggedError<UnsupportedCo
 }
 
 export type Error =
+  | ProviderPolicy.Unavailable
+  | ProviderPolicy.Denied
   | VariantUnavailableError
   | UnsupportedPackageError
   | ModelConfigurationError
@@ -359,10 +362,12 @@ export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const catalog = yield* Catalog.Service
+    const policies = yield* ProviderPolicy.Service
     const integrations = yield* Integration.Service
     const npm = yield* Npm.Service
     const aisdk = yield* AISDK.Service
     const load = Effect.fn("ModelResolver.resolveModel")(function* (selected: Info, variant?: VariantID) {
+      yield* policies.assert(selected.providerID)
       const provider = yield* catalog.provider.get(selected.providerID)
       const connection = yield* integrations.connection.active(
         provider?.integrationID ?? Integration.ID.make(selected.providerID),
@@ -396,6 +401,7 @@ export const layer = Layer.effect(
     })
     return Service.of({
       resolve: Effect.fn("ModelResolver.resolve")(function* (requested) {
+        yield* policies.assert(requested?.providerID)
         const selected = requested
           ? yield* catalog.model.get(requested.providerID, requested.id)
           : yield* catalog.model
@@ -462,5 +468,5 @@ function usesAPIKeyAuth(packageName: string | undefined) {
 export const node = makeLocationNode({
   service: Service,
   layer,
-  deps: [Catalog.node, Integration.node, Npm.node, AISDK.node],
+  deps: [Catalog.node, Integration.node, Npm.node, AISDK.node, ProviderPolicy.node],
 })

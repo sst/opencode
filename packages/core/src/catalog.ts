@@ -8,6 +8,7 @@ import { Provider } from "./provider.js"
 import { Bus } from "./bus.js"
 import { State } from "./state.js"
 import { Integration } from "./integration.js"
+import { ProviderPolicy } from "./provider-policy.js"
 
 export type ProviderRecord = {
   provider: Provider.MutableInfo
@@ -63,6 +64,7 @@ const layer = Layer.effect(
   Effect.gen(function* () {
     const bus = yield* Bus.Service
     const integrations = yield* Integration.Service
+    const policies = yield* ProviderPolicy.Service
 
     const available = (provider: Provider.Info, integration: Integration.Info | undefined) => {
       if (provider.activation === "disabled") return false
@@ -146,11 +148,15 @@ const layer = Layer.effect(
 
       provider: {
         get: Effect.fn("Catalog.provider.get")(function* (providerID) {
+          if (!ProviderPolicy.allows(yield* policies.read(), providerID)) return
           return state.get().providers.get(providerID)?.provider
         }),
 
         all: Effect.fn("Catalog.provider.all")(function* () {
-          return Array.fromIterable(state.get().providers.values()).map((record) => record.provider)
+          const policy = yield* policies.read()
+          return Array.fromIterable(state.get().providers.values())
+            .map((record) => record.provider)
+            .filter((provider) => ProviderPolicy.allows(policy, provider.id))
         }),
 
         available: Effect.fn("Catalog.provider.available")(function* () {
@@ -163,6 +169,7 @@ const layer = Layer.effect(
 
       model: {
         get: Effect.fn("Catalog.model.get")(function* (providerID, modelID) {
+          if (!ProviderPolicy.allows(yield* policies.read(), providerID)) return
           const record = state.get().providers.get(providerID)
           if (!record) return
           const model = record.models.get(modelID)
@@ -170,8 +177,10 @@ const layer = Layer.effect(
         }),
 
         all: Effect.fn("Catalog.model.all")(function* () {
+          const policy = yield* policies.read()
           return pipe(
             Array.fromIterable(state.get().providers.values()),
+            Array.filter((record) => ProviderPolicy.allows(policy, record.provider.id)),
             Array.flatMap((record) => {
               return Array.fromIterable(record.models.values()).map((model) => projectModel(model, record.provider))
             }),
@@ -209,6 +218,7 @@ const layer = Layer.effect(
         }),
 
         small: Effect.fn("Catalog.model.small")(function* (providerID) {
+          if (!ProviderPolicy.allows(yield* policies.read(), providerID)) return
           const record = state.get().providers.get(providerID)
           if (!record) return
           const models = pipe(
@@ -237,4 +247,8 @@ const layer = Layer.effect(
 
 const SMALL_MODEL_FAMILY_PRIORITY = ["gpt-luna", "gemini-flash-lite", "gemini-flash", "claude-haiku"]
 
-export const node = makeLocationNode({ service: Service, layer, deps: [Bus.node, Integration.node] })
+export const node = makeLocationNode({
+  service: Service,
+  layer,
+  deps: [Bus.node, Integration.node, ProviderPolicy.node],
+})

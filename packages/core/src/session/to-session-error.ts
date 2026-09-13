@@ -3,6 +3,7 @@ import { Tool } from "@opencode/schema/tool"
 import { SessionError } from "@opencode/schema/session-error"
 import { Permission } from "../permission.js"
 import { Integration } from "../integration.js"
+import { ProviderPolicy } from "../provider-policy.js"
 import { AgentNotFoundError, StepFailedError, UserInterruptedError } from "./error.js"
 import { SessionRunnerModel } from "./runner/model.js"
 
@@ -51,6 +52,8 @@ export function toSessionError(cause: unknown): SessionError.Error {
   if (cause instanceof AgentNotFoundError) return { type: "unknown", message: cause.message }
   if (cause instanceof UserInterruptedError) return { type: "aborted", message: cause.message }
   if (
+    cause instanceof ProviderPolicy.Unavailable ||
+    cause instanceof ProviderPolicy.Denied ||
     cause instanceof SessionRunnerModel.ModelNotSelectedError ||
     cause instanceof SessionRunnerModel.ModelUnavailableError ||
     cause instanceof SessionRunnerModel.VariantUnavailableError ||

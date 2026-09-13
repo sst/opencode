@@ -88,6 +88,9 @@ const resolve = Effect.fn("PluginSupervisor.resolve")(function* (
     enabled.add(plugin.id)
   }
 
+  // Console's connected-workspace policy source cannot be removed by authored
+  // plugin directives. Its final enforcement lives outside the plugin registry.
+  if (pre.some((plugin) => plugin.id === "opencode.provider.opencode")) enabled.add("opencode.provider.opencode")
   const ordered = [
     ...pre.filter((plugin) => enabled.has(plugin.id)),
     ...[...packages.values()].filter((plugin) => enabled.has(plugin.id)),

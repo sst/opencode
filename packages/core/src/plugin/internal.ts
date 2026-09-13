@@ -20,7 +20,7 @@ import { ConfigInstructionPlugin } from "../config/plugin/instruction.js"
 import { ConfigLocationWatcherPlugin } from "../config/plugin/location-watcher.js"
 import { ConfigMcpPlugin } from "../config/plugin/mcp.js"
 import { ConfigProviderPlugin } from "../config/plugin/provider.js"
-import { ConfigPolicyPlugin } from "../config/plugin/policy.js"
+import { ProviderPolicy } from "../provider-policy.js"
 import { ConfigReferencePlugin } from "../config/plugin/reference.js"
 import { ConfigShellPlugin } from "../config/plugin/shell.js"
 import { ConfigSnapshotPlugin } from "../config/plugin/snapshot.js"
@@ -98,6 +98,7 @@ const services = [
   Agent.Service,
   AppProcess.Service,
   Catalog.Service,
+  ProviderPolicy.Service,
   Command.Service,
   Config.Service,
   Credential.Service,
@@ -147,6 +148,7 @@ export const requirements = LayerNode.group([
   Agent.node,
   AppProcess.node,
   Catalog.node,
+  ProviderPolicy.node,
   Command.node,
   Config.node,
   Credential.node,
@@ -241,7 +243,6 @@ const post = [
   ConfigWebSearchPlugin.Plugin,
   ConfigWorktreePlugin.Plugin,
   VariantPlugin.Plugin,
-  ConfigPolicyPlugin.Plugin,
 ] as const satisfies readonly InternalPlugin[]
 
 export const list = Effect.fn("PluginInternal.list")(function* () {

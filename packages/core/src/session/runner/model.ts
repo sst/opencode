@@ -6,6 +6,7 @@ import { Model } from "@opencode/schema/model"
 import { Provider } from "@opencode/schema/provider"
 import { Context, Effect, Layer, Schema } from "effect"
 import { ModelResolver } from "../../model-resolver.js"
+import { ProviderPolicy } from "../../provider-policy.js"
 import { SessionSchema } from "../schema.js"
 
 export class ModelNotSelectedError extends Schema.TaggedError<ModelNotSelectedError>()(
@@ -84,8 +85,10 @@ const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const resolver = yield* ModelResolver.Service
+    const policies = yield* ProviderPolicy.Service
     return Service.of({
       resolve: Effect.fn("SessionRunnerModel.resolve")(function* (session, available) {
+        yield* policies.assert(session.model?.providerID)
         // Location plugins populate and filter the catalog asynchronously during layer startup.
         if (!session.model) {
           const resolved = yield* resolver.resolve()
@@ -106,4 +109,4 @@ const layer = Layer.effect(
   }),
 )
 
-export const node = makeLocationNode({ service: Service, layer, deps: [ModelResolver.node] })
+export const node = makeLocationNode({ service: Service, layer, deps: [ModelResolver.node, ProviderPolicy.node] })

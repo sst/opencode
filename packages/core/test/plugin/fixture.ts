@@ -1,6 +1,7 @@
 import { Agent } from "@opencode/core/agent"
 import { AISDK } from "@opencode/core/aisdk"
 import { Catalog } from "@opencode/core/catalog"
+import { ProviderPolicy } from "@opencode/core/provider-policy"
 import { Command } from "@opencode/core/command"
 import { Config } from "@opencode/core/config"
 import { Credential } from "@opencode/core/credential"
@@ -78,6 +79,8 @@ export const PluginTestLayer = AppNodeBuilder.build(
     Agent.node,
     AISDK.node,
     Catalog.node,
+    ProviderPolicy.node,
+    Config.node,
     Command.node,
     Integration.node,
     KV.node,

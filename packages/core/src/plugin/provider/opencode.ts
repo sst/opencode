@@ -10,6 +10,8 @@ import { Provider } from "../../provider.js"
 import { WebSearch } from "../../websearch.js"
 import { ConfigProvider } from "@opencode/schema/config/provider"
 import { Money } from "@opencode/schema/money"
+import { ConfigPolicy } from "@opencode/schema/config/policy"
+import { ProviderPolicy } from "../../provider-policy.js"
 
 const defaultServer = "https://opencode.ai/console"
 const clientID = "opencode-cli"
@@ -19,7 +21,27 @@ const RemoteResponse = Schema.Struct({
   websearch: Schema.Struct({
     providerID: WebSearch.ID,
   }).pipe(Schema.optional),
+  experimental: Schema.Unknown,
+  managedPolicy: Schema.Unknown,
 })
+const RemotePolicy = Schema.Struct({
+  experimental: Schema.Struct({
+    policies: Schema.Array(ConfigPolicy.Info).check(
+      Schema.makeFilter((statements) =>
+        statements.every(
+          (statement) =>
+            statement.resource.length > 0 &&
+            statement.resource.length <= 256 &&
+            statement.resource.trim() === statement.resource,
+        ),
+      ),
+    ),
+  }),
+  managedPolicy: ProviderPolicy.Descriptor,
+})
+class RemoteFailure extends Schema.TaggedError<RemoteFailure>()("OpenCode.RemoteConfigFailure", {
+  transient: Schema.Boolean,
+}) {}
 const Device = Schema.Struct({
   device_code: Schema.String,
   user_code: Schema.String,
@@ -102,31 +124,41 @@ function oauth(http: HttpClient.HttpClient) {
   } satisfies IntegrationOAuthMethodRegistration
 }
 
-export const OpencodePlugin = define<HttpClient.HttpClient | Bus.Service | Scope.Scope>({
+export const OpencodePlugin = define<HttpClient.HttpClient | Bus.Service | ProviderPolicy.Service | Scope.Scope>({
   id: "opencode.provider.opencode",
   effect: Effect.fn(function* (ctx) {
     const bus = yield* Bus.Service
     const http = yield* HttpClient.HttpClient
+    const policies = yield* ProviderPolicy.Service
     const loading = Semaphore.makeUnsafe(1)
     type ActiveConnection = Effect.Success<ReturnType<typeof ctx.integration.connection.active>>
     let snapshot: {
-      config: typeof RemoteResponse.Type | undefined
+      config: Effect.Success<ReturnType<typeof fetchConfig>> | undefined
       connection: ActiveConnection
-    } = { config: undefined, connection: undefined }
+      identity?: string
+      stale: boolean
+    } = { config: undefined, connection: undefined, stale: false }
 
     const load = Effect.fn("OpencodePlugin.load")(function* () {
       const connection = yield* ctx.integration.connection.active("opencode")
       const credential = connection
         ? yield* ctx.integration.connection.resolve(connection).pipe(Effect.orElseSucceed(() => undefined))
         : undefined
+      const identity = connection && credential ? ProviderPolicy.identity(connection, credential) : undefined
       const config = credential
         ? yield* fetchConfig(http, credential).pipe(
             Effect.catch((cause) =>
-              Effect.logWarning("failed to load OpenCode provider config", { cause }).pipe(Effect.as(undefined)),
+              Effect.logWarning("Failed to load workspace provider policy", { transient: cause.transient }).pipe(
+                Effect.as(
+                  cause.transient && identity !== undefined && snapshot.identity === identity && snapshot.config
+                    ? { ...snapshot.config, stale: true }
+                    : undefined,
+                ),
+              ),
             ),
           )
         : undefined
-      return { config, connection }
+      return { config, connection, identity, stale: config?.stale ?? false }
     })
 
     yield* ctx.integration.transform((editor) => {
@@ -138,6 +170,16 @@ export const OpencodePlugin = define<HttpClient.HttpClient | Bus.Service | Scope
     })
 
     snapshot = yield* load()
+    yield* policies.set(
+      snapshot.config && snapshot.identity
+        ? {
+            identity: snapshot.identity,
+            descriptor: snapshot.config.managedPolicy,
+            statements: snapshot.config.experimental.policies,
+            stale: snapshot.stale,
+          }
+        : undefined,
+    )
     yield* ctx.catalog.transform((catalog) => {
       for (const [providerID, item] of Object.entries(snapshot.config?.providers ?? {})) {
         const source = catalog.provider.get(item.canonical ?? providerID)
@@ -284,6 +326,16 @@ export const OpencodePlugin = define<HttpClient.HttpClient | Bus.Service | Scope
 
     const apply = Effect.fn("OpencodePlugin.apply")(function* (next: typeof snapshot) {
       snapshot = next
+      yield* policies.set(
+        next.config && next.identity
+          ? {
+              identity: next.identity,
+              descriptor: next.config.managedPolicy,
+              statements: next.config.experimental.policies,
+              stale: next.stale,
+            }
+          : undefined,
+      )
       yield* Effect.all([ctx.catalog.reload(), ctx.websearch.reload()], { concurrency: 2, discard: true })
     })
     const refresh = () => loading.withPermit(load().pipe(Effect.andThen(apply)))
@@ -307,27 +359,49 @@ export const OpencodePlugin = define<HttpClient.HttpClient | Bus.Service | Scope
   }),
 })
 
-function fetchConfig(http: HttpClient.HttpClient, value: Credential.Value) {
+const fetchConfig = Effect.fn("OpenCode.fetchConfig")(function* (http: HttpClient.HttpClient, value: Credential.Value) {
   const metadata = value.metadata
   const orgID = typeof metadata?.orgID === "string" ? metadata.orgID : undefined
   const token = value.type === "oauth" ? value.access : value.key
-  return http
+  const server = yield* normalizeServer(serverUrl(value)).pipe(
+    Effect.mapError(() => new RemoteFailure({ transient: false })),
+  )
+  return yield* http
     .execute(
-      HttpClientRequest.get(`${serverUrl(value)}/api/v2/config`).pipe(
+      HttpClientRequest.get(`${server}/api/v2/config`).pipe(
         HttpClientRequest.acceptJson,
         HttpClientRequest.bearerToken(token),
         HttpClientRequest.setHeaders(orgID ? { "x-org-id": orgID } : {}),
       ),
     )
     .pipe(
+      Effect.provideService(FetchHttpClient.RequestInit, { redirect: "error" }),
+      Effect.mapError(() => new RemoteFailure({ transient: true })),
       Effect.flatMap((response) => {
-        if (response.status === 404) return Effect.undefined
-        return HttpClientResponse.filterStatusOk(response).pipe(
+        if (response.status < 200 || response.status >= 300)
+          return Effect.fail(new RemoteFailure({ transient: response.status >= 500 || response.status === 429 }))
+        return Effect.succeed(response).pipe(
           Effect.flatMap(HttpClientResponse.schemaBodyJson(RemoteResponse)),
+          Effect.flatMap((config) =>
+            Schema.decodeUnknownEffect(RemotePolicy, { onExcessProperty: "error" })({
+              experimental: config.experimental,
+              managedPolicy: config.managedPolicy,
+            }).pipe(Effect.map((policy) => ({ ...config, ...policy, stale: false }))),
+          ),
+          Effect.flatMap((config) =>
+            orgID !== undefined && config.managedPolicy.workspaceID !== orgID
+              ? Effect.fail(new RemoteFailure({ transient: false }))
+              : Effect.succeed(config),
+          ),
+          Effect.mapError(() => new RemoteFailure({ transient: false })),
         )
       }),
+      Effect.timeoutOrElse({
+        duration: Duration.seconds(20),
+        orElse: () => Effect.fail(new RemoteFailure({ transient: true })),
+      }),
     )
-}
+})
 
 function serverUrl(value: Credential.Value) {
   return typeof value.metadata?.server === "string" ? value.metadata.server : defaultServer

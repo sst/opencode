@@ -1,3 +1,4 @@
+import { ProviderPolicy } from "@opencode/core/provider-policy"
 import { expect } from "bun:test"
 import { LanguageModel } from "@opencode/ai"
 import { OpenAIChat } from "@opencode/ai/protocols"
@@ -67,7 +68,10 @@ const aisdk = Layer.mock(AISDK.Service, {
 })
 const client = TestLLM.testLayer({ fallback: TestLLM.text("OK", "generate") })
 
-const resolver = ModelResolver.layer.pipe(Layer.provide(Layer.mergeAll(catalog, integrations, npm, aisdk)))
+const resolver = ModelResolver.layer.pipe(
+  Layer.provide(Layer.mock(ProviderPolicy.Service, { assert: () => Effect.void })),
+  Layer.provide(Layer.mergeAll(catalog, integrations, npm, aisdk)),
+)
 const it = testEffect(Generate.layer.pipe(Layer.provide(Layer.merge(resolver, client))))
 const resolverIt = testEffect(resolver)
 
