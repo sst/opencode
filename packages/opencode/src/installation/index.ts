@@ -142,7 +142,78 @@ const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProcess.Serv
       return "sh"
     })
 
-    const upgradeCurl = Effect.fnUntraced(
+    const upgradeCurlWindows = Effect.fnUntraced(
+      function* (target: string) {
+        const execDir = path.dirname(process.execPath)
+        const exeName = path.basename(process.execPath)
+        const tmpZip = path.join(execDir, `opencode-update-${target}.zip`)
+        const tmpDir = path.join(execDir, `opencode-update-${target}`)
+        const newExe = path.join(tmpDir, exeName)
+        const oldExe = path.join(execDir, exeName)
+        const oldBak = `${oldExe}.old`
+
+        // PowerShell script that handles the full upgrade lifecycle:
+        // 1. Download zip from GitHub
+        // 2. Extract it
+        // 3. Schedule replacement after current process exits via a batch script
+        const psScript = `
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+
+$zip = '${tmpZip.replace(/'/g, "''")}'
+$newExe = '${newExe.replace(/'/g, "''")}'
+$oldExe = '${oldExe.replace(/'/g, "''")}'
+$oldBak = '${oldBak.replace(/'/g, "''")}'
+$tmpDir = '${tmpDir.replace(/'/g, "''")}'
+
+Write-Host "Downloading opencode v${target}..."
+$url = "https://github.com/anomalyco/opencode/releases/download/v${target}/opencode-windows-x64.zip"
+curl.exe -L -sS -o $zip $url
+if ($LASTEXITCODE -ne 0) { throw "Download failed" }
+
+Write-Host "Extracting..."
+if (Test-Path $tmpDir) { Remove-Item $tmpDir -Recurse -Force }
+Expand-Archive -Path $zip -DestinationPath $tmpDir -Force
+
+Write-Host "Preparing replacement..."
+if (Test-Path $oldBak) { Remove-Item $oldBak -Force }
+Rename-Item -Path $oldExe -NewName "$exeName.old" -Force -ErrorAction SilentlyContinue
+
+# Create a batch script that waits for the current process to exit, then replaces
+$batchScript = @"
+@echo off
+:wait_loop
+timeout /t 1 /nobreak >nul 2>&1
+move /y "$newExe" "$oldExe" >nul 2>&1
+if errorlevel 1 goto wait_loop
+del /f /q "$oldBak" >nul 2>&1
+del /f /q "$zip" >nul 2>&1
+rmdir /s /q "$tmpDir" >nul 2>&1
+"@
+$batchFile = Join-Path $tmpDir 'replace.bat'
+Set-Content -Path $batchFile -Value $batchScript -Encoding ASCII
+Start-Process -FilePath 'cmd.exe' -ArgumentList "/c `"$batchFile`"" -WindowStyle Hidden
+
+Write-Host "Cleaning up temporary files..."
+Remove-Item -Path $zip -Force -ErrorAction SilentlyContinue
+
+Write-Host "Upgrade scheduled. The new version will take effect on next launch."
+`
+        const result = yield* appProcess.run(
+          ChildProcess.make("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", psScript], {
+            extendEnv: true,
+          }),
+        )
+        return {
+          code: result.exitCode,
+          stdout: result.stdout.toString("utf8"),
+          stderr: result.stderr.toString("utf8"),
+        }
+      },
+      Effect.mapError(() => new UpgradeFailedError({ stderr: upgradeFailure("curl") })),
+    )
+
+    const upgradeCurlUnix = Effect.fnUntraced(
       function* (target: string) {
         const response = yield* httpOk.execute(HttpClientRequest.get("https://opencode.ai/install"))
         const body = yield* response.text
@@ -163,6 +234,13 @@ const layer: Layer.Layer<Service, never, HttpClient.HttpClient | AppProcess.Serv
       },
       Effect.mapError(() => new UpgradeFailedError({ stderr: upgradeFailure("curl") })),
     )
+
+    const upgradeCurl = Effect.fnUntraced(function* (target: string) {
+      if (process.platform === "win32") {
+        return yield* upgradeCurlWindows(target)
+      }
+      return yield* upgradeCurlUnix(target)
+    })
 
     const result: Interface = {
       info: Effect.fn("Installation.info")(function* () {
