@@ -17,20 +17,22 @@ export function spawnServiceContender(
 ): ServiceContender {
   const child = spawn(command, args, {
     detached: true,
-    stdio: ["ignore", "ignore", "pipe"],
+    stdio: ["ignore", "pipe", "pipe"],
     env: { ...process.env, ...env },
   })
   let error: Error | undefined
   let closed = false
   let stderr = Buffer.alloc(0)
-  const onStderr = (chunk: Buffer) => {
+  const onData = (chunk: Buffer) => {
     const tail = chunk.subarray(-stderrLimit)
     stderr =
       tail.length === stderrLimit
         ? Buffer.from(tail)
         : Buffer.concat([stderr.subarray(-(stderrLimit - tail.length)), tail])
   }
-  child.stderr?.on("data", onStderr)
+  child.stdout?.on("data", onData)
+  child.stderr?.on("data", onData)
+  if (child.stdout !== null && "unref" in child.stdout && typeof child.stdout.unref === "function") child.stdout.unref()
   if (child.stderr !== null && "unref" in child.stderr && typeof child.stderr.unref === "function") child.stderr.unref()
   child.once("error", (cause) => {
     error = new Error("Failed to start server", { cause })
@@ -45,7 +47,9 @@ export function spawnServiceContender(
     closed: () => closed,
     stderr: () => stderr.toString("utf8").trim(),
     release: () => {
-      child.stderr?.off("data", onStderr)
+      child.stdout?.off("data", onData)
+      child.stdout?.resume()
+      child.stderr?.off("data", onData)
       child.stderr?.resume()
       stderr = Buffer.alloc(0)
     },

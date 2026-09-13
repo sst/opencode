@@ -32,13 +32,18 @@ export function filename(channel = OPENCODE_CHANNEL) {
 }
 
 export function defaultPort(channel = OPENCODE_CHANNEL) {
+  if (process.platform === "win32") {
+    if (channel === "latest" || channel === "dev" || channel === "beta" || channel === "next") return 0x40de
+    if (channel === "local") return 0x40df
+    return 10_000 + (Number.parseInt(Hash.fast(channel).slice(0, 8), 16) % 35_000)
+  }
   if (channel === "latest" || channel === "dev" || channel === "beta" || channel === "next") return 0xc0de
   if (channel === "local") return 0xc0df
   return 10_000 + (Number.parseInt(Hash.fast(channel).slice(0, 8), 16) % 50_000)
 }
 
 export function legacyFilename(channel = OPENCODE_CHANNEL) {
-  if (channel === "latest" || channel === "local") return
+  if (channel === "latest" || channel === "local") return undefined
   return `service-${Hash.fast(channel)}.json`
 }
 

@@ -12,11 +12,13 @@ import { ServiceRegistration } from "../src/services/service-registration"
 import { isolatedEnv } from "./fixture/environment"
 
 test("managed service ports are stable per installation channel", () => {
-  expect(ServiceConfig.defaultPort("latest")).toBe(0xc0de)
-  expect(ServiceConfig.defaultPort("dev")).toBe(0xc0de)
-  expect(ServiceConfig.defaultPort("beta")).toBe(0xc0de)
-  expect(ServiceConfig.defaultPort("next")).toBe(0xc0de)
-  expect(ServiceConfig.defaultPort("local")).toBe(0xc0df)
+  const expectedDefault = process.platform === "win32" ? 0x40de : 0xc0de
+  const expectedLocal = process.platform === "win32" ? 0x40df : 0xc0df
+  expect(ServiceConfig.defaultPort("latest")).toBe(expectedDefault)
+  expect(ServiceConfig.defaultPort("dev")).toBe(expectedDefault)
+  expect(ServiceConfig.defaultPort("beta")).toBe(expectedDefault)
+  expect(ServiceConfig.defaultPort("next")).toBe(expectedDefault)
+  expect(ServiceConfig.defaultPort("local")).toBe(expectedLocal)
   expect(ServiceConfig.defaultPort("preview-a")).toBe(ServiceConfig.defaultPort("preview-a"))
   expect(ServiceConfig.defaultPort("preview-a")).not.toBe(ServiceConfig.defaultPort("preview-b"))
 })
@@ -378,6 +380,33 @@ test("unrelated managed port occupancy reports an actionable conflict", async ()
     listener.stop(true)
     contender.kill("SIGTERM")
     await contender.exited
+    await fs.rm(root, { recursive: true, force: true })
+  }
+}, 30_000)
+
+test("service ensure surfaces managed port conflict in error", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-service-ensure-conflict-"))
+  const listener = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response("unrelated") })
+  const port = listener.port
+  const registration = path.join(root, "state", "opencode", "service-local.json")
+  await fs.mkdir(path.join(root, "config", "opencode"), { recursive: true })
+  await fs.writeFile(path.join(root, "config", "opencode", "service-local.json"), JSON.stringify({ port }))
+  const env = serviceEnv(root)
+  try {
+    const error = await Effect.runPromise(
+      Service.ensure({
+        file: registration,
+        env,
+        command: [process.execPath, path.join(import.meta.dir, "../src/index.ts"), "serve", "--service"],
+      }).pipe(
+        Effect.flip,
+        Effect.provide(NodeFileSystem.layer),
+      ),
+    )
+    expect(error.message).toContain(`Managed service port ${port} on 127.0.0.1 is already in use by another process`)
+    expect(error.message).toContain("opencode service set port <port>")
+  } finally {
+    listener.stop(true)
     await fs.rm(root, { recursive: true, force: true })
   }
 }, 30_000)
