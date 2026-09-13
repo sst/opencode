@@ -3,7 +3,7 @@ export * as ConfigInstructionPlugin from "./instruction.js"
 import { define } from "@opencode/plugin/effect/plugin"
 import { FSUtil } from "@opencode/util/fs-util"
 import { Global } from "@opencode/util/global"
-import { dirname, join } from "path"
+import { dirname, join, relative } from "path"
 import { Effect, PubSub, Semaphore, Stream } from "effect"
 import { Watcher } from "../../filesystem/watcher.js"
 import { InstructionDiscovery } from "../../instruction-discovery.js"
@@ -34,6 +34,8 @@ export const Plugin = define({
       const home = yield* fs.resolve(global.home)
       const project = discovery.project && FSUtil.contains(root, start)
       const stop = FSUtil.contains(home, start) ? home : root
+      const ancestors = project ? ancestorDirectories(start, stop) : []
+      const boundary = ancestors.at(-1) ?? stop
       const globalFile = yield* fs.resolve(join(global.config, "AGENTS.md"))
       const loaded: { current: Loaded } = { current: { type: "available", files: [] } }
 
@@ -43,7 +45,7 @@ export const Plugin = define({
       const candidates = [
         ...(discovery.global ? [globalFile] : []),
         ...(project
-          ? ancestorDirectories(start, stop)
+          ? ancestors
               .map((directory) => join(directory, "AGENTS.md"))
               .filter((file) => discovery.global || file !== globalFile)
           : []),
@@ -67,7 +69,10 @@ export const Plugin = define({
 
       const projectSource = Effect.fn("ConfigInstructionPlugin.projectSource")(function* () {
         if (!project) return []
-        const walked = yield* Effect.forEach(yield* fs.up({ targets: ["AGENTS.md"], start, stop }), fs.resolve)
+        const walked = yield* Effect.forEach(
+          yield* fs.up({ targets: ["AGENTS.md"], start, stop: boundary }),
+          fs.resolve,
+        )
         const discovered = new Set(walked.filter((file) => discovery.global || file !== globalFile))
         const files = yield* Effect.forEach(discovered, read, { concurrency: "unbounded" })
         if (files.some((file) => file === undefined)) return Instructions.unavailable
@@ -131,6 +136,9 @@ export const Plugin = define({
 })
 
 function ancestorDirectories(start: string, stop: string): string[] {
-  if (start === stop) return [start]
-  return [start, ...ancestorDirectories(dirname(start), stop)]
+  const result = [start]
+  if (relative(start, stop) === "") return result
+  const parent = dirname(start)
+  if (parent === start) throw new Error(`Instruction boundary ${stop} is not an ancestor of ${start}`)
+  return [...result, ...ancestorDirectories(parent, stop)]
 }
