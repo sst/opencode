@@ -391,8 +391,8 @@ if (context.ui.tabs.enabled()) {
 
 ## Slots
 
-Slots insert or replace JSX at `app`, `home.footer`, `prompt.footer`, `prompt.footer.status`, `prompt.footer.file`,
-`session.composer.top`, `sidebar.content`, or `sidebar.footer`.
+Slots insert or replace JSX at `app`, `home.footer`, `home.footer.status`, `prompt.footer`, `prompt.footer.status`,
+`prompt.footer.file`, `session.composer.top`, `sidebar.content`, or `sidebar.footer`.
 
 ```tsx
 return context.ui.slot({
@@ -409,6 +409,13 @@ context.ui.slot({ append: "home.footer", render: () => <text>After footer conten
 context.ui.slot({ before: "home.footer", render: () => <text>Before footer slot</text> })
 context.ui.slot({ after: "home.footer", render: () => <text>After footer slot</text> })
 context.ui.slot({ replace: "home.footer", render: () => <text>New footer</text> })
+```
+
+Use `home.footer.status` to add content to the built-in footer row without replacing it. Status contributions appear
+after OpenCode's health indicators and before the version.
+
+```tsx
+context.ui.slot({ append: "home.footer.status", render: () => <text>SYNCED</text> })
 ```
 
 ### Session panels
