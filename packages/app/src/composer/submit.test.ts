@@ -405,6 +405,54 @@ describe("Composer submission", () => {
     expect(state.current()).toEqual([{ type: "text", content: "", start: 0, end: 0 }])
   })
 
+  test.each([
+    ["prompt", "change direction"],
+    ["command", "/review change direction"],
+  ] as const)("interrupts before steering without clearing subsequent edits: %s", async (kind, prompt) => {
+    const state = createMemoryComposerState({ prompt }).capture()
+    const calls: string[] = []
+    const interrupted = Promise.withResolvers<void>()
+    const admitted = Promise.withResolvers<{ text: string; delivery?: "queue" | "steer" | null }>()
+    const target = session({
+      calls,
+      prompt: async (value) => admitted.resolve(value),
+      command: async (value) => {
+        calls.push("command")
+        admitted.resolve(value)
+      },
+    })
+    const adapter: ActiveComposerAdapter = {
+      kind: "active-session",
+      state,
+      ready: () => true,
+      controls,
+      working: () => true,
+      session: () => target,
+      interrupt: async (options) => {
+        expect(options).toBeUndefined()
+        calls.push("interrupt")
+        await interrupted.promise
+      },
+      submitted() {},
+      setEditor() {},
+    }
+
+    const submitted = submitInput(adapter, undefined, "normal", () =>
+      kind === "command" ? [{ name: "review" }] : [],
+    ).submit(new Event("submit"), { interrupt: true })
+    await Promise.resolve()
+    expect(state.current()).toEqual([{ type: "text", content: "", start: 0, end: 0 }])
+    state.set([{ type: "text", content: "next thought", start: 0, end: 12 }])
+    interrupted.resolve()
+    await submitted
+    const request = await admitted.promise
+
+    expect(calls).toEqual(["interrupt", "switch-agent", "switch-model", kind])
+    expect(request.text).toBe("change direction")
+    expect(request.delivery).toBe("steer")
+    expect(state.current()).toEqual([{ type: "text", content: "next thought", start: 0, end: 12 }])
+  })
+
   test("starts and promotes a New Session once before admitting its first prompt", async () => {
     const draft = createMemoryComposerState({ prompt: "first prompt" }).capture()
     const promoted = createMemoryComposerState({ prompt: "restored draft" }).capture()

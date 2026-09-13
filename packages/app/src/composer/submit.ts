@@ -50,7 +50,11 @@ type ComposerSubmitInput = {
 }
 
 export function createComposerSubmit(input: ComposerSubmitInput) {
-  const submit = async (event: globalThis.Event, options?: { alternate?: boolean }) => {
+  const stop = () =>
+    input.adapter.kind === "active-session"
+      ? input.adapter.interrupt({ continue: true }).catch(() => undefined)
+      : Promise.resolve()
+  const submit = async (event: globalThis.Event, options?: { alternate?: boolean; interrupt?: boolean }) => {
     event.preventDefault()
 
     const submission = createComposerSubmission({
@@ -63,7 +67,7 @@ export function createComposerSubmit(input: ComposerSubmitInput) {
     })
     const value = readSubmission(input, submission.prompt, submission.context, options?.alternate ?? false)
     if (!value) {
-      if (input.adapter.working() && input.adapter.kind === "active-session") void input.adapter.interrupt()
+      if (input.adapter.working()) void stop()
       return
     }
     if (submitting.has(input.adapter.state)) return
@@ -72,8 +76,22 @@ export function createComposerSubmit(input: ComposerSubmitInput) {
     // Capture command intent before starting a session in a worktree whose catalog has not loaded.
     const command = value.mode === "normal" ? findCommand(input.commands(), value.text) : undefined
     if (value.mode === "normal" && !command) value.prompt = withSlashSkill(value.prompt, input.skills())
+    const restore = () => restoreSubmission(input, submission, value, comments)
+    let cleared = false
 
     try {
+      if (options?.interrupt && input.adapter.kind === "active-session" && input.adapter.working()) {
+        value.delivery = "steer"
+        clearSubmission(input, submission)
+        cleared = true
+        try {
+          await input.adapter.interrupt()
+        } catch (error) {
+          input.notify.failed("prompt", error)
+          restore()
+          return
+        }
+      }
       const started =
         input.adapter.kind === "active-session"
           ? { session: input.adapter.session(), cleanupReady: Promise.resolve() }
@@ -83,7 +101,6 @@ export function createComposerSubmit(input: ComposerSubmitInput) {
 
       input.addToHistory(value.prompt, value.mode)
       input.resetHistory()
-      const restore = () => restoreSubmission(input, submission, value, comments)
 
       if (value.mode === "normal" && !command) {
         session.handoff?.set(handoffMessage(value))
@@ -104,7 +121,7 @@ export function createComposerSubmit(input: ComposerSubmitInput) {
           .filter((item) => !!item.comment?.trim())
           .forEach((item) => submission.target().context.remove(item.key))
         input.comments.clear()
-        clearSubmission(input, submission)
+        if (!cleared) clearSubmission(input, submission)
         void sending.then((result) => {
           if (!result.ok)
             failSubmission(input, session, "prompt", result.error, restore, value.id, () => {
@@ -119,13 +136,13 @@ export function createComposerSubmit(input: ComposerSubmitInput) {
       input.adapter.submitted()
 
       if (value.mode === "shell") {
-        clearSubmission(input, submission)
+        if (!cleared) clearSubmission(input, submission)
         void sendShell(session, value).catch((error) => failSubmission(input, session, "shell", error, restore))
         return
       }
 
       if (command) {
-        clearSubmission(input, submission)
+        if (!cleared) clearSubmission(input, submission)
         void sendCommand(session, value, command, input.adapter.controls().model.selection.trackSessionCommit).catch(
           (error) => failSubmission(input, session, "command", error, restore, value.id),
         )
@@ -138,7 +155,7 @@ export function createComposerSubmit(input: ComposerSubmitInput) {
 
   return {
     submit,
-    stop: () => (input.adapter.kind === "active-session" ? input.adapter.interrupt() : Promise.resolve()),
+    stop,
   }
 }
 

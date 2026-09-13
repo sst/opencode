@@ -164,6 +164,8 @@ const source = {
   "ui.promptInput.steer": "Steer",
   "ui.promptInput.queue": "Queue",
   "ui.promptInput.steerHint": "Send without interrupting",
+  "ui.promptInput.interrupt": "Interrupt",
+  "ui.promptInput.interruptHint": "Stop the current response and send now",
 
   "ui.tabs.close": "Close tab",
 

@@ -35,11 +35,8 @@ export function createActiveComposerAdapter(input: {
       current: () => data.session.get(id),
       admitted: (messageID) => data.session.input.has(id, messageID) || !!data.session.message.get(id, messageID),
     }),
-    interrupt: () =>
-      server.api.session
-        .interrupt({ sessionID: id, continue: true })
-        .then(() => undefined)
-        .catch(() => undefined),
+    interrupt: (options) =>
+      server.api.session.interrupt({ sessionID: id, continue: options?.continue }).then(() => undefined),
   }
   return adapter
 }

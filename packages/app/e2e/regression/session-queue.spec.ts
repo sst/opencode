@@ -167,6 +167,23 @@ test("follow-up preference controls Enter while Mod+Enter uses the alternate del
   await expect(view.input).toHaveText("")
 })
 
+test("interrupts before steering a correction", async ({ page }) => {
+  const requests: URL[] = []
+  page.on("request", (request) => {
+    const url = new URL(request.url())
+    if (url.pathname.endsWith("/interrupt") || url.pathname.endsWith("/prompt")) requests.push(url)
+  })
+  const mock = createQueueMock([])
+  const view = await openSession(page, mock)
+
+  await view.input.fill("change direction now")
+  await view.composer.locator('[data-action="composer-interrupt"]').click()
+
+  await expect.poll(() => requests.map((url) => url.pathname.split("/").at(-1))).toEqual(["interrupt", "prompt"])
+  expect(requests[0]?.searchParams.has("continue")).toBe(false)
+  expect(mock.prompts[0]?.delivery).toBe("steer")
+})
+
 test("dragging reorders queued prompts", async ({ page }) => {
   const mock = createQueueMock(["first queued prompt", "second queued prompt", "third queued prompt"])
   const view = await openSession(page, mock)

@@ -456,6 +456,19 @@ export function Prompt(props: PromptProps) {
         },
       },
       {
+        title: "Interrupt with prompt",
+        name: "prompt.break",
+        category: "Prompt",
+        enabled: status() === "running",
+        run: async (_input: string | undefined, event?: KeyEvent) => {
+          event?.preventDefault()
+          event?.stopPropagation()
+          const handled = await submit("steer", true)
+          if (!handled) return
+          dialog.clear()
+        },
+      },
+      {
         title: "Remove editor context",
         name: "prompt.editor_context.clear",
         category: "Prompt",
@@ -652,6 +665,7 @@ export function Prompt(props: PromptProps) {
     enabled: !disabled(),
     bindings: [
       "prompt.submit",
+      "prompt.break",
       "prompt.editor",
       "prompt.editor_context.clear",
       "prompt.images.view",
@@ -1083,7 +1097,7 @@ export function Prompt(props: PromptProps) {
   })
 
   let submitting = false
-  async function submit(delivery: SessionInbox.Delivery = "steer") {
+  async function submit(delivery: SessionInbox.Delivery = "steer", interrupt = false) {
     if (disabled()) return false
     // Prevent overlapping invocations (e.g. a double-pressed Enter, or the
     // input's native onSubmit racing another dispatch). Without this guard,
@@ -1094,13 +1108,13 @@ export function Prompt(props: PromptProps) {
     if (submitting) return false
     submitting = true
     try {
-      return await submitInner(delivery)
+      return await submitInner(delivery, interrupt)
     } finally {
       submitting = false
     }
   }
 
-  async function submitInner(delivery: SessionInbox.Delivery) {
+  async function submitInner(delivery: SessionInbox.Delivery, interrupt: boolean) {
     // IME: double-defer may fire before onContentChange flushes the last
     // composed character (e.g. Korean hangul) to the store, so read
     // plainText directly and sync before any downstream reads.
@@ -1111,12 +1125,12 @@ export function Prompt(props: PromptProps) {
     if (move.creating()) return false
     if (auto()?.visible) return false
     const trimmed = store.prompt.text.trim()
-    if (!trimmed) return delivery === "steer" ? (await props.onEmptySubmit?.()) === true : false
+    if (!trimmed) return !interrupt && delivery === "steer" ? (await props.onEmptySubmit?.()) === true : false
     if (
-      delivery === "queue" &&
+      (delivery === "queue" || interrupt) &&
       (store.mode === "shell" || trimmed === "exit" || trimmed === "quit" || trimmed === ":q")
     ) {
-      toast.show({ message: "This prompt cannot be queued", variant: "warning" })
+      toast.show({ message: `This prompt cannot be ${interrupt ? "used to interrupt" : "queued"}`, variant: "warning" })
       return false
     }
     if (trimmed === "exit" || trimmed === "quit" || trimmed === ":q") {
@@ -1125,8 +1139,11 @@ export function Prompt(props: PromptProps) {
     }
     const slash = argumentSlash(store.prompt.text, keymapCommands())
     if (slash) {
-      if (delivery === "queue") {
-        toast.show({ message: "This prompt cannot be queued", variant: "warning" })
+      if (delivery === "queue" || interrupt) {
+        toast.show({
+          message: `This prompt cannot be ${interrupt ? "used to interrupt" : "queued"}`,
+          variant: "warning",
+        })
         return false
       }
       clearPrompt()
@@ -1153,6 +1170,10 @@ export function Prompt(props: PromptProps) {
     const isCommand =
       slashHead !== undefined &&
       (data.location.command.list(currentLocation.ref) ?? []).some((command) => command.name === slashHead.name)
+    if (interrupt && (isSkill || isCommand)) {
+      toast.show({ message: "Commands cannot interrupt a session", variant: "warning" })
+      return false
+    }
     if (delivery === "queue" && isSkill) {
       toast.show({ message: "Skills cannot be queued", variant: "warning" })
       return false
@@ -1362,6 +1383,17 @@ export function Prompt(props: PromptProps) {
       // and rolls back if the server rejects it, so submission does not wait
       // on the network. On rejection the row is already rolled back; restore
       // the composer unless the user has started typing something new.
+      if (interrupt) {
+        const error = await client.api.session.interrupt({ sessionID: target }).then(
+          () => undefined,
+          (error) => error,
+        )
+        if (error) {
+          toast.show({ title: "Failed to interrupt session", message: errorMessage(error), variant: "error" })
+          restoreEntry()
+          return false
+        }
+      }
       data.session
         .prompt({
           sessionID: target,

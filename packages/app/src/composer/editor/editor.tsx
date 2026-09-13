@@ -304,6 +304,7 @@ export function ComposerEditor(props: ComposerEditorProps) {
           </div>
           <div data-slot="composer-actions" class="flex shrink-0 items-center">
             <Show when={state.mode === "normal"}>
+              <ComposerEditorInterrupt controller={props.controller} />
               <ComposerEditorAlternateDelivery
                 controller={props.controller}
                 keybind={props.alternateKeybind ?? ["Mod", "Enter"]}
@@ -774,6 +775,30 @@ export function ComposerEditorPopover(props: {
         </For>
       </Show>
     </div>
+  )
+}
+
+function ComposerEditorInterrupt(props: { controller: ComposerEditorModel }) {
+  const i18n = useI18n()
+  const visible = () =>
+    props.controller.view.submit.working?.() &&
+    !props.controller.view.submit.queue?.editing() &&
+    props.controller.canSubmit()
+  return (
+    <Show when={visible()}>
+      <Tooltip placement="top" value={i18n.t("ui.promptInput.interruptHint")}>
+        <Button
+          data-action="composer-interrupt"
+          type="button"
+          variant="ghost-faint"
+          size="small"
+          class="me-3 px-1.5 ![font-weight:530]"
+          onClick={() => props.controller.submit({ interrupt: true })}
+        >
+          {i18n.t("ui.promptInput.interrupt")}
+        </Button>
+      </Tooltip>
+    </Show>
   )
 }
 

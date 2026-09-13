@@ -482,7 +482,7 @@ function mockHandlers(config: MockServerConfig, state: { cursors: Map<string, st
         },
         sessionPermissionReply: () => noContent,
         sessionRename: () => noContent,
-        sessionInterrupt: () => noContent,
+        sessionInterrupt: () => Effect.succeed({ data: { interrupted: true } }),
         sessionRevertStage: (ctx) => {
           const payload = record(ctx.payload) ? ctx.payload : {}
           const messageID = payload.messageID

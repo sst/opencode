@@ -244,7 +244,8 @@ const Group = HttpApiGroup.make("mock")
   .add(
     HttpApiEndpoint.post("sessionInterrupt", "/api/session/:sessionID/interrupt", {
       params: SessionParams,
-      success: NoContent,
+      query: Schema.Struct({ continue: Schema.optional(Schema.String) }),
+      success: Json,
     }),
   )
   .add(
