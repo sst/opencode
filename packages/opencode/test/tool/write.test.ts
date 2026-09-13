@@ -12,6 +12,8 @@ import { Truncate } from "@/tool/truncate"
 import { Tool } from "@/tool/tool"
 import { Agent } from "../../src/agent/agent"
 import { SessionID, MessageID } from "../../src/session/schema"
+import { PermissionV1 } from "@opencode-ai/core/v1/permission"
+import { Permission } from "../../src/permission"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { disposeAllInstances, TestInstance } from "../fixture/fixture"
 import { testEffect } from "../lib/effect"
@@ -56,6 +58,76 @@ const run = Effect.fn("WriteToolTest.run")(function* (
 ) {
   const tool = yield* init()
   return yield* tool.execute(args, next)
+})
+
+const askWithRules = (ruleset: PermissionV1.Ruleset) => ({
+  ...ctx,
+  ask: (input: Parameters<Tool.Context["ask"]>[0]) =>
+    Effect.sync(() => {
+      if (input.permission === "external_directory") return
+      for (const pattern of input.patterns) {
+        const rule = Permission.evaluate(input.permission, pattern, ruleset)
+        if (rule.action !== "allow") throw new Error(`permission ${rule.action}: ${pattern}`)
+      }
+    }),
+})
+
+describe("tool.write permission paths", () => {
+  it.instance("matches an inside-worktree relative rule", () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const filepath = path.join(test.directory, "src", "inside.txt")
+      yield* run(
+        { filePath: filepath, content: "inside" },
+        askWithRules(Permission.fromConfig({ edit: { "src/**": "allow" } })),
+      )
+      expect(yield* Effect.promise(() => fs.readFile(filepath, "utf-8"))).toBe("inside")
+    }),
+    { git: true },
+  )
+
+  it.instance("allows an outside-worktree absolute rule", () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const outer = yield* Effect.promise(() => fs.mkdtemp(path.join(path.dirname(test.directory), "opencode-outside-")))
+      const filepath = path.join(outer, "allowed.txt")
+      yield* run(
+        { filePath: filepath, content: "allowed" },
+        askWithRules(Permission.fromConfig({ edit: { [`${outer}/**`]: "allow" } })),
+      )
+      expect(yield* Effect.promise(() => fs.readFile(filepath, "utf-8"))).toBe("allowed")
+      yield* Effect.promise(() => fs.rm(outer, { recursive: true, force: true }))
+    }),
+    { git: true },
+  )
+
+  it.instance("enforces an outside-worktree absolute deny over a wildcard allow", () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const outer = yield* Effect.promise(() => fs.mkdtemp(path.join(path.dirname(test.directory), "opencode-outside-")))
+      const filepath = path.join(outer, "denied.txt")
+      const rules = Permission.fromConfig({ edit: { "*": "allow", [`${outer}/**`]: "deny" } })
+      const exit = yield* run({ filePath: filepath, content: "denied" }, askWithRules(rules)).pipe(Effect.exit)
+      expect(exit._tag).toBe("Failure")
+      expect(yield* Effect.promise(() => fs.stat(filepath).catch(() => undefined))).toBeUndefined()
+      yield* Effect.promise(() => fs.rm(outer, { recursive: true, force: true }))
+    }),
+    { git: true },
+  )
+
+  it.instance("does not match an outside-worktree relative rule", () =>
+    Effect.gen(function* () {
+      const test = yield* TestInstance
+      const outer = yield* Effect.promise(() => fs.mkdtemp(path.join(path.dirname(test.directory), "opencode-outside-")))
+      const filepath = path.join(outer, "not-src.txt")
+      const rules = Permission.fromConfig({ edit: { "src/**": "allow" } })
+      const exit = yield* run({ filePath: filepath, content: "not allowed" }, askWithRules(rules)).pipe(Effect.exit)
+      expect(exit._tag).toBe("Failure")
+      expect(yield* Effect.promise(() => fs.stat(filepath).catch(() => undefined))).toBeUndefined()
+      yield* Effect.promise(() => fs.rm(outer, { recursive: true, force: true }))
+    }),
+    { git: true },
+  )
 })
 
 describe("tool.write", () => {
