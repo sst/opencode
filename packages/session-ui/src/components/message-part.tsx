@@ -66,6 +66,7 @@ import { animate } from "motion"
 import { attached, inline, kind, typeLabel } from "./message-file"
 import { readPartText } from "./message-part-text"
 import { SessionProgressIndicatorV2 } from "../v2/components/session-progress-indicator-v2"
+import { formatMessageTimestamp } from "./message-timestamp"
 
 async function writeClipboard(text: string): Promise<boolean> {
   const body = typeof document === "undefined" ? undefined : document.body
@@ -1218,12 +1219,9 @@ export function UserMessageDisplay(props: {
     const match = data.store.provider?.all?.get(providerID)
     return match?.models?.[modelID]?.name ?? modelID
   })
-  const timefmt = createMemo(() => new Intl.DateTimeFormat(i18n.locale(), { timeStyle: "short" }))
-
   const stamp = createMemo(() => {
     const created = props.message.time?.created
-    if (typeof created !== "number") return ""
-    return timefmt().format(created)
+    return typeof created === "number" ? formatMessageTimestamp(created, i18n.locale()) : undefined
   })
 
   const metaHead = createMemo(() => {
@@ -1232,7 +1230,7 @@ export function UserMessageDisplay(props: {
     return items.filter((x) => !!x).join("\u00A0\u00B7\u00A0")
   })
 
-  const metaTail = stamp
+  const metaTail = createMemo(() => stamp()?.label ?? "")
 
   const openImagePreview = (url: string, alt?: string) => {
     dialog.show(() => <ImagePreview src={url} alt={alt} />)
@@ -1352,7 +1350,11 @@ export function UserMessageDisplay(props: {
                 </span>
               </Show>
               <Show when={metaTail()}>
-                <span data-slot="user-message-meta-tail" class="text-12-regular text-text-weak cursor-default">
+                <span
+                  data-slot="user-message-meta-tail"
+                  class="text-12-regular text-text-weak cursor-default"
+                  title={stamp()?.title}
+                >
                   {metaTail()}
                 </span>
               </Show>
