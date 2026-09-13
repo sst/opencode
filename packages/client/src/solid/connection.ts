@@ -19,6 +19,11 @@ export type ClientConnectionOptions = {
   readonly flushInterval?: number
   readonly pageLifecycle?: boolean
   /**
+   * Base delay between reconnect attempts. Streams that never connected
+   * successfully scale this up per attempt (see `reconnectBackoffDelay`).
+   */
+  readonly reconnectDelayMs?: number
+  /**
    * Abort and reconnect a stream that receives no bytes for this long. The server writes a keepalive
    * comment every 15 seconds, so a quiet but healthy stream never trips this.
    */
@@ -31,7 +36,17 @@ export type ClientConnectionOptions = {
 
 const connectTimeout = 2_000
 const reconnectDelay = 1_000
+const maxReconnectBackoff = 30_000
 const connectionHistoryLimit = 50
+
+/**
+ * Delay before the next reconnect attempt. Streams that never connected
+ * successfully (bad credentials, server still booting) scale the delay up so a
+ * failing endpoint is not hammered every second; streams that connected and
+ * later dropped reset the attempt counter and keep the base delay.
+ */
+export const reconnectBackoffDelay = (attempt: number, baseDelay: number) =>
+  Math.min(baseDelay * Math.max(attempt, 1), maxReconnectBackoff)
 export const defaultIdleTimeout = 45_000
 // Longer than one server keepalive interval: a stream that is silent this long when the page
 // returns to the foreground is probably half-open after the device slept.
@@ -178,7 +193,7 @@ export function createClientConnection(initialApi: OpenCodeClient, options: Clie
         forced = false
         continue
       }
-      await wait(reconnectDelay, controller.signal)
+      await wait(reconnectBackoffDelay(attempt, options.reconnectDelayMs ?? reconnectDelay), controller.signal)
     }
   }
 

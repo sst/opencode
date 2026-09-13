@@ -1,6 +1,6 @@
-import { expect, test } from "bun:test"
+import { describe, expect, test } from "bun:test"
 import { createRoot } from "solid-js"
-import { createClientConnection } from "../src/solid"
+import { createClientConnection, reconnectBackoffDelay } from "../src/solid/connection.js"
 import { OpenCode, type OpenCodeEvent } from "../src/promise"
 
 const connected = { id: "evt_connected", created: 1, type: "server.connected", data: {} }
@@ -147,6 +147,45 @@ test("a stream the server closes reconnects and reports the disconnect", async (
     await until(() => ctx.connection.status() === "reconnecting")
     expect(ctx.connection.error()).toBe("Event stream disconnected")
     await until(() => fake.streams.length === 2)
+  } finally {
+    ctx.dispose()
+  }
+})
+
+describe("reconnectBackoffDelay", () => {
+  test("scales with the attempt count and caps at the maximum", () => {
+    expect(reconnectBackoffDelay(1, 1_000)).toBe(1_000)
+    expect(reconnectBackoffDelay(2, 1_000)).toBe(2_000)
+    expect(reconnectBackoffDelay(5, 1_000)).toBe(5_000)
+    expect(reconnectBackoffDelay(100, 1_000)).toBe(30_000)
+    expect(reconnectBackoffDelay(0, 1_000)).toBe(1_000)
+  })
+})
+
+test("backs off instead of retrying every second while the stream is unauthorized", async () => {
+  const api = OpenCode.make({
+    baseUrl: "http://opencode.local",
+    fetch: async () =>
+      new Response(null, { status: 401, headers: { "www-authenticate": 'Basic realm="Secure Area"' } }),
+  })
+  const ctx = createRoot((dispose) => ({
+    dispose,
+    connection: createClientConnection(api, { reconnectDelayMs: 20, onEvent: () => {} }),
+  }))
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    const history = ctx.connection.internal.history().filter((item) => item.data.status === "disconnected")
+
+    expect(history.length).toBeGreaterThanOrEqual(3)
+    const attempts = history.map((item) => item.data.attempt)
+    expect([...attempts].sort((a, b) => a - b)).toEqual(attempts)
+    expect(attempts.at(-1)).toBeGreaterThan(2)
+
+    const gaps: number[] = []
+    for (let index = 1; index < history.length; index++) {
+      gaps.push(history[index].created - history[index - 1].created)
+    }
+    expect(gaps.at(-1)).toBeGreaterThan(gaps[0] ?? 0)
   } finally {
     ctx.dispose()
   }
