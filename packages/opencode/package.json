@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "version": "1.18.25",
+  "version": "1.18.30",
   "name": "opencode",
   "type": "module",
   "license": "MIT",
@@ -12,8 +12,8 @@
     "bench:test": "bun run script/bench-test-suite.ts",
     "profile:test": "bun run script/profile-test-files.ts",
     "build": "bun run script/build.ts",
-    "dev": "bun run --conditions=browser ./src/index.ts",
-    "dev:temporary": "bun run --conditions=browser ./src/temporary.ts"
+    "dev": "bun run ./src/index.ts",
+    "dev:temporary": "bun run ./src/temporary.ts"
   },
   "bin": {
     "opencode": "./bin/opencode"
@@ -56,9 +56,9 @@
     "@actions/github": "6.0.1",
     "@agentclientprotocol/sdk": "0.21.0",
     "@ai-sdk/alibaba": "1.0.17",
-    "@ai-sdk/amazon-bedrock": "4.0.158",
-    "@ai-sdk/anthropic": "3.0.82",
-    "@ai-sdk/azure": "3.0.88",
+    "@ai-sdk/amazon-bedrock": "4.0.166",
+    "@ai-sdk/anthropic": "3.0.111",
+    "@ai-sdk/azure": "3.0.93",
     "@ai-sdk/cerebras": "2.0.60",
     "@ai-sdk/cohere": "3.0.27",
     "@ai-sdk/deepinfra": "2.0.41",
@@ -67,7 +67,7 @@
     "@ai-sdk/google-vertex": "4.0.181",
     "@ai-sdk/groq": "3.0.31",
     "@ai-sdk/mistral": "3.0.51",
-    "@ai-sdk/openai": "3.0.84",
+    "@ai-sdk/openai": "3.0.88",
     "@ai-sdk/openai-compatible": "2.0.41",
     "@ai-sdk/perplexity": "3.0.26",
     "@ai-sdk/provider": "3.0.8",
@@ -120,7 +120,7 @@
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "fuzzysort": "3.1.0",
-    "gitlab-ai-provider": "6.12.1",
+    "gitlab-ai-provider": "6.15.0",
     "glob": "13.0.5",
     "google-auth-library": "10.5.0",
     "gray-matter": "4.0.3",

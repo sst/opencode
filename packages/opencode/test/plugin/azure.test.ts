@@ -11,17 +11,11 @@ import { Process } from "../../src/util/process"
 import { which } from "@opencode-ai/core/util/which"
 
 const resourceName = process.env.AZURE_RESOURCE_NAME
-const resourceGroup = process.env.AZURE_RESOURCE_GROUP
-const azureConfig = process.env.AZURE_CONFIG_DIR
 const originalPath = process.env.PATH
 
 afterEach(() => {
   if (resourceName === undefined) delete process.env.AZURE_RESOURCE_NAME
   else process.env.AZURE_RESOURCE_NAME = resourceName
-  if (resourceGroup === undefined) delete process.env.AZURE_RESOURCE_GROUP
-  else process.env.AZURE_RESOURCE_GROUP = resourceGroup
-  if (azureConfig === undefined) delete process.env.AZURE_CONFIG_DIR
-  else process.env.AZURE_CONFIG_DIR = azureConfig
   if (originalPath === undefined) delete process.env.PATH
   else process.env.PATH = originalPath
 })
@@ -64,37 +58,6 @@ function customFetch(options: Record<string, unknown>) {
   }
 }
 
-function models(...ids: string[]): Provider["models"] {
-  return Object.fromEntries(
-    ids.map((id) => [
-      id,
-      {
-        id,
-        providerID: "azure",
-        name: id,
-        family: "",
-        api: { id, url: "", npm: "@ai-sdk/azure" },
-        status: "active",
-        headers: {},
-        options: {},
-        cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
-        limit: { context: 0, output: 0 },
-        capabilities: {
-          temperature: true,
-          reasoning: false,
-          attachment: false,
-          toolcall: true,
-          input: { text: true, audio: false, image: false, video: false, pdf: false },
-          output: { text: true, audio: false, image: false, video: false, pdf: false },
-          interleaved: false,
-        },
-        release_date: "",
-        variants: {},
-      },
-    ]),
-  )
-}
-
 function azureShell(scopes: string[]) {
   return async (args: string[]) => {
     const scope = args[args.indexOf("--scope") + 1]
@@ -103,14 +66,6 @@ function azureShell(scopes: string[]) {
       accessToken: `${scope}-token`,
       expires_on: Math.floor((Date.now() + 60 * 60 * 1000) / 1000),
     }
-  }
-}
-
-function discoveryShell(accounts: unknown, deployments: unknown, commands: string[]) {
-  return async (args: string[]) => {
-    const command = ["az", ...args].join(" ")
-    commands.push(command)
-    return command.includes("deployment list") ? deployments : accounts
   }
 }
 
@@ -127,7 +82,7 @@ async function azureCli(dir: string) {
     fs.appendFileSync(${JSON.stringify(calls)}, JSON.stringify(args) + "\\n")
     console.log(JSON.stringify(args.includes("get-access-token")
       ? { accessToken: "test-token", expires_on: Math.floor(Date.now() / 1000) + 3600 }
-      : args.includes("deployment") ? [] : [{ name: "test-resource", resourceGroup: "test group & value" }]))
+      : []))
   `,
   )
   const executable = path.join(bin, process.platform === "win32" ? "az.cmd" : "az")
@@ -162,7 +117,6 @@ describe("plugin.azure", () => {
     const entry = path.join(tmp.path, "azure.mjs")
     await Bun.write(entry, bundle.outputs[0])
     const cli = await azureCli(tmp.path)
-    await Bun.write(path.join(tmp.path, "azureProfile.json"), '\uFEFF{"subscriptions":[{}]}')
     for (const installed of [false, true]) {
       const result = await Process.run(
         [
@@ -174,23 +128,21 @@ describe("plugin.azure", () => {
         import { AzureAuthPlugin } from ${JSON.stringify(pathToFileURL(entry).href)}
         assert.equal(typeof Bun, "undefined")
         delete process.env.AZURE_RESOURCE_NAME
-        delete process.env.AZURE_RESOURCE_GROUP
         const hooks = await AzureAuthPlugin({ $: undefined })
         assert.equal(hooks.auth.provider, "azure")
         assert.deepEqual(hooks.auth.methods.map((method) => method.type), ${JSON.stringify(installed ? ["api", "oauth"] : ["api"])})
         if (${installed}) {
           const method = hooks.auth.methods.find((method) => method.type === "oauth")
-          assert.equal(method.prompts[0].type, "select")
-          const authorization = await method.authorize({ resourceSelection: "test-resource" })
+          assert.equal(method.prompts[0].type, "text")
+          const authorization = await method.authorize({ resourceName: "test-resource" })
           const auth = await authorization.callback()
           assert.equal(auth.type, "success")
           assert.equal(auth.accountId, "test-resource")
-          assert.deepEqual(await hooks.provider.models({ models: {} }, { auth: { ...auth, type: "oauth" } }), {})
         }
       `,
         ],
         {
-          env: { PATH: installed ? cli.bin : tmp.path, XDG_DATA_HOME: tmp.path, AZURE_CONFIG_DIR: tmp.path },
+          env: { PATH: installed ? cli.bin : tmp.path, XDG_DATA_HOME: tmp.path },
           nothrow: true,
         },
       )
@@ -198,53 +150,27 @@ describe("plugin.azure", () => {
       expect(result.code).toBe(0)
     }
     expect(await cli.calls()).toEqual([
-      ["cognitiveservices", "account", "list", "--output", "json", "--only-show-errors"],
       ["account", "get-access-token", "--scope", "https://cognitiveservices.azure.com/.default", "--output", "json"],
-      ["cognitiveservices", "account", "list", "--output", "json", "--only-show-errors"],
-      [
-        "cognitiveservices",
-        "account",
-        "deployment",
-        "list",
-        "--name",
-        "test-resource",
-        "--resource-group",
-        "test group & value",
-        "--output",
-        "json",
-        "--only-show-errors",
-      ],
     ])
   })
 
-  for (const profile of [
-    { name: "missing", content: undefined, signedIn: false },
-    { name: "logged out", content: '{"subscriptions":[]}', signedIn: false },
-    { name: "signed in with BOM", content: '\uFEFF{"subscriptions":[{}]}', signedIn: true },
-  ]) {
-    test(`only lists resources for a cached Azure login (${profile.name})`, async () => {
-      await using tmp = await tmpdir()
-      const cli = await azureCli(tmp.path)
-      process.env.PATH = cli.bin
-      process.env.AZURE_CONFIG_DIR = path.join(tmp.path, "azure-cli")
-      if (profile.content)
-        await Bun.write(path.join(process.env.AZURE_CONFIG_DIR, "azureProfile.json"), profile.content)
-      delete process.env.AZURE_RESOURCE_NAME
-      delete process.env.AZURE_RESOURCE_GROUP
-      const hooks = await AzureAuthPlugin()
+  test("does not invoke Azure CLI during initialization", async () => {
+    await using tmp = await tmpdir()
+    const cli = await azureCli(tmp.path)
+    process.env.PATH = cli.bin
+    delete process.env.AZURE_RESOURCE_NAME
 
-      expect(await cli.calls()).toHaveLength(profile.signedIn ? 1 : 0)
-      expect(hooks.auth?.methods.some((method) => method.type === "oauth")).toBe(true)
-      if (profile.signedIn) expect(oauthMethod(hooks).prompts?.[0].type).toBe("select")
-    })
-  }
+    const hooks = await AzureAuthPlugin()
+
+    expect(await cli.calls()).toEqual([])
+    expect(oauthMethod(hooks).prompts?.[0].type).toBe("text")
+  })
 
   test("keeps the existing API-key method and adds Entra ID", () => {
     delete process.env.AZURE_RESOURCE_NAME
-    const hooks = createAzureAuthHooks(azureShell([]))
+    const hooks = createAzureAuthHooks(azureShell([]), fetch, true)
 
     expect(hooks.auth?.provider).toBe("azure")
-    expect(hooks.provider?.id).toBe("azure")
     expect(hooks.auth?.methods.map((method) => [method.type, method.label])).toEqual([
       ["api", "API key"],
       ["oauth", "Microsoft Entra ID (Azure CLI)"],
@@ -265,63 +191,14 @@ describe("plugin.azure", () => {
   })
 
   test("hides Azure CLI authentication when the Azure CLI is not installed", () => {
-    const hooks = createAzureAuthHooks(azureShell([]), fetch, [], false)
+    const hooks = createAzureAuthHooks(azureShell([]), fetch, false)
 
     expect(hooks.auth?.methods.map((method) => method.type)).toEqual(["api"])
   })
 
-  test("lists Azure CLI resources and allows entering another resource", () => {
-    delete process.env.AZURE_RESOURCE_NAME
-    const hooks = createAzureAuthHooks(azureShell([]), fetch, [
-      { name: "first-resource", resourceGroup: "first-group" },
-      { name: "second-resource", resourceGroup: "second-group" },
-    ])
-
-    expect(oauthMethod(hooks).prompts).toEqual([
-      {
-        type: "select",
-        key: "resourceSelection",
-        message: "Select Azure resource",
-        options: [
-          { label: "first-resource", value: "first-resource", hint: "first-group" },
-          { label: "second-resource", value: "second-resource", hint: "second-group" },
-          { label: "Enter another resource name", value: "__manual__" },
-        ],
-      },
-      {
-        type: "text",
-        key: "resourceName",
-        message: "Enter Azure Resource Name",
-        placeholder: "e.g. my-models",
-        when: { key: "resourceSelection", op: "eq", value: "__manual__" },
-      },
-    ])
-  })
-
-  test("uses the selected Azure CLI resource", async () => {
-    const hooks = createAzureAuthHooks(azureShell([]), fetch, [
-      { name: "selected-resource", resourceGroup: "selected-group" },
-    ])
-    const authorization = await oauthMethod(hooks).authorize({ resourceSelection: "selected-resource" })
-    if (authorization.method !== "auto") throw new Error("Unexpected Azure authorization method")
-
-    expect(await authorization.callback()).toMatchObject({ type: "success", accountId: "selected-resource" })
-  })
-
-  test("uses a manually entered Azure resource that was not listed", async () => {
-    const hooks = createAzureAuthHooks(azureShell([]), fetch, [{ name: "listed-resource", resourceGroup: "group" }])
-    const authorization = await oauthMethod(hooks).authorize({
-      resourceSelection: "__manual__",
-      resourceName: "unlisted-resource",
-    })
-    if (authorization.method !== "auto") throw new Error("Unexpected Azure authorization method")
-
-    expect(await authorization.callback()).toMatchObject({ type: "success", accountId: "unlisted-resource" })
-  })
-
   test("checks Azure CLI and stores the resource name", async () => {
     const scopes: string[] = []
-    const hooks = createAzureAuthHooks(azureShell(scopes))
+    const hooks = createAzureAuthHooks(azureShell(scopes), fetch, true)
     const authorization = await oauthMethod(hooks).authorize({ resourceName: "test-resource" })
     if (authorization.method !== "auto") throw new Error("Unexpected Azure authorization method")
 
@@ -335,10 +212,14 @@ describe("plugin.azure", () => {
   })
 
   test("supports Azure CLI versions that only provide expiresOn", async () => {
-    const hooks = createAzureAuthHooks(async () => ({
-      accessToken: "legacy-token",
-      expiresOn: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-    }))
+    const hooks = createAzureAuthHooks(
+      async () => ({
+        accessToken: "legacy-token",
+        expiresOn: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      }),
+      fetch,
+      true,
+    )
     const authorization = await oauthMethod(hooks).authorize({ resourceName: "test-resource" })
     if (authorization.method !== "auto") throw new Error("Unexpected Azure authorization method")
 
@@ -346,135 +227,32 @@ describe("plugin.azure", () => {
   })
 
   test("rejects Azure CLI tokens without a usable expiration", async () => {
-    const hooks = createAzureAuthHooks(async () => ({ accessToken: "invalid-token" }))
+    const hooks = createAzureAuthHooks(async () => ({ accessToken: "invalid-token" }), fetch, true)
     const authorization = await oauthMethod(hooks).authorize({ resourceName: "test-resource" })
     if (authorization.method !== "auto") throw new Error("Unexpected Azure authorization method")
 
     await expect(authorization.callback()).rejects.toThrow("Azure CLI returned an invalid token expiration")
   })
 
-  test("discovers deployed models through Azure CLI", async () => {
-    delete process.env.AZURE_RESOURCE_GROUP
-    const commands: string[] = []
-    const hooks = createAzureAuthHooks(
-      discoveryShell(
-        [{ name: "test-resource", resourceGroup: "test-group" }],
-        [
-          {
-            name: "gpt-production",
-            properties: { model: { name: "gpt-5-mini" }, provisioningState: "Succeeded" },
-          },
-          {
-            name: "DeepSeek-V4-Flash",
-            properties: { model: { name: "DeepSeek-V4-Flash" }, provisioningState: "Succeeded" },
-          },
-          {
-            name: "phi-production",
-            properties: { model: { name: "Phi-4-mini-instruct" }, provisioningState: "Succeeded" },
-          },
-          {
-            name: "gpt-5-nano",
-            properties: { model: { name: "gpt-5-nano" }, provisioningState: "Creating" },
-          },
-        ],
-        commands,
-      ),
-    )
-    const list = hooks.provider?.models
-    if (!list) throw new Error("Azure provider model hook is missing")
-
-    const result = await list(
-      {
-        ...provider,
-        models: models("gpt-5-mini", "deepseek-v4-flash", "phi-4-mini", "phi-4-mini-instruct", "gpt-5-nano"),
-      },
-      { auth: oauth },
-    )
-
-    expect(Object.keys(result)).toEqual(["gpt-5-mini", "deepseek-v4-flash", "phi-4-mini-instruct"])
-    expect(result["gpt-5-mini"].api.id).toBe("gpt-production")
-    expect(result["deepseek-v4-flash"].api.id).toBe("DeepSeek-V4-Flash")
-    expect(result["phi-4-mini-instruct"].api.id).toBe("phi-production")
-    expect(commands).toEqual([
-      "az cognitiveservices account list --output json --only-show-errors",
-      "az cognitiveservices account deployment list --name test-resource --resource-group test-group --output json --only-show-errors",
-    ])
-  })
-
-  test("discovers models directly when the resource group is configured", async () => {
-    process.env.AZURE_RESOURCE_GROUP = "restricted-group"
-    const commands: string[] = []
-    const hooks = createAzureAuthHooks(
-      discoveryShell(
-        [],
-        [{ name: "gpt-production", properties: { model: { name: "gpt-5-mini" }, provisioningState: "Succeeded" } }],
-        commands,
-      ),
-    )
-    const list = hooks.provider?.models
-    if (!list) throw new Error("Azure provider model hook is missing")
-
-    const result = await list({ ...provider, models: models("gpt-5-mini") }, { auth: oauth })
-
-    expect(result["gpt-5-mini"].api.id).toBe("gpt-production")
-    expect(commands).toEqual([
-      "az cognitiveservices account deployment list --name test-resource --resource-group restricted-group --output json --only-show-errors",
-    ])
-  })
-
-  test("preserves multiple deployments of the same model", async () => {
-    delete process.env.AZURE_RESOURCE_GROUP
-    const hooks = createAzureAuthHooks(
-      discoveryShell(
-        [{ name: "test-resource", resourceGroup: "test-group" }],
-        [
-          { name: "gpt-production", properties: { model: { name: "gpt-5-mini" }, provisioningState: "Succeeded" } },
-          { name: "gpt-staging", properties: { model: { name: "gpt-5-mini" }, provisioningState: "Succeeded" } },
-        ],
-        [],
-      ),
-    )
-    const list = hooks.provider?.models
-    if (!list) throw new Error("Azure provider model hook is missing")
-
-    const result = await list({ ...provider, models: models("gpt-5-mini") }, { auth: oauth })
-
-    expect(Object.keys(result)).toEqual(["gpt-5-mini", "gpt-staging"])
-    expect(result["gpt-5-mini"].api.id).toBe("gpt-production")
-    expect(result["gpt-staging"].api.id).toBe("gpt-staging")
-    expect(result["gpt-staging"].name).toBe("gpt-5-mini (gpt-staging)")
-  })
-
-  test("keeps configured models available when Azure discovery fails", async () => {
-    const hooks = createAzureAuthHooks(async () => {
-      throw new Error("Azure CLI failed")
-    })
-    const list = hooks.provider?.models
-    if (!list) throw new Error("Azure provider model hook is missing")
-
-    const catalog = models("gpt-5-mini")
-    expect(await list({ ...provider, models: catalog }, { auth: oauth })).toBe(catalog)
-  })
-
   test("does not change API-key loading", async () => {
     const scopes: string[] = []
-    const hooks = createAzureAuthHooks(azureShell(scopes))
-    const catalog = models("gpt-5-mini")
-    const list = hooks.provider?.models
-    if (!list) throw new Error("Azure provider model hook is missing")
+    const hooks = createAzureAuthHooks(azureShell(scopes), fetch, true)
 
     expect(await loader(hooks)(async () => ({ type: "api", key: "test-key" }), provider)).toEqual({})
-    expect(await list({ ...provider, models: catalog }, { auth: { type: "api", key: "test-key" } })).toBe(catalog)
     expect(scopes).toEqual([])
   })
 
   test("uses Azure CLI bearer tokens for Azure inference endpoints", async () => {
     const scopes: string[] = []
     const requests: Headers[] = []
-    const hooks = createAzureAuthHooks(azureShell(scopes), async (_input, init) => {
-      requests.push(new Headers(init?.headers))
-      return new Response(null, { status: 200 })
-    })
+    const hooks = createAzureAuthHooks(
+      azureShell(scopes),
+      async (_input, init) => {
+        requests.push(new Headers(init?.headers))
+        return new Response(null, { status: 200 })
+      },
+      true,
+    )
     const options = await loader(hooks)(async () => oauth, provider)
     const request = customFetch(options)
 

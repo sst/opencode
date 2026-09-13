@@ -2,6 +2,7 @@ import { Context, Effect, Layer, Schema } from "effect"
 import { Resource } from "sst/resource"
 
 const R2_SQL_MAX_ROWS = 10_000
+const R2_SQL_TIMEOUT_MS = 15 * 60_000
 const R2SqlValue = Schema.Union([Schema.String, Schema.Number, Schema.Boolean, Schema.Null])
 const R2SqlResponse = Schema.Struct({
   success: Schema.Boolean,
@@ -25,7 +26,9 @@ export class R2SqlQueryError extends Error {
   readonly status?: number
 
   constructor(input: { message: string; requestId?: string; status?: number; cause?: unknown }) {
-    super(input.message, { cause: input.cause })
+    super(input.cause instanceof Error ? `${input.message}: ${input.cause.toString()}` : input.message, {
+      cause: input.cause,
+    })
     this.name = "R2SqlQueryError"
     this.requestId = input.requestId
     this.status = input.status
@@ -43,20 +46,31 @@ export class R2Sql extends Context.Service<R2Sql, R2Sql.Service>()("@opencode/st
     R2Sql,
     R2Sql.of({
       query: Effect.fn("R2Sql.query")(function* (query: string) {
+        const startedAt = Date.now()
         const response = yield* Effect.tryPromise({
-          try: () =>
-            Bun.fetch(
-              `https://api.sql.cloudflarestorage.com/api/v1/accounts/${Resource.R2Sql.accountId}/r2-sql/query/${Resource.R2Sql.bucket}`,
-              {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${Resource.R2SqlAuthToken.value}`,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ query }),
+          try: (signal) => {
+            const options = {
+              method: "POST",
+              // Analytical queries can exceed Bun's default five-minute idle timer.
+              // Bound the whole request and cancel it when the sync is interrupted.
+              timeout: false,
+              signal: AbortSignal.any([signal, AbortSignal.timeout(R2_SQL_TIMEOUT_MS)]),
+              headers: {
+                Authorization: `Bearer ${Resource.R2SqlAuthToken.value}`,
+                "Content-Type": "application/json",
               },
-            ),
-          catch: (cause) => new R2SqlQueryError({ message: "Failed to run R2 SQL stats query", cause }),
+              body: JSON.stringify({ query }),
+            }
+            return Bun.fetch(
+              `https://api.sql.cloudflarestorage.com/api/v1/accounts/${Resource.R2Sql.accountId}/r2-sql/query/${Resource.R2Sql.bucket}`,
+              options,
+            )
+          },
+          catch: (cause) =>
+            new R2SqlQueryError({
+              message: `Failed to run R2 SQL stats query after ${Date.now() - startedAt}ms`,
+              cause,
+            }),
         })
         const body = yield* Effect.tryPromise({
           try: () => response.text(),

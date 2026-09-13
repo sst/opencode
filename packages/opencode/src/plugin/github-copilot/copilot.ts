@@ -361,6 +361,7 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
       if (!incoming.model.providerID.includes("github-copilot")) return
 
       output.headers["X-GitHub-Api-Version"] = API_VERSION
+      output.headers["X-Interaction-Id"] = incoming.sessionID
       if (incoming.agent === "title") {
         output.headers["X-Interaction-Type"] = "agent-session-name-generation"
       }

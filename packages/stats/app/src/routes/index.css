@@ -2195,6 +2195,7 @@ body {
 
 [data-page="stats"] [data-component="market-share"] {
   --market-gap: 12px;
+  position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
@@ -2358,6 +2359,106 @@ body {
 [data-page="stats"] [data-component="market-share-list"] b {
   color: var(--stats-muted);
   font-weight: 500;
+}
+
+[data-page="stats"] [data-component="market-share"] > [data-component="chart-tooltip"] {
+  top: 52px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 228px;
+  min-width: 228px;
+  padding: 0;
+  border: 0;
+  background: #fffffff2;
+  box-shadow:
+    0 0 0 0.5px #00000024,
+    0 8px 16px #0000000f,
+    0 4px 8px #00000014;
+  color: var(--stats-text);
+}
+
+[data-page="stats"] [data-component="market-share"] > [data-component="chart-tooltip"][data-placement="right"] {
+  right: auto;
+  left: calc(var(--market-tooltip-left) + 8px);
+}
+
+[data-page="stats"] [data-component="market-share"] > [data-component="chart-tooltip"][data-placement="left"] {
+  right: calc(var(--market-tooltip-right) + 8px);
+  left: auto;
+}
+
+[data-page="stats"] [data-component="market-share"] > [data-component="chart-tooltip"] strong,
+[data-page="stats"] [data-component="market-share"] > [data-component="chart-tooltip"] > span {
+  display: block;
+  font-size: 11px;
+  line-height: 12px;
+  white-space: nowrap;
+}
+
+[data-page="stats"] [data-component="market-share"] > [data-component="chart-tooltip"] strong {
+  padding: 8px 8px 0;
+  font-weight: 500;
+}
+
+[data-page="stats"] [data-component="market-share"] > [data-component="chart-tooltip"] > span {
+  padding: 4px 8px 8px;
+  color: var(--stats-muted);
+}
+
+[data-page="stats"] [data-component="market-share"] > [data-component="chart-tooltip"] [data-slot="tooltip-divider"] {
+  height: 0.5px;
+  margin: 0;
+}
+
+[data-page="stats"] [data-component="market-share"] > [data-component="chart-tooltip"] p {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  height: 16px;
+  margin: 4px 0 0;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 12px;
+}
+
+[data-page="stats"] [data-component="market-share"] > [data-component="chart-tooltip"] p[data-muted="true"] {
+  opacity: 0.46;
+}
+
+[data-page="stats"]
+  [data-component="market-share"]
+  > [data-component="chart-tooltip"]
+  [data-slot="tooltip-divider"]
+  + p {
+  margin-top: 8px;
+}
+
+[data-page="stats"] [data-component="market-share"] > [data-component="chart-tooltip"] p:last-child {
+  margin-bottom: 8px;
+}
+
+[data-page="stats"] [data-component="market-share"] > [data-component="chart-tooltip"] [data-slot="tooltip-label"] {
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 4px;
+}
+
+[data-page="stats"] [data-component="market-share"] > [data-component="chart-tooltip"] i {
+  width: 6px;
+  height: 6px;
+  justify-self: center;
+}
+
+[data-page="stats"] [data-component="market-share"] > [data-component="chart-tooltip"] em,
+[data-page="stats"] [data-component="market-share"] > [data-component="chart-tooltip"] b {
+  font-style: normal;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+[data-page="stats"] [data-component="market-share"] > [data-component="chart-tooltip"] em {
+  color: var(--stats-muted);
 }
 
 [data-page="stats"] [data-slot="market-footer"] {
@@ -5219,6 +5320,10 @@ body {
   text-decoration: none;
 }
 
+[data-page="stats"] [data-component="model-peer-list"] a[data-providerless="true"] {
+  grid-template-columns: 32px minmax(0, 1fr) minmax(64px, auto);
+}
+
 [data-page="stats"] [data-component="model-peer-list"] a:hover,
 [data-page="stats"] [data-component="model-peer-list"] a[data-active="true"] {
   border-color: var(--stats-text);
@@ -6126,6 +6231,7 @@ body {
   grid-template-columns: 6px minmax(0, 1fr);
   gap: 12px;
   align-items: start;
+  align-self: stretch;
   min-width: 0;
 }
 
@@ -6145,7 +6251,8 @@ body {
 [data-page="stats"] [data-slot="compare-radar-legend"] small {
   font-size: 13px;
   line-height: 18px;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 [data-page="stats"] [data-slot="compare-radar-legend"] strong {
@@ -7206,6 +7313,11 @@ body {
 [data-page="stats"][data-theme="dark"]
   :is([data-section="top-models"], [data-section="unique-users"])
   [data-component="chart-tooltip"],
+:root[data-stats-theme="dark"]
+  [data-page="stats"]:not([data-theme="light"])
+  [data-component="market-share"]
+  > [data-component="chart-tooltip"],
+[data-page="stats"][data-theme="dark"] [data-component="market-share"] > [data-component="chart-tooltip"],
 :root[data-stats-theme="dark"]
   [data-page="stats"]:not([data-theme="light"])
   :is([data-section="top-models"], [data-section="unique-users"])
@@ -8375,6 +8487,10 @@ body {
     gap: 12px;
   }
 
+  [data-page="stats"] [data-component="model-peer-list"] a[data-providerless="true"] {
+    grid-template-columns: 28px minmax(0, 1fr) minmax(56px, auto);
+  }
+
   [data-page="stats"] [data-slot="model-peer-rank"] {
     width: 28px;
   }
@@ -8556,6 +8672,25 @@ body {
     max-height: min(320px, 48vh);
     overflow: auto;
     transform: none;
+  }
+
+  [data-page="stats"] [data-component="market-share"] > [data-component="chart-tooltip"] {
+    position: fixed;
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    z-index: 40;
+    width: auto;
+    min-width: 0;
+    max-height: min(320px, 48vh);
+    overflow: auto;
+    transform: none;
+  }
+
+  [data-page="stats"] [data-component="market-share"] > [data-component="chart-tooltip"][data-placement] {
+    right: 12px;
+    left: 12px;
   }
 
   [data-page="stats"]

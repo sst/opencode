@@ -1,5 +1,5 @@
 import { boolean, json, primaryKey, mysqlTable, uniqueIndex, varchar } from "drizzle-orm/mysql-core"
-import { timestamps, ulid } from "../drizzle/types"
+import { timestamps, ulid, utc } from "../drizzle/types"
 
 export const WorkspaceTable = mysqlTable(
   "workspace",
@@ -12,6 +12,7 @@ export const WorkspaceTable = mysqlTable(
     is_blocked: boolean(),
     is_flagged_by_anthropic: boolean(),
     is_flagged_by_openai: boolean(),
+    migrated_at: utc("migrated_at"),
     ...timestamps,
   },
   (table) => [uniqueIndex("slug").on(table.slug)],

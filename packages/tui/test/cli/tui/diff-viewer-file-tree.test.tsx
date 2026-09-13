@@ -77,7 +77,7 @@ describe("DiffViewerFileTree", () => {
       <DiffViewerFileTree width={32} files={[]} loading={false} error={undefined} theme={theme} />
     ))
 
-    expect(loading).not.toContain("Loading diff...")
+    expect(loading).not.toContain("Loading diff…")
     expect(loading).not.toContain("No files")
     expect(failed).not.toContain("Failed to load diff")
     expect(failed).not.toContain("No files")

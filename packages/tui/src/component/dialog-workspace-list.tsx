@@ -39,7 +39,7 @@ export function DialogWorkspaceList() {
         return {
           title:
             removing() === workspace.id
-              ? "Deleting..."
+              ? "Deleting…"
               : deleting() === workspace.id
                 ? `Delete ${workspace.name}? Press delete again`
                 : workspace.name,

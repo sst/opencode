@@ -1,6 +1,7 @@
 import "./index.css"
 import { createAsync, query } from "@solidjs/router"
 import { Title, Meta } from "@solidjs/meta"
+import { For } from "solid-js"
 //import { HttpHeader } from "@solidjs/start"
 import zenLogoLight from "../../asset/zen-ornate-light.svg"
 import zenLogoDark from "../../asset/zen-ornate-dark.svg"
@@ -320,6 +321,15 @@ export default function Home() {
               </li>
               <li>
                 <Faq question={i18n.t("zen.faq.q8")}>{i18n.t("zen.faq.a8")}</Faq>
+              </li>
+              <li>
+                <Faq question={i18n.t("zen.faq.q9")}>
+                  <For each={i18n.t("zen.faq.a9").split(/(\{\{contact\}\})/g)}>
+                    {(part) =>
+                      part === "{{contact}}" ? <a href="mailto:help@anoma.ly">{i18n.t("common.contactUs")}</a> : part
+                    }
+                  </For>
+                </Faq>
               </li>
             </ul>
           </section>

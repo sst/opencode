@@ -3,6 +3,8 @@ import { dict as en } from "./en"
 
 export const dict = {
   ...en,
+  "go.promo.deepseek": "DeepSeek V4.1 Flash bénéficie de limites d’utilisation 4x supérieures pour une durée limitée",
+  "go.graph.bonus": "{{count}}× d’utilisation",
   "app.meta.description": "OpenCode - L'agent de code open source.",
   "nav.github": "GitHub",
   "nav.docs": "Documentation",
@@ -57,6 +59,7 @@ export const dict = {
   "common.cancel": "Annuler",
   "common.creating": "Création...",
   "common.create": "Créer",
+  "common.contactUs": "Contactez-nous",
 
   "common.videoUnsupported": "Votre navigateur ne prend pas en charge la balise vidéo.",
   "common.figure": "Fig {{n}}.",
@@ -227,6 +230,9 @@ export const dict = {
   "zen.faq.q8": "Puis-je utiliser Zen avec d'autres agents de code ?",
   "zen.faq.a8":
     "Zen fonctionne très bien avec OpenCode, mais vous pouvez utiliser Zen avec n'importe quel agent. Suivez les instructions de configuration dans votre agent préféré.",
+  "zen.faq.q9": "Puis-je obtenir un remboursement ?",
+  "zen.faq.a9":
+    "Vous pourriez avoir droit à un remboursement si le paiement a été effectué au cours des 14 derniers jours et que vous n’avez pas utilisé le crédit de cet achat. {{contact}} pour demander un remboursement.",
 
   "zen.cta.start": "Commencez avec Zen",
   "zen.pricing.title": "Ajoutez 20 $ de solde Pay as you go",
@@ -258,7 +264,6 @@ export const dict = {
   "zen.privacy.exceptionsLink": "exceptions suivantes",
 
   "go.title": "OpenCode Go | Modèles de code à faible coût pour tous",
-  "go.banner.text": "GLM-5.3-Flash bénéficie de limites d’utilisation 2x supérieures pour une durée limitée",
   "go.meta.description":
     "Go coûte 10 $/mois, avec des limites d'utilisation généreuses et un accès fiable aux principaux modèles de codage.",
   "go.hero.title": "Modèles de code à faible coût pour tous",
@@ -275,9 +280,17 @@ export const dict = {
   "go.graph.freePill": "Big Pickle et modèles gratuits",
   "go.graph.go": "Go",
   "go.graph.label": "Requêtes par tranche de 5 heures",
+  "go.graph.period": "Utilisation",
+  "go.graph.model": "Modèle",
+  "go.graph.requests": "Requêtes estimées / 5 h",
+  "go.graph.allowance": "Utilisation mensuelle",
+  "go.graph.new": "Nouveau",
+  "go.graph.scale": "Échelle non linéaire des requêtes",
+  "go.graph.showAll": "Voir les {{count}} modèles",
+  "go.graph.showLess": "Afficher moins de modèles",
   "go.graph.limitedRegions": "régions limitées",
   "go.graph.limitedTime": "durée limitée",
-  "go.graph.usageLimits": "Limites d'utilisation",
+  "go.graph.usageLimits": "Limites d’utilisation",
   "go.graph.aria": "Requêtes par 5h : {{free}} vs {{go}}",
 
   "go.testimonials.brand.zen": "Zen",
@@ -359,7 +372,7 @@ export const dict = {
     "Des tarifs de tokens fortement réduits en échange de l’autorisation d’utiliser vos prompts et vos complétions pour entraîner de futurs modèles Meta.",
   "go.faq.a5.learnMore": "En savoir plus",
   "go.faq.a5.deepseekRetention":
-    "L’accord ZDR est renouvelé chaque mois. L’accord actuel est valable jusqu’au 31 août 2026.",
+    "L’accord ZDR est renouvelé chaque mois. L’accord actuel est valable jusqu’au 30 septembre 2026.",
 
   "go.faq.a5.beforeExceptions":
     "Les modèles Go sont hébergés aux États-Unis. Les fournisseurs suivent une politique de rétention zéro et n'utilisent pas vos données pour l'entraînement des modèles, avec les",
@@ -373,7 +386,10 @@ export const dict = {
     "Oui, vous pouvez utiliser Go avec n'importe quel agent. Suivez les instructions de configuration dans votre agent de code préféré.",
   "go.faq.q9": "Quelle est la différence entre les modèles gratuits et Go ?",
   "go.faq.a9":
-    "Les modèles gratuits incluent Big Pickle ainsi que les modèles promotionnels disponibles à ce moment-là, avec un quota de 200 requêtes/jour. Go propose une sélection de modèles avec des quotas de requêtes plus élevés appliqués sur des fenêtres glissantes (5 heures, hebdomadaire et mensuelle), à peu près équivalents à 12 $ par 5 heures, 30 $ par semaine et 60 $ par mois (le nombre réel de requêtes varie selon le modèle et l'utilisation).",
+    "Les modèles gratuits incluent Big Pickle ainsi que les modèles promotionnels disponibles à ce moment-là, avec un quota de 200 requêtes/jour. Go propose une sélection de modèles avec des quotas de requêtes plus élevés appliqués sur des fenêtres glissantes (5 heures, hebdomadaire et mensuelle), à peu près équivalents à des quotas de base de 12 $ par 5 heures, 30 $ par semaine et 60 $ par mois ; les quotas propres à chaque modèle peuvent varier (le nombre réel de requêtes varie selon le modèle et l'utilisation).",
+  "go.faq.q10": "Puis-je obtenir un remboursement ?",
+  "go.faq.a10":
+    "Vous pourriez avoir droit à un remboursement si le paiement a été effectué au cours des 14 derniers jours et que vous n’avez pas utilisé votre quota Go pendant cette période de facturation. {{contact}} pour demander un remboursement.",
 
   "zen.api.error.rateLimitExceeded": "Limite de débit dépassée. Veuillez réessayer plus tard.",
   "zen.api.error.modelNotSupported": "Modèle {{model}} non pris en charge",

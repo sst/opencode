@@ -104,6 +104,16 @@ export const geoStat = mysqlTable(
     index("idx_country").on(table.country, table.grain, table.period_key),
     index("idx_continent").on(table.continent, table.grain, table.period_key),
     index("idx_country_model").on(table.model, table.country, table.grain, table.period_key),
+    index("idx_country_model_range").on(
+      table.model,
+      table.provider,
+      table.grain,
+      table.dataset,
+      table.client,
+      table.source,
+      table.tier,
+      table.period_key,
+    ),
   ],
 )
 

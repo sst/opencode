@@ -47,9 +47,29 @@ export const syncStats: (options?: {
 
     yield* logRuntimeCheck()
 
-    const rows = yield* Effect.forEach(buildStatsQueries(periodStart, periodEnd), r2Sql.query, {
-      concurrency: 4,
-    }).pipe(Effect.map((batches) => batches.flat()))
+    const queries = buildStatsQueries(periodStart, periodEnd)
+    yield* Effect.logInfo(
+      `stats sync started ${JSON.stringify({ full: options?.full ?? false, periodStart, periodEnd, queries: queries.length })}`,
+    )
+    const rows = yield* Effect.forEach(
+      queries,
+      (query, index) =>
+        r2Sql.query(query).pipe(
+          Effect.tap((rows) =>
+            Effect.logInfo(
+              `stats query complete ${JSON.stringify({ index, total: queries.length, rows: rows.length })}`,
+            ),
+          ),
+          Effect.tapError((error) =>
+            Effect.logError(
+              `stats query failed ${JSON.stringify({ index, total: queries.length, error: error.message })}`,
+            ),
+          ),
+        ),
+      {
+        concurrency: 4,
+      },
+    ).pipe(Effect.map((batches) => batches.flat()))
     const modelRows = modelRowsFromAggregates(rows.filter((row) => row.dimension === "model").flatMap(toModelAggregate))
     const providerRows = providerRowsFromAggregates(
       rows.filter((row) => row.dimension === "provider").flatMap(toProviderAggregate),
@@ -68,12 +88,30 @@ export const syncStats: (options?: {
           startOfUtcDay(periodEnd),
         )
       : []
+    yield* Effect.logInfo(`stats sync querying retention ${JSON.stringify({ queries: retentionQueries.length })}`)
     const retentionRows = retentionRowsFromAggregates(
-      yield* Effect.forEach(retentionQueries, (item) => r2Sql.query(item.query), { concurrency: 4 }).pipe(
-        Effect.map((batches) => batches.flatMap((batch) => batch.flatMap(toRetentionAggregate))),
-      ),
+      yield* Effect.forEach(
+        retentionQueries,
+        (item) =>
+          r2Sql.query(item.query).pipe(
+            Effect.tap((rows) =>
+              Effect.logInfo(
+                `retention query complete ${JSON.stringify({ cohortDates: item.cohortDates, rows: rows.length })}`,
+              ),
+            ),
+            Effect.tapError((error) =>
+              Effect.logError(
+                `retention query failed ${JSON.stringify({ cohortDates: item.cohortDates, error: error.message })}`,
+              ),
+            ),
+          ),
+        { concurrency: 4 },
+      ).pipe(Effect.map((batches) => batches.flatMap((batch) => batch.flatMap(toRetentionAggregate)))),
     )
 
+    yield* Effect.logInfo(
+      `stats sync writing aggregates ${JSON.stringify({ modelRows: modelRows.length, providerRows: providerRows.length, geoRows: geoRows.length, retentionRows: retentionRows.length })}`,
+    )
     yield* Effect.all(
       [
         modelStats.upsert(modelRows),

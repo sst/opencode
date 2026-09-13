@@ -51,7 +51,7 @@ export function DialogConsoleOrg() {
     if (listed === undefined) {
       return [
         {
-          title: "Loading orgs...",
+          title: "Loading orgs…",
           value: "loading",
           onSelect: () => {},
         },

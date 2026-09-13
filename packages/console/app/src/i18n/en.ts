@@ -1,4 +1,6 @@
 export const dict = {
+  "go.promo.deepseek": "DeepSeek V4.1 Flash gets 4× usage limits for a limited time",
+  "go.graph.bonus": "{{count}}× usage",
   "nav.github": "GitHub",
   "nav.docs": "Docs",
   "nav.data": "Data",
@@ -225,6 +227,9 @@ export const dict = {
   "zen.faq.q8": "Can I use Zen with other coding agents?",
   "zen.faq.a8":
     "While Zen works great with OpenCode, you can use Zen with any agent. Follow the setup instructions in your preferred coding agent.",
+  "zen.faq.q9": "Can I get a refund?",
+  "zen.faq.a9":
+    "You may qualify for a refund if the charge was made within the last 14 days and you have not used the credits from that purchase. {{contact}} to request a refund.",
 
   "zen.cta.start": "Get started with Zen",
   "zen.pricing.title": "Add $20 Pay as you go balance",
@@ -253,7 +258,6 @@ export const dict = {
   "zen.privacy.exceptionsLink": "following exceptions",
 
   "go.title": "OpenCode Go | Low cost coding models for everyone",
-  "go.banner.text": "GLM-5.3-Flash gets 2× usage limits for a limited time",
   "go.meta.description": "Go costs $10/month, with generous usage limits and reliable access to leading coding models.",
   "go.hero.title": "Low cost coding models for everyone",
   "go.hero.body":
@@ -268,6 +272,14 @@ export const dict = {
   "go.graph.freePill": "Big Pickle and free models",
   "go.graph.go": "Go",
   "go.graph.label": "Requests / 5 hours",
+  "go.graph.period": "Usage",
+  "go.graph.model": "Model",
+  "go.graph.requests": "Est. requests / 5 hr",
+  "go.graph.allowance": "Monthly usage",
+  "go.graph.new": "New",
+  "go.graph.scale": "Nonlinear request scale",
+  "go.graph.showAll": "View all {{count}} models",
+  "go.graph.showLess": "Show fewer models",
   "go.graph.limitedRegions": "limited regions",
   "go.graph.limitedTime": "limited time",
   "go.graph.tick": "{{n}}x",
@@ -352,7 +364,7 @@ export const dict = {
   "go.faq.a5.museRetention":
     "Heavily discounted token pricing in exchange for permission to use your prompts and completions to train future Meta models.",
   "go.faq.a5.deepseekRetention":
-    "ZDR agreement is renewed monthly. The current agreement is valid through August 31, 2026.",
+    "ZDR agreement is renewed monthly. The current agreement is valid through September 30, 2026.",
   "go.faq.a5.learnMore": "Learn more",
 
   "go.faq.a5.beforeExceptions":
@@ -367,7 +379,10 @@ export const dict = {
 
   "go.faq.q9": "What is the difference between free models and Go?",
   "go.faq.a9":
-    "Free models include Big Pickle plus promotional models available at the time, with a quota of 200 requests/day. Go offers a curated model lineup with higher request quotas enforced across rolling windows (5-hour, weekly, and monthly), roughly equivalent to $12 per 5 hours, $30 per week, and $60 per month (actual request counts vary by model and usage).",
+    "Free models include Big Pickle plus promotional models available at the time, with a quota of 200 requests/day. Go offers a curated model lineup with higher request quotas enforced across rolling windows (5-hour, weekly, and monthly), roughly equivalent to base allowances of $12 per 5 hours, $30 per week, and $60 per month; model-specific allowances may differ (actual request counts vary by model and usage).",
+  "go.faq.q10": "Can I get a refund?",
+  "go.faq.a10":
+    "You may qualify for a refund if the charge was made within the last 14 days and you have not used your Go allowance during that billing period. {{contact}} to request a refund.",
 
   "zen.api.error.rateLimitExceeded": "Rate limit exceeded. Please try again later.",
   "zen.api.error.modelNotSupported": "Model {{model}} is not supported",

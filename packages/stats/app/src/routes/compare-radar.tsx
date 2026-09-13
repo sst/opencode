@@ -9,7 +9,7 @@ const toolUseBenchmarkPattern = /(terminal bench|claw eval|tau ?(?:bench|2|3))/
 
 export type ComparisonRadarModel = {
   name: string
-  labName: string
+  labName?: string
   catalog: ModelCatalogEntry | null
 }
 
@@ -61,7 +61,7 @@ export function ComparisonRadar(props: ComparisonRadarProps) {
               <i style={{ background: model.color }} aria-hidden="true" />
               <span>
                 <strong>{model.name}</strong>
-                <small>{model.labName}</small>
+                <Show when={model.labName}>{(name) => <small>{name()}</small>}</Show>
               </span>
             </li>
           )}

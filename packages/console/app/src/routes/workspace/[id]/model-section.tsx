@@ -88,7 +88,7 @@ const updateModel = action(async (form: FormData) => {
   if (!workspaceID) return { error: formError.workspaceRequired }
   const enabled = (form.get("enabled") as string | null) === "true"
   return json(
-    withActor(async () => {
+    await withActor(async () => {
       if (enabled) {
         await Model.disable({ model })
       } else {

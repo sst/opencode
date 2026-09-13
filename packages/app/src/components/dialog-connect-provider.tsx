@@ -33,6 +33,7 @@ import { ExternalLink } from "@/components/external-link"
 import { useServerSDK } from "@/context/server-sdk"
 import { useServerSync } from "@/context/server-sync"
 import { useLanguage } from "@/context/language"
+import { usePlatform } from "@/context/platform"
 import { useSettings } from "@/context/settings"
 import { popularProviders, useProviders } from "@/hooks/use-providers"
 import { CustomProviderForm } from "./dialog-custom-provider"
@@ -386,6 +387,7 @@ function ProviderConnection(props: {
   const serverSDK = useServerSDK()
   const params = useParams()
   const language = useLanguage()
+  const platform = usePlatform()
   const settings = useSettings()
   const newLayout = settings.general.newLayoutDesigns
   const providers = useProviders(() => props.directory?.())
@@ -560,6 +562,11 @@ function ProviderConnection(props: {
         })
         .then((x) => {
           if (!alive.value) return
+          if (props.provider === "opencode" && platform.platform === "desktop") {
+            const url = new URL(x.data.url)
+            url.searchParams.set("client_id", "opencode-desktop")
+            x.data.url = url.href
+          }
           dispatch({ type: "auth.complete", authorization: x.data })
         })
         .catch((e) => {

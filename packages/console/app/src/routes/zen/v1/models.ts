@@ -5,14 +5,20 @@ import { KeyTable } from "@opencode-ai/console-core/schema/key.sql.js"
 import { WorkspaceTable } from "@opencode-ai/console-core/schema/workspace.sql.js"
 import { ModelTable } from "@opencode-ai/console-core/schema/model.sql.js"
 import { buildOptionsResponse, buildModelsResponse } from "~/routes/zen/util/modelsHandler"
+import { inferenceUnavailable, proxyInference } from "~/lib/inference-proxy"
 
 export async function OPTIONS(_input: APIEvent) {
   return buildOptionsResponse()
 }
 
 export async function GET(input: APIEvent) {
+  const apiKey = input.request.headers.get("authorization")?.split(" ")[1]
+  if (apiKey && apiKey !== "public") {
+    const response = await proxyInference(input.request).catch(inferenceUnavailable)
+    if (response) return response
+  }
+
   const disabledModels = await (() => {
-    const apiKey = input.request.headers.get("authorization")?.split(" ")[1]
     if (!apiKey) return [] as string[]
 
     return Database.use((tx) =>

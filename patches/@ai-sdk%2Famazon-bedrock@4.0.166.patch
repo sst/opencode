@@ -1,0 +1,164 @@
+diff --git a/dist/index.d.mts b/dist/index.d.mts
+index d194ae227fd1223ba44c8c5157b1bb72b1bab273..db7fdb1b6f4e617baa40539ccef718735d2e9e81 100644
+--- a/dist/index.d.mts
++++ b/dist/index.d.mts
+@@ -51,6 +51,7 @@ declare const amazonBedrockLanguageModelOptions: z.ZodObject<{
+         type: z.ZodOptional<z.ZodUnion<readonly [z.ZodLiteral<"enabled">, z.ZodLiteral<"disabled">, z.ZodLiteral<"adaptive">]>>;
+         budgetTokens: z.ZodOptional<z.ZodNumber>;
+         maxReasoningEffort: z.ZodOptional<z.ZodEnum<{
++            none: "none";
+             low: "low";
+             medium: "medium";
+             high: "high";
+@@ -61,6 +62,12 @@ declare const amazonBedrockLanguageModelOptions: z.ZodObject<{
+             omitted: "omitted";
+             summarized: "summarized";
+         }>>;
++        blockBinding: z.ZodOptional<z.ZodObject<{
++            prefixMismatchBehavior: z.ZodEnum<{
++                error: "error";
++                drop_block: "drop_block";
++            }>;
++        }, z.core.$strip>>;
+     }, z.core.$strip>>;
+     anthropicBeta: z.ZodOptional<z.ZodArray<z.ZodString>>;
+     serviceTier: z.ZodOptional<z.ZodEnum<{
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index d194ae227fd1223ba44c8c5157b1bb72b1bab273..db7fdb1b6f4e617baa40539ccef718735d2e9e81 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -51,6 +51,7 @@ declare const amazonBedrockLanguageModelOptions: z.ZodObject<{
+         type: z.ZodOptional<z.ZodUnion<readonly [z.ZodLiteral<"enabled">, z.ZodLiteral<"disabled">, z.ZodLiteral<"adaptive">]>>;
+         budgetTokens: z.ZodOptional<z.ZodNumber>;
+         maxReasoningEffort: z.ZodOptional<z.ZodEnum<{
++            none: "none";
+             low: "low";
+             medium: "medium";
+             high: "high";
+@@ -61,6 +62,12 @@ declare const amazonBedrockLanguageModelOptions: z.ZodObject<{
+             omitted: "omitted";
+             summarized: "summarized";
+         }>>;
++        blockBinding: z.ZodOptional<z.ZodObject<{
++            prefixMismatchBehavior: z.ZodEnum<{
++                error: "error";
++                drop_block: "drop_block";
++            }>;
++        }, z.core.$strip>>;
+     }, z.core.$strip>>;
+     anthropicBeta: z.ZodOptional<z.ZodArray<z.ZodString>>;
+     serviceTier: z.ZodOptional<z.ZodEnum<{
+diff --git a/dist/index.js b/dist/index.js
+index 2047c91971c23f72dd3cd0c069614f37a30e45f3..ede62d091e3d17fd6130e77a6a209ee0af2a7c20 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -94,8 +94,11 @@ var amazonBedrockLanguageModelOptions = import_v4.z.object({
+       import_v4.z.literal("adaptive")
+     ]).optional(),
+     budgetTokens: import_v4.z.number().optional(),
+-    maxReasoningEffort: import_v4.z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
+-    display: import_v4.z.enum(["omitted", "summarized"]).optional()
++    maxReasoningEffort: import_v4.z.enum(["none", "low", "medium", "high", "xhigh", "max"]).optional(),
++    display: import_v4.z.enum(["omitted", "summarized"]).optional(),
++    blockBinding: import_v4.z.object({
++      prefixMismatchBehavior: import_v4.z.enum(["error", "drop_block"])
++    }).optional()
+   }).optional(),
+   /**
+    * Anthropic beta features to enable
+@@ -1020,6 +1023,10 @@ var BedrockChatLanguageModel = class {
+         ...additionalTools
+       };
+     }
++    const thinkingBlockBinding = isAnthropicModel && isThinkingEnabled ? (bedrockOptions.reasoningConfig == null ? void 0 : bedrockOptions.reasoningConfig.blockBinding) : void 0;
++    if (thinkingBlockBinding != null) {
++      betas.add("thinking-binding-controls-2026-08-01");
++    }
+     if (betas.size > 0 || bedrockOptions.anthropicBeta) {
+       const existingBetas = (_g = bedrockOptions.anthropicBeta) != null ? _g : [];
+       const mergedBetas = betas.size > 0 ? [...existingBetas, ...Array.from(betas)] : existingBetas;
+@@ -1050,7 +1057,12 @@ var BedrockChatLanguageModel = class {
+           ...bedrockOptions.additionalModelRequestFields,
+           thinking: {
+             type: "enabled",
+-            budget_tokens: thinkingBudget
++            budget_tokens: thinkingBudget,
++            ...thinkingBlockBinding != null && {
++              block_binding: {
++                prefix_mismatch_behavior: thinkingBlockBinding.prefixMismatchBehavior
++              }
++            }
+           }
+         };
+       } else if (thinkingType === "adaptive") {
+@@ -1058,7 +1070,12 @@ var BedrockChatLanguageModel = class {
+           ...bedrockOptions.additionalModelRequestFields,
+           thinking: {
+             type: "adaptive",
+-            ...thinkingDisplay != null && { display: thinkingDisplay }
++            ...thinkingDisplay != null && { display: thinkingDisplay },
++            ...thinkingBlockBinding != null && {
++              block_binding: {
++                prefix_mismatch_behavior: thinkingBlockBinding.prefixMismatchBehavior
++              }
++            }
+           }
+         };
+       }
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 5a669504cb3b21f20788956bc9c22529c1498c35..bcbcd768759a4e412657795d6db75e21d4e64c09 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -83,8 +83,11 @@ var amazonBedrockLanguageModelOptions = z.object({
+       z.literal("adaptive")
+     ]).optional(),
+     budgetTokens: z.number().optional(),
+-    maxReasoningEffort: z.enum(["low", "medium", "high", "xhigh", "max"]).optional(),
+-    display: z.enum(["omitted", "summarized"]).optional()
++    maxReasoningEffort: z.enum(["none", "low", "medium", "high", "xhigh", "max"]).optional(),
++    display: z.enum(["omitted", "summarized"]).optional(),
++    blockBinding: z.object({
++      prefixMismatchBehavior: z.enum(["error", "drop_block"])
++    }).optional()
+   }).optional(),
+   /**
+    * Anthropic beta features to enable
+@@ -1024,6 +1027,10 @@ var BedrockChatLanguageModel = class {
+         ...additionalTools
+       };
+     }
++    const thinkingBlockBinding = isAnthropicModel && isThinkingEnabled ? (bedrockOptions.reasoningConfig == null ? void 0 : bedrockOptions.reasoningConfig.blockBinding) : void 0;
++    if (thinkingBlockBinding != null) {
++      betas.add("thinking-binding-controls-2026-08-01");
++    }
+     if (betas.size > 0 || bedrockOptions.anthropicBeta) {
+       const existingBetas = (_g = bedrockOptions.anthropicBeta) != null ? _g : [];
+       const mergedBetas = betas.size > 0 ? [...existingBetas, ...Array.from(betas)] : existingBetas;
+@@ -1054,7 +1061,12 @@ var BedrockChatLanguageModel = class {
+           ...bedrockOptions.additionalModelRequestFields,
+           thinking: {
+             type: "enabled",
+-            budget_tokens: thinkingBudget
++            budget_tokens: thinkingBudget,
++            ...thinkingBlockBinding != null && {
++              block_binding: {
++                prefix_mismatch_behavior: thinkingBlockBinding.prefixMismatchBehavior
++              }
++            }
+           }
+         };
+       } else if (thinkingType === "adaptive") {
+@@ -1062,7 +1074,12 @@ var BedrockChatLanguageModel = class {
+           ...bedrockOptions.additionalModelRequestFields,
+           thinking: {
+             type: "adaptive",
+-            ...thinkingDisplay != null && { display: thinkingDisplay }
++            ...thinkingDisplay != null && { display: thinkingDisplay },
++            ...thinkingBlockBinding != null && {
++              block_binding: {
++                prefix_mismatch_behavior: thinkingBlockBinding.prefixMismatchBehavior
++              }
++            }
+           }
+         };
+       }

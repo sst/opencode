@@ -3,6 +3,8 @@ import { dict as en } from "./en"
 
 export const dict = {
   ...en,
+  "go.promo.deepseek": "DeepSeek V4.1 Flash tiene límites de uso 4x mayores por tiempo limitado",
+  "go.graph.bonus": "{{count}}× de uso",
   "nav.github": "GitHub",
   "nav.docs": "Documentación",
   "nav.changelog": "Registro de cambios",
@@ -58,6 +60,7 @@ export const dict = {
   "common.cancel": "Cancelar",
   "common.creating": "Creando...",
   "common.create": "Crear",
+  "common.contactUs": "Contáctanos",
 
   "common.videoUnsupported": "Tu navegador no soporta la etiqueta de video.",
   "common.figure": "Fig {{n}}.",
@@ -229,6 +232,9 @@ export const dict = {
   "zen.faq.q8": "¿Puedo usar Zen con otros agentes de codificación?",
   "zen.faq.a8":
     "Aunque Zen funciona genial con OpenCode, puedes usar Zen con cualquier agente. Sigue las instrucciones de configuración en tu agente de codificación preferido.",
+  "zen.faq.q9": "¿Puedo obtener un reembolso?",
+  "zen.faq.a9":
+    "Podrías tener derecho a un reembolso si el cargo se realizó en los últimos 14 días y no has utilizado el crédito de esa compra. {{contact}} para solicitar un reembolso.",
 
   "zen.cta.start": "Empieza con Zen",
   "zen.pricing.title": "Añade $20 de saldo prepago",
@@ -257,7 +263,6 @@ export const dict = {
   "zen.privacy.exceptionsLink": "siguientes excepciones",
 
   "go.title": "OpenCode Go | Modelos de programación de bajo coste para todos",
-  "go.banner.text": "GLM-5.3-Flash tiene límites de uso 2x mayores por tiempo limitado",
   "go.meta.description":
     "Go cuesta 10 $/mes, con límites de uso generosos y acceso fiable a modelos de programación líderes.",
   "go.hero.title": "Modelos de programación de bajo coste para todos",
@@ -274,6 +279,14 @@ export const dict = {
   "go.graph.freePill": "Big Pickle y modelos gratuitos",
   "go.graph.go": "Go",
   "go.graph.label": "Solicitudes por 5 horas",
+  "go.graph.period": "Uso",
+  "go.graph.model": "Modelo",
+  "go.graph.requests": "Peticiones estimadas / 5 h",
+  "go.graph.allowance": "Uso mensual",
+  "go.graph.new": "Nuevo",
+  "go.graph.scale": "Escala no lineal de peticiones",
+  "go.graph.showAll": "Ver los {{count}} modelos",
+  "go.graph.showLess": "Mostrar menos modelos",
   "go.graph.limitedRegions": "regiones limitadas",
   "go.graph.limitedTime": "tiempo limitado",
   "go.graph.usageLimits": "Límites de uso",
@@ -359,7 +372,7 @@ export const dict = {
     "Precios de tokens muy reducidos a cambio de permitir que tus prompts y las respuestas generadas se utilicen para entrenar futuros modelos de Meta.",
   "go.faq.a5.learnMore": "Más información",
   "go.faq.a5.deepseekRetention":
-    "El acuerdo de ZDR se renueva mensualmente. El acuerdo actual es válido hasta el 31 de agosto de 2026.",
+    "El acuerdo de ZDR se renueva mensualmente. El acuerdo actual es válido hasta el 30 de septiembre de 2026.",
   "go.faq.a5.beforeExceptions":
     "Los modelos de Go están alojados en EE. UU. Los proveedores siguen una política de retención cero y no utilizan tus datos para el entrenamiento de modelos, con las",
   "go.faq.a5.exceptionsLink": "siguientes excepciones",
@@ -373,7 +386,10 @@ export const dict = {
 
   "go.faq.q9": "¿Cuál es la diferencia entre los modelos gratuitos y Go?",
   "go.faq.a9":
-    "Los modelos gratuitos incluyen Big Pickle y los modelos promocionales disponibles en ese momento, con una cuota de 200 solicitudes/día. Go ofrece una selección de modelos con cuotas de solicitudes más altas aplicadas en ventanas móviles (de 5 horas, semanales y mensuales), aproximadamente equivalentes a 12 $ por 5 horas, 30 $ por semana y 60 $ por mes (la cantidad real de solicitudes varía según el modelo y el uso).",
+    "Los modelos gratuitos incluyen Big Pickle y los modelos promocionales disponibles en ese momento, con una cuota de 200 solicitudes/día. Go ofrece una selección de modelos con cuotas de solicitudes más altas aplicadas en ventanas móviles (de 5 horas, semanales y mensuales), aproximadamente equivalentes a cuotas base de 12 $ por 5 horas, 30 $ por semana y 60 $ por mes; las cuotas específicas pueden variar según el modelo (la cantidad real de solicitudes varía según el modelo y el uso).",
+  "go.faq.q10": "¿Puedo obtener un reembolso?",
+  "go.faq.a10":
+    "Podrías tener derecho a un reembolso si el cargo se realizó en los últimos 14 días y no has utilizado tu cuota de Go durante ese periodo de facturación. {{contact}} para solicitar un reembolso.",
 
   "zen.api.error.rateLimitExceeded": "Límite de tasa excedido. Por favor, inténtalo de nuevo más tarde.",
   "zen.api.error.modelNotSupported": "Modelo {{model}} no soportado",

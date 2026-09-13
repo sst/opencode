@@ -17,7 +17,13 @@ import { LocaleLinks } from "../../component/locale-links"
 import { useI18n } from "../../context/i18n"
 import { useLanguage } from "../../context/language"
 import { localizedUrl } from "../../lib/language"
-import { findModelCatalogEntry, formatCatalogLabName, loadModelCatalog, type ModelCatalogEntry } from "../model-catalog"
+import {
+  findModelCatalogEntry,
+  formatCatalogLabName,
+  isKnownCatalogLab,
+  loadModelCatalog,
+  type ModelCatalogEntry,
+} from "../model-catalog"
 import { SectionHeading } from "../section-heading"
 import { runStatsEffect } from "../../stats-runtime"
 import { setStatsPageCacheHeaders } from "../stats-cache"
@@ -52,7 +58,7 @@ type ModelPageCatalog = {
   labs: { id: string; name: string }[]
   labModels: ModelCatalogOption[]
 }
-type StatsModelPageData = Omit<StatsModelData, "country"> & { country: CountryEntry[] }
+type StatsModelPageData = StatsModelData
 type ModelPageData = { catalog: ModelPageCatalog; stats: StatsModelPageData | null }
 
 const countryNumericIds = new Map(
@@ -75,7 +81,7 @@ const getModelPageData = query(async (labParam: string, modelParam: string) => {
           .find((item) => item.id === (entry?.lab ?? providerSlug(labParam)))
           ?.models.map((item) => ({ id: item.id, lab: item.lab, slug: item.slug, name: item.name })) ?? [],
     },
-    stats: stats ? { ...stats, country: stats.country["2M"] } : null,
+    stats,
   } satisfies ModelPageData
 }, "getStatsModelPageData")
 
@@ -96,7 +102,9 @@ export default function StatsModel() {
   const modelName = createMemo(
     () => catalogEntry()?.name ?? publicModelName(canonicalModel()) ?? i18n.t("model.fallback"),
   )
-  const labName = createMemo(() => formatCatalogLabName(catalogEntry()?.lab ?? stats()?.provider ?? labParam()))
+  const lab = createMemo(() => catalogEntry()?.lab ?? stats()?.provider ?? labParam())
+  const catalogLabs = createMemo(() => page()?.catalog.labs.map((item) => item.id) ?? [])
+  const labName = createMemo(() => (isKnownCatalogLab(lab(), catalogLabs()) ? formatCatalogLabName(lab()) : undefined))
   const formerName = createMemo(() => formerModelName(canonicalModel()))
   const searchModelName = createMemo(() => (formerName() ? `${modelName()} (formerly ${formerName()})` : modelName()))
   const modelTitle = createMemo(() => i18n.t("model.title", { model: searchModelName() }))
@@ -185,9 +193,14 @@ export default function StatsModel() {
                 <ModelUniqueUsersSection data={stats() ?? null} />
                 <ModelEfficiencySection data={stats() ?? null} catalog={catalogEntry() ?? null} />
                 <ModelGeoBreakdownSection data={stats()?.country ?? []} />
-                <ModelPeersSection data={stats() ?? null} />
+                <ModelPeersSection data={stats() ?? null} catalogLabs={catalogLabs()} />
                 <ComparisonCardsSection
-                  pairs={modelComparisonPairs(page()?.catalog.labModels, catalogEntry() ?? null, stats() ?? null)}
+                  pairs={modelComparisonPairs(
+                    page()?.catalog.labModels,
+                    catalogLabs(),
+                    catalogEntry() ?? null,
+                    stats() ?? null,
+                  )}
                   title="Compare This Model"
                   description="Other models to compare with this one."
                   variant="featured"
@@ -265,12 +278,13 @@ function ModelHero(props: {
   data: StatsModelPageData | null
   catalog: ModelCatalogEntry | null
   catalogData: ModelPageCatalog | null
-  labName: string
+  labName?: string
   formerName?: string
 }) {
   const i18n = useI18n()
   const language = useLanguage()
-  const labId = () => props.catalog?.lab ?? props.data?.provider ?? props.labName
+  const labId = () => props.catalog?.lab ?? props.data?.provider
+  const hasLab = () => props.labName !== undefined
   const modelName = () => props.catalog?.name ?? props.data?.model ?? i18n.t("model.fallback")
   const weights = () => props.catalog?.weights[0]
   const labs = () => props.catalogData?.labs ?? []
@@ -281,35 +295,28 @@ function ModelHero(props: {
         <a data-slot="model-hero-crumb" href={language.route(import.meta.env.BASE_URL)}>
           Data
         </a>
-        <span data-slot="model-hero-separator">/</span>
-        <Show
-          when={labs().length > 0}
-          fallback={
-            <span data-slot="model-hero-crumb" data-menu="true">
-              <span>{props.labName}</span>
-              <ChevronDownIcon />
-            </span>
-          }
-        >
-          <BreadcrumbSelect
-            ariaLabel="Choose a lab"
-            label={props.labName}
-            options={labs().map((lab) => ({
-              href: language.route(`${import.meta.env.BASE_URL}${lab.id}`),
-              label: lab.name,
-              value: lab.id,
-            }))}
-            value={providerSlug(labId())}
-            variant="model"
-          />
+        <Show when={hasLab()}>
+          <span data-slot="model-hero-separator">/</span>
+          <Show when={labs().length > 0} fallback={<span data-slot="model-hero-crumb">{props.labName}</span>}>
+            <BreadcrumbSelect
+              ariaLabel="Choose a lab"
+              label={props.labName ?? ""}
+              options={labs().map((lab) => ({
+                href: language.route(`${import.meta.env.BASE_URL}${lab.id}`),
+                label: lab.name,
+                value: lab.id,
+              }))}
+              value={providerSlug(labId() ?? "")}
+              variant="model"
+            />
+          </Show>
         </Show>
         <span data-slot="model-hero-separator">/</span>
         <Show
           when={labModels().length > 0}
           fallback={
-            <span data-slot="model-hero-crumb" data-menu="true" data-current="true" aria-current="page">
-              <span>{modelName()}</span>
-              <ChevronDownIcon />
+            <span data-slot="model-hero-crumb" data-current="true" aria-current="page">
+              {modelName()}
             </span>
           }
         >
@@ -328,9 +335,11 @@ function ModelHero(props: {
         </Show>
       </nav>
       <div data-slot="model-hero-title-row">
-        <span data-slot="model-hero-avatar">
-          <ProviderIcon aria-hidden="true" id={getProviderIconId(labId())} />
-        </span>
+        <Show when={hasLab()}>
+          <span data-slot="model-hero-avatar">
+            <ProviderIcon aria-hidden="true" id={getProviderIconId(labId() ?? "")} />
+          </span>
+        </Show>
         <h1>{modelName()}</h1>
         <div data-slot="model-hero-actions">
           <Show when={props.catalog?.openWeights && weights()}>
@@ -980,7 +989,7 @@ function GeoCountryList(props: {
   )
 }
 
-function ModelPeersSection(props: { data: StatsModelPageData | null }) {
+function ModelPeersSection(props: { data: StatsModelPageData | null; catalogLabs: readonly string[] }) {
   const i18n = useI18n()
   return (
     <section id="peers" data-section="model-panel">
@@ -993,7 +1002,9 @@ function ModelPeersSection(props: { data: StatsModelPageData | null }) {
       >
         <ol data-component="model-peer-list">
           <For each={props.data?.peers ?? []}>
-            {(peer) => <PeerRow peer={peer} active={peer.model === props.data?.model} />}
+            {(peer) => (
+              <PeerRow peer={peer} active={peer.model === props.data?.model} catalogLabs={props.catalogLabs} />
+            )}
           </For>
         </ol>
       </Show>
@@ -1011,23 +1022,29 @@ function MetricCard(props: { label: string; value: string; detail?: string; stat
   )
 }
 
-function PeerRow(props: { peer: ModelPeerEntry; active: boolean }) {
+function PeerRow(props: { peer: ModelPeerEntry; active: boolean; catalogLabs: readonly string[] }) {
   const language = useLanguage()
+  const hasProvider = () => isKnownCatalogLab(props.peer.provider, props.catalogLabs)
   return (
     <li>
       <a
         href={language.route(`${import.meta.env.BASE_URL}${providerSlug(props.peer.provider)}/${props.peer.slug}`)}
         data-active={props.active ? "true" : undefined}
+        data-providerless={!hasProvider() ? "true" : undefined}
       >
         <span data-slot="model-peer-rank" aria-label={props.active ? `Rank ${props.peer.rank}` : undefined}>
           <Show when={!props.active}>{String(props.peer.rank).padStart(2, "0")}</Show>
         </span>
-        <span data-slot="model-peer-avatar">
-          <ProviderIcon aria-hidden="true" id={getProviderIconId(props.peer.author)} />
-        </span>
+        <Show when={hasProvider()}>
+          <span data-slot="model-peer-avatar">
+            <ProviderIcon aria-hidden="true" id={getProviderIconId(props.peer.author)} />
+          </span>
+        </Show>
         <span data-slot="model-peer-copy">
           <strong>{props.peer.model}</strong>
-          <em>{props.peer.author}</em>
+          <Show when={hasProvider()}>
+            <em>{props.peer.author}</em>
+          </Show>
         </span>
         <b>{formatTokens(props.peer.tokens)}</b>
       </a>
@@ -1050,6 +1067,7 @@ function ModelEmptyState(props: { title: string; description: string; compact?: 
 
 function modelComparisonPairs(
   catalogModels: ModelCatalogOption[] | undefined,
+  catalogLabs: readonly string[],
   catalogEntry: ModelCatalogEntry | null,
   data: StatsModelPageData | null,
 ) {
@@ -1064,7 +1082,7 @@ function modelComparisonPairs(
         name: peer.model,
         lab: peer.provider,
         slug: peer.slug,
-        labName: peer.author,
+        labName: isKnownCatalogLab(peer.provider, catalogLabs) ? peer.author : undefined,
         metric: `#${peer.rank} / ${formatTokens(peer.tokens)}`,
       },
       detail: "Usage peer",
@@ -1090,7 +1108,7 @@ function modelComparisonRef(
     name: data.model,
     lab: data.provider,
     slug: data.slug,
-    labName: data.author,
+    labName: undefined,
     metric: `#${data.rank}`,
   }
 }

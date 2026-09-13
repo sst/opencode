@@ -1,11 +1,7 @@
-import { readFile } from "node:fs/promises"
-import { homedir } from "node:os"
-import { join } from "node:path"
 import { InstallationVersion } from "@opencode-ai/core/installation/version"
 import { which } from "@opencode-ai/core/util/which"
 import type { Hooks } from "@opencode-ai/plugin"
-import type { Provider } from "@opencode-ai/sdk/v2"
-import { Effect, Schema } from "effect"
+import { Schema } from "effect"
 import { OAUTH_DUMMY_KEY } from "../auth"
 import { Process } from "../util/process"
 
@@ -19,59 +15,17 @@ const AzureCliToken = Schema.Struct({
   expiresOn: Schema.optional(Schema.NonEmptyString),
 })
 const decodeAzureCliToken = Schema.decodeUnknownPromise(AzureCliToken)
-const decodeAzureProfile = Schema.decodeUnknownPromise(
-  Schema.fromJsonString(Schema.Struct({ subscriptions: Schema.Array(Schema.Unknown) })),
-)
-
-const decodeAzureAccounts = Schema.decodeUnknownPromise(
-  Schema.Array(
-    Schema.Struct({
-      name: Schema.NonEmptyString,
-      resourceGroup: Schema.NonEmptyString,
-    }),
-  ),
-)
-
-const decodeAzureDeployments = Schema.decodeUnknownPromise(
-  Schema.Array(
-    Schema.Struct({
-      name: Schema.NonEmptyString,
-      properties: Schema.Struct({
-        model: Schema.Struct({
-          name: Schema.NonEmptyString,
-        }),
-        provisioningState: Schema.NonEmptyString,
-      }),
-    }),
-  ),
-)
-
 type AzureCommand = (args: string[]) => Promise<unknown>
-type AzureAccount = { readonly name: string; readonly resourceGroup: string }
 
 export async function AzureAuthPlugin(): Promise<Hooks> {
   const available = Boolean(which("az"))
-  // Avoid launching Azure CLI on unrelated commands just because the executable is installed.
-  const signedIn = available
-    ? await readFile(join(process.env.AZURE_CONFIG_DIR ?? join(homedir(), ".azure"), "azureProfile.json"), "utf8")
-        .then((text) => decodeAzureProfile(text.replace(/^\uFEFF/, "")))
-        .then((profile) => profile.subscriptions.length > 0)
-        .catch(() => false)
-    : false
-  const accounts =
-    !process.env.AZURE_RESOURCE_NAME && !process.env.AZURE_RESOURCE_GROUP && signedIn
-      ? await runAzure(["cognitiveservices", "account", "list", "--output", "json", "--only-show-errors"])
-          .then(decodeAzureAccounts)
-          .catch(() => [])
-      : []
-  return createAzureAuthHooks(runAzure, fetch, accounts, available)
+  return createAzureAuthHooks(runAzure, fetch, available)
 }
 
 export function createAzureAuthHooks(
   run: AzureCommand,
-  request: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response> = fetch,
-  accounts: readonly AzureAccount[] = [],
-  available = true,
+  request: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
+  available: boolean,
 ): Hooks {
   const tokens = new Map<string, { token: string; expires: number }>()
   async function token(scope: string) {
@@ -97,50 +51,7 @@ export function createAzureAuthHooks(
       placeholder: "e.g. my-models",
     })
   }
-  const oauthPrompts =
-    accounts.length > 0 && !process.env.AZURE_RESOURCE_NAME
-      ? [
-          {
-            type: "select" as const,
-            key: "resourceSelection",
-            message: "Select Azure resource",
-            options: [
-              ...accounts.map((account) => ({
-                label: account.name,
-                value: account.name,
-                hint: account.resourceGroup,
-              })),
-              { label: "Enter another resource name", value: "__manual__" },
-            ],
-          },
-          {
-            type: "text" as const,
-            key: "resourceName",
-            message: "Enter Azure Resource Name",
-            placeholder: "e.g. my-models",
-            when: { key: "resourceSelection", op: "eq" as const, value: "__manual__" },
-          },
-        ]
-      : prompts
-
   const hooks: Hooks = {
-    provider: {
-      id: "azure",
-      async models(provider, context) {
-        if (context.auth?.type !== "oauth") return provider.models
-        const resource = context.auth.accountId
-        if (!resource) return {}
-        return discoverAzureModels(provider.models, resource, run).catch((error: unknown) => {
-          Effect.runSync(
-            Effect.logWarning("Azure model discovery failed", {
-              resource,
-              error: error instanceof Error ? error.message : String(error),
-            }),
-          )
-          return provider.models
-        })
-      },
-    },
     auth: {
       provider: "azure",
       async loader(getAuth) {
@@ -168,17 +79,14 @@ export function createAzureAuthHooks(
         {
           type: "oauth",
           label: "Microsoft Entra ID (Azure CLI)",
-          prompts: oauthPrompts,
+          prompts,
           async authorize(inputs) {
             return {
               url: "",
               instructions: "Sign in with `az login` before continuing.",
               method: "auto",
               callback: async () => {
-                const resourceName =
-                  inputs?.resourceName ??
-                  (inputs?.resourceSelection === "__manual__" ? undefined : inputs?.resourceSelection) ??
-                  process.env.AZURE_RESOURCE_NAME
+                const resourceName = inputs?.resourceName ?? process.env.AZURE_RESOURCE_NAME
                 if (!resourceName) throw new Error("Azure Resource Name is required")
 
                 await token(AZURE_COGNITIVE_SERVICES_SCOPE)
@@ -203,53 +111,6 @@ export function createAzureAuthHooks(
 async function runAzure(args: string[]): Promise<unknown> {
   const result = await Process.run([which("az") ?? "az", ...args])
   return JSON.parse(result.stdout.toString())
-}
-
-async function discoverAzureModels(models: Provider["models"], resourceName: string, run: AzureCommand) {
-  const resourceGroup = process.env.AZURE_RESOURCE_GROUP
-  const account = resourceGroup
-    ? { name: resourceName, resourceGroup }
-    : (
-        await decodeAzureAccounts(
-          await run(["cognitiveservices", "account", "list", "--output", "json", "--only-show-errors"]),
-        )
-      ).find((account) => account.name.toLowerCase() === resourceName.toLowerCase())
-  if (!account) throw new Error(`Azure resource "${resourceName}" was not found in the active subscription`)
-
-  const deployments = await decodeAzureDeployments(
-    await run([
-      "cognitiveservices",
-      "account",
-      "deployment",
-      "list",
-      "--name",
-      account.name,
-      "--resource-group",
-      account.resourceGroup,
-      "--output",
-      "json",
-      "--only-show-errors",
-    ]),
-  )
-  const found = new Map<string, Provider["models"][string]>()
-  deployments.forEach((deployment) => {
-    if (deployment.properties.provisioningState !== "Succeeded") return
-    const modelID = Object.keys(models).find(
-      (modelID) => modelID.toLowerCase() === deployment.properties.model.name.toLowerCase(),
-    )
-    if (!modelID) return
-    const id = found.has(modelID) ? deployment.name : modelID
-    found.set(id, {
-      ...models[modelID],
-      id,
-      name: id === modelID ? models[modelID].name : `${models[modelID].name} (${deployment.name})`,
-      api: {
-        ...models[modelID].api,
-        id: deployment.name,
-      },
-    })
-  })
-  return Object.fromEntries(found)
 }
 
 function scopeForRequest(input: RequestInfo | URL) {

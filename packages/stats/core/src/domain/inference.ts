@@ -8,6 +8,7 @@ import {
   MODEL_AUTHOR_RULES,
   MODEL_NAME_ALIASES,
   RETIRED_STAT_PROVIDERS,
+  STEALTH_MODELS,
   statModel,
   statProvider,
 } from "./model-normalization"
@@ -55,13 +56,12 @@ export function buildRetentionQueries(periodStart: Date, periodEnd: Date, input?
     dataset: Resource.StatsSyncConfig.dataset,
   }
   const periods = retentionPeriods(periodStart, periodEnd)
-  if (periods.length === 0) return []
-  return [
-    {
-      cohortDates: periods.map((period) => period.start.toISOString().slice(0, 10)),
-      query: buildRetentionQuery(periods, source),
-    },
-  ]
+  // Bound the user-level joins to one activity week and its return week.
+  // Combining the entire display window makes full syncs much more expensive.
+  return periods.map((period) => ({
+    cohortDates: [period.start.toISOString().slice(0, 10)],
+    query: buildRetentionQuery([period], source),
+  }))
 }
 
 function buildRetentionQuery(
@@ -483,6 +483,7 @@ function freeTierSql(tier: string, model: string) {
 
 function statProviderSql(model: string, providerModel: string, provider: string) {
   return `CASE
+      WHEN lower(${model}) IN (${[...STEALTH_MODELS].map(sqlString).join(", ")}) THEN 'unknown'
 ${MODEL_AUTHOR_RULES.map((item) => `      WHEN strpos(lower(${providerModel}), ${sqlString(item.match)}) > 0 THEN ${sqlString(item.author)}`).join("\n")}
 ${MODEL_AUTHOR_RULES.map((item) => `      WHEN strpos(lower(${model}), ${sqlString(item.match)}) > 0 THEN ${sqlString(item.author)}`).join("\n")}
       WHEN ${provider} <> '' AND lower(${provider}) NOT IN (${RETIRED_STAT_PROVIDERS.map(sqlString).join(", ")}) THEN ${provider}

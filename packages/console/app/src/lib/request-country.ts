@@ -31,7 +31,12 @@ export function countryFromRequest(request: Request | undefined) {
 
 export function isModelCountryRestricted(model: string, country: string | undefined) {
   return (
-    ["muse-spark-1.2-contributor", "muse-spark-1.2-contributor-free"].includes(model) &&
+    [
+      "muse-spark-1.3-contributor",
+      "muse-spark-1.3-contributor-free",
+      "muse-spark-1.2-contributor",
+      "muse-spark-1.2-contributor-free",
+    ].includes(model) &&
     country !== undefined &&
     MUSE_SPARK_BLOCKED_COUNTRIES.has(country.toUpperCase())
   )

@@ -374,7 +374,7 @@ You can configure the providers and models you want to use in your OpenCode conf
 
 The `small_model` option configures a separate model for lightweight tasks like title generation. By default, OpenCode tries to use a cheaper model if one is available from your provider, otherwise it falls back to your main model.
 
-Provider options can include `timeout`, `chunkTimeout`, and `setCacheKey`:
+Provider options can include `timeout`, `headerTimeout`, `chunkTimeout`, and `setCacheKey`:
 
 ```json title="opencode.json"
 {
@@ -392,7 +392,8 @@ Provider options can include `timeout`, `chunkTimeout`, and `setCacheKey`:
 ```
 
 - `timeout` - Request timeout in milliseconds (default: 300000). Set to `false` to disable.
-- `chunkTimeout` - Timeout in milliseconds between streamed response chunks. If no chunk arrives in time, the request is aborted.
+- `headerTimeout` - Timeout in milliseconds to wait for response headers (default: 300000, or 5 minutes). This timer stops once headers arrive and does not limit the streamed response body. Set to `false` to disable.
+- `chunkTimeout` - Timeout in milliseconds between streamed response chunks (default: 300000, or 5 minutes). If no chunk arrives in time, the request is aborted. Set to `false` to disable.
 - `setCacheKey` - Ensure a cache key is always set for designated provider.
 
 You can also configure [local models](/docs/models#local). [Learn more](/docs/models).

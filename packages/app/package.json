@@ -1,6 +1,6 @@
 {
   "name": "@opencode-ai/app",
-  "version": "1.18.25",
+  "version": "1.18.30",
   "description": "",
   "type": "module",
   "exports": {
@@ -32,7 +32,7 @@
   },
   "license": "MIT",
   "devDependencies": {
-    "@happy-dom/global-registrator": "20.0.11",
+    "@happy-dom/global-registrator": "20.12.0",
     "@playwright/test": "catalog:",
     "@sentry/vite-plugin": "catalog:",
     "@tailwindcss/vite": "catalog:",

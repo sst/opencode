@@ -49,6 +49,8 @@ import { Workspace } from "@opencode-ai/console-core/workspace.js"
 import { countryFromRequest, isModelCountryRestricted } from "~/lib/request-country"
 import { isPeakPricing } from "./pricing"
 import { prepareRequestBody } from "./requestBody"
+import { requiresGoTrainingConsent } from "./trainingConsent"
+import { inferenceUnavailable, proxyInference } from "~/lib/inference-proxy"
 
 type ZenData = Awaited<ReturnType<typeof ZenData.list>>
 type PreparedBody = Awaited<ReturnType<typeof prepareRequestBody>>
@@ -99,6 +101,26 @@ export async function handler(
     const ip = rawIp.includes(":") ? rawIp.split(":").slice(0, 4).join(":") : rawIp
     const rawZenApiKey = opts.parseApiKey(input.request.headers)
     const zenApiKey = rawZenApiKey === "public" ? undefined : rawZenApiKey
+    const zenData = ZenData.list(opts.modelList)
+    if (model) {
+      // Read routing metadata without running legacy model, auth, or balance checks.
+      const configured = zenData.models[model]
+      const entry = Array.isArray(configured)
+        ? configured.find((entry) => entry.formatFilter === opts.format)
+        : configured
+      const response = await proxyInference(input.request, {
+        provider: opts.modelList === "full" ? entry?.byokProvider : undefined,
+        model:
+          opts.modelList === "full"
+            ? entry?.providers.find((provider) => provider.id === entry.byokProvider)?.model
+            : undefined,
+        body: (providerModel) => requestBody?.stream(providerModel ?? model, false) ?? body,
+      }).catch(() => {
+        void (requestBody ? requestBody.cancel() : body.cancel()).catch(() => {})
+        return inferenceUnavailable()
+      })
+      if (response) return response
+    }
     const sessionId = input.request.headers.get("x-opencode-session") ?? ""
     const requestId = input.request.headers.get("x-opencode-request") ?? ""
     const ocClient = input.request.headers.get("x-opencode-client") ?? ""
@@ -111,7 +133,6 @@ export async function handler(
       user_agent: userAgent,
       "model.tier": opts.modelList === "full" ? "zen" : "go",
     })
-    const zenData = ZenData.list(opts.modelList)
     const modelInfo = validateModel(zenData, model)
     const country = countryFromRequest(input.request)
     if (isModelCountryRestricted(modelInfo.id, country)) throw new RegionError(t("zen.api.error.countryNotAllowed"))
@@ -122,12 +143,7 @@ export async function handler(
       : createKeyRateLimiter(modelInfo.id, modelInfo.rateLimit, zenApiKey, input.request)
     await rateLimiter?.check()
     const authInfo = await authenticate(modelInfo, zenApiKey)
-    if (
-      authInfo &&
-      opts.modelList === "lite" &&
-      modelInfo.id === "muse-spark-1.2-contributor" &&
-      !authInfo.allowTraining
-    )
+    if (authInfo && opts.modelList === "lite" && requiresGoTrainingConsent(modelInfo.id) && !authInfo.allowTraining)
       throw new DataPolicyError(
         t("zen.api.error.trainingNotAllowed", {
           consoleGoUrl: `https://opencode.ai/workspace/${authInfo.workspaceID}/go`,
@@ -1007,7 +1023,8 @@ export async function handler(
       modelInfo.costPeak && isPeakPricing(new Date())
         ? modelInfo.costPeak
         : modelInfo.cost200K &&
-            inputTokens + (cacheReadTokens ?? 0) + (cacheWrite5mTokens ?? 0) + (cacheWrite1hTokens ?? 0) > 200_000
+            inputTokens + (cacheReadTokens ?? 0) + (cacheWrite5mTokens ?? 0) + (cacheWrite1hTokens ?? 0) >
+              modelInfo.cost200K.threshold
           ? modelInfo.cost200K
           : modelInfo.cost
 
@@ -1082,6 +1099,8 @@ export async function handler(
     authInfo = authInfo!
 
     const cost = centsToMicroCents(totalCostInCent)
+    // Keep period bounds and persisted timestamps on one snapshot when a queued write crosses a reset boundary.
+    const trackedAt = new Date()
 
     // For hot workspaces, batch balance/usage updates through Redis to avoid
     // row-level lock contention on BillingTable/UserTable. Returns the amount
@@ -1122,7 +1141,7 @@ export async function handler(
           if (billingSource === "subscription") {
             const plan = authInfo.billing.subscription!.plan
             const black = BlackData.getLimits({ plan })
-            const week = getWeekBounds(new Date())
+            const week = getWeekBounds(trackedAt)
             const rollingWindowSeconds = black.rollingWindow * 3600
             return [
               db
@@ -1130,11 +1149,17 @@ export async function handler(
                 .set({
                   fixedUsage: sql`
               CASE
+                WHEN ${SubscriptionTable.timeFixedUpdated} >= ${week.end} THEN ${SubscriptionTable.fixedUsage}
                 WHEN ${SubscriptionTable.timeFixedUpdated} >= ${week.start} THEN ${SubscriptionTable.fixedUsage} + ${cost}
                 ELSE ${cost}
               END
             `,
-                  timeFixedUpdated: sql`now()`,
+                  timeFixedUpdated: sql`
+              CASE
+                WHEN ${SubscriptionTable.timeFixedUpdated} > ${trackedAt} THEN ${SubscriptionTable.timeFixedUpdated}
+                ELSE ${trackedAt}
+              END
+            `,
                   rollingUsage: sql`
               CASE
                 WHEN UNIX_TIMESTAMP(${SubscriptionTable.timeRollingUpdated}) >= UNIX_TIMESTAMP(now()) - ${rollingWindowSeconds} THEN ${SubscriptionTable.rollingUsage} + ${cost}
@@ -1158,8 +1183,8 @@ export async function handler(
           }
           if (billingSource === "lite") {
             const lite = LiteData.getLimits()
-            const week = getWeekBounds(new Date())
-            const month = getMonthlyBounds(new Date(), authInfo.lite!.timeCreated)
+            const week = getWeekBounds(trackedAt)
+            const month = getMonthlyBounds(trackedAt, authInfo.lite!.timeCreated)
             const rollingWindowSeconds = lite.rollingWindow * 3600
             const quotaCost = Math.round(cost * modelInfo.costMultiplier)
             return [
@@ -1168,18 +1193,30 @@ export async function handler(
                 .set({
                   monthlyUsage: sql`
               CASE
+                WHEN ${LiteTable.timeMonthlyUpdated} >= ${month.end} THEN ${LiteTable.monthlyUsage}
                 WHEN ${LiteTable.timeMonthlyUpdated} >= ${month.start} THEN ${LiteTable.monthlyUsage} + ${quotaCost}
                 ELSE ${quotaCost}
               END
             `,
-                  timeMonthlyUpdated: sql`now()`,
+                  timeMonthlyUpdated: sql`
+              CASE
+                WHEN ${LiteTable.timeMonthlyUpdated} > ${trackedAt} THEN ${LiteTable.timeMonthlyUpdated}
+                ELSE ${trackedAt}
+              END
+            `,
                   weeklyUsage: sql`
               CASE
+                WHEN ${LiteTable.timeWeeklyUpdated} >= ${week.end} THEN ${LiteTable.weeklyUsage}
                 WHEN ${LiteTable.timeWeeklyUpdated} >= ${week.start} THEN ${LiteTable.weeklyUsage} + ${quotaCost}
                 ELSE ${quotaCost}
               END
             `,
-                  timeWeeklyUpdated: sql`now()`,
+                  timeWeeklyUpdated: sql`
+              CASE
+                WHEN ${LiteTable.timeWeeklyUpdated} > ${trackedAt} THEN ${LiteTable.timeWeeklyUpdated}
+                ELSE ${trackedAt}
+              END
+            `,
                   rollingUsage: sql`
               CASE
                 WHEN UNIX_TIMESTAMP(${LiteTable.timeRollingUpdated}) >= UNIX_TIMESTAMP(now()) - ${rollingWindowSeconds} THEN ${LiteTable.rollingUsage} + ${quotaCost}

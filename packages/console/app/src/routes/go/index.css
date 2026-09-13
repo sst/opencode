@@ -40,24 +40,6 @@
   }
 }
 
-@keyframes go-graph-heat {
-  from {
-    filter: brightness(var(--arrival-brightness));
-  }
-  to {
-    filter: brightness(1);
-  }
-}
-
-@keyframes go-graph-bonus-heat {
-  from {
-    color: var(--color-go-3);
-  }
-  to {
-    color: var(--color-text-weak);
-  }
-}
-
 [data-page="go"] {
   --color-background: hsl(0, 20%, 99%);
   --color-background-weak: hsl(0, 8%, 97%);
@@ -381,10 +363,6 @@ body {
     [data-slot="text"] {
       color: var(--color-text-strong);
       line-height: 1.4;
-
-      @media (max-width: 30.625rem) {
-        display: none;
-      }
     }
   }
 
@@ -512,8 +490,6 @@ body {
       --digit-easing: cubic-bezier(0.22, 1, 0.36, 1);
       --grid-duration: 2000ms;
       --grid-easing: cubic-bezier(0.22, 1, 0.36, 1);
-      --arrival-brightness: 1.15;
-      --heat-duration: 1600ms;
       --bar-delay: 240ms;
       /* Critically damped response, shared by the bars, labels, and rolling digits. */
       --spring-easing: linear(
@@ -706,7 +682,7 @@ body {
           color: var(--color-text-weak);
           font-size: 12px;
           font-weight: 400;
-          line-height: 1;
+          line-height: inherit;
           white-space: nowrap;
 
           @media (max-width: 40rem) {
@@ -867,10 +843,8 @@ body {
 
       &[data-visible] [data-grid],
       &[data-visible] [data-stub] {
-        animation:
-          go-graph-grid var(--grid-duration) var(--grid-easing) forwards,
-          go-graph-heat var(--heat-duration) linear backwards;
-        animation-delay: var(--d, 0ms), calc(var(--d, 0ms) + var(--grid-duration));
+        animation: go-graph-grid var(--grid-duration) var(--grid-easing) forwards;
+        animation-delay: var(--d, 0ms);
       }
 
       &[data-visible] [data-slot="xlabels"] [data-xlabel] {
@@ -879,11 +853,8 @@ body {
       }
 
       &[data-visible] [data-animate="bar"] {
-        animation:
-          go-graph-reveal var(--reveal-duration) var(--spring-easing) forwards,
-          go-graph-heat var(--heat-duration) linear backwards;
-        animation-delay:
-          calc(var(--bar-delay) + var(--d, 0ms)), calc(var(--bar-delay) + var(--d, 0ms) + var(--reveal-duration));
+        animation: go-graph-reveal var(--reveal-duration) var(--spring-easing) forwards;
+        animation-delay: calc(var(--bar-delay) + var(--d, 0ms));
       }
 
       &[data-visible] [data-slot="pills"] [data-label] {
@@ -892,10 +863,8 @@ body {
       }
 
       &[data-boosted] [data-animate="bonus"] {
-        animation:
-          go-graph-reveal var(--bonus-duration) var(--spring-easing) forwards,
-          go-graph-heat var(--heat-duration) linear backwards;
-        animation-delay: var(--bonus-delay), calc(var(--bonus-delay) + var(--bonus-duration));
+        animation: go-graph-reveal var(--bonus-duration) var(--spring-easing) forwards;
+        animation-delay: var(--bonus-delay);
       }
 
       &[data-boosted] [data-slot="pills"] [data-item][data-promo] {
@@ -911,9 +880,7 @@ body {
       }
 
       &[data-boosted] [data-bonus] {
-        animation:
-          go-graph-label 400ms ease-out forwards,
-          go-graph-bonus-heat 3000ms linear backwards;
+        animation: go-graph-label 400ms ease-out forwards;
         animation-delay: var(--bonus-delay);
       }
 
@@ -1064,7 +1031,7 @@ body {
             gap: 3px 8px;
           }
 
-          &[data-model="muse-spark-1.2-contributor"] {
+          &[data-model="muse-spark-1.3-contributor"] {
             transform: translateY(11px);
 
             [data-regions] {

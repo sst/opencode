@@ -3,6 +3,8 @@ import { dict as en } from "./en"
 
 export const dict = {
   ...en,
+  "go.promo.deepseek": "DeepSeek V4.1 Flashの利用上限が期間限定で4倍に",
+  "go.graph.bonus": "利用枠{{count}}倍",
   "nav.github": "GitHub",
   "nav.docs": "ドキュメント",
   "nav.changelog": "変更履歴",
@@ -58,6 +60,7 @@ export const dict = {
   "common.cancel": "キャンセル",
   "common.creating": "作成中...",
   "common.create": "作成",
+  "common.contactUs": "お問い合わせ",
 
   "common.videoUnsupported": "お使いのブラウザは video タグをサポートしていません。",
   "common.figure": "図 {{n}}.",
@@ -224,6 +227,9 @@ export const dict = {
   "zen.faq.q8": "他のコーディングエージェントでもZenを使えますか？",
   "zen.faq.a8":
     "ZenはOpenCodeとの相性が良いですが、どのエージェントでもZenを利用できます。お使いのコーディングエージェントのセットアップ手順に従ってください。",
+  "zen.faq.q9": "返金を受けられますか？",
+  "zen.faq.a9":
+    "請求から14日以内で、その購入分のクレジットを一切使用していない場合、返金の対象となる可能性があります。返金を希望する場合は、{{contact}}ください。",
 
   "zen.cta.start": "Zenをはじめる",
   "zen.pricing.title": "$20の従量課金制残高を追加",
@@ -253,7 +259,6 @@ export const dict = {
   "zen.privacy.exceptionsLink": "以下の例外",
 
   "go.title": "OpenCode Go | すべての人のための低価格なコーディングモデル",
-  "go.banner.text": "GLM-5.3-Flashの利用上限が期間限定で2倍に",
   "go.meta.description":
     "Goは月額$10で、主要なコーディングモデルへのゆとりある利用上限と安定したアクセスを提供します。",
   "go.hero.title": "すべての人のための低価格なコーディングモデル",
@@ -270,6 +275,14 @@ export const dict = {
   "go.graph.freePill": "Big Pickleと無料モデル",
   "go.graph.go": "Go",
   "go.graph.label": "5時間あたりのリクエスト数",
+  "go.graph.period": "利用枠",
+  "go.graph.model": "モデル",
+  "go.graph.requests": "推定リクエスト数 / 5時間",
+  "go.graph.allowance": "月間利用枠",
+  "go.graph.new": "新着",
+  "go.graph.scale": "リクエスト数は非線形目盛りで表示",
+  "go.graph.showAll": "全{{count}}モデルを表示",
+  "go.graph.showLess": "折りたたむ",
   "go.graph.limitedRegions": "一部の地域に限定",
   "go.graph.limitedTime": "期間限定",
   "go.graph.usageLimits": "利用制限",
@@ -353,7 +366,7 @@ export const dict = {
   "go.faq.a5.museRetention":
     "将来のMetaモデルのトレーニングにプロンプトと生成結果を使用する許可と引き換えに、トークン料金が大幅に割引されます。",
   "go.faq.a5.learnMore": "詳しく見る",
-  "go.faq.a5.deepseekRetention": "ZDR契約は毎月更新されます。現在の契約は2026年8月31日まで有効です。",
+  "go.faq.a5.deepseekRetention": "ZDR契約は毎月更新されます。現在の契約は2026年9月30日まで有効です。",
   "go.faq.a5.beforeExceptions":
     "Goのモデルは米国でホストされています。プロバイダーはゼロ保持ポリシーに従い、モデルのトレーニングにデータを使用しません（",
   "go.faq.a5.exceptionsLink": "以下の例外",
@@ -367,7 +380,10 @@ export const dict = {
 
   "go.faq.q9": "無料モデルとGoの違いは何ですか？",
   "go.faq.a9":
-    "無料モデルにはBig Pickleと、その時点で利用可能なプロモーションモデルが含まれ、1日200リクエストの制限があります。Goでは厳選されたモデルラインナップを利用でき、ローリングウィンドウ（5時間、週間、月間）全体でより高いリクエスト制限が適用されます。これは概算で5時間あたり$12、週間$30、月間$60相当です（実際のリクエスト数はモデルと使用状況により異なります）。",
+    "無料モデルにはBig Pickleと、その時点で利用可能なプロモーションモデルが含まれ、1日200リクエストの制限があります。Goでは厳選されたモデルラインナップを利用でき、ローリングウィンドウ（5時間、週間、月間）全体でより高いリクエスト制限が適用されます。基本利用枠では概算で5時間あたり$12、週間$30、月間$60相当ですが、モデル別の利用枠は異なる場合があります（実際のリクエスト数はモデルと使用状況により異なります）。",
+  "go.faq.q10": "返金を受けられますか？",
+  "go.faq.a10":
+    "請求から14日以内で、その請求期間中にGoの利用枠を一切使用していない場合、返金の対象となる可能性があります。返金を希望する場合は、{{contact}}ください。",
 
   "zen.api.error.rateLimitExceeded": "レート制限を超えました。後でもう一度お試しください。",
   "zen.api.error.modelNotSupported": "モデル {{model}} はサポートされていません",

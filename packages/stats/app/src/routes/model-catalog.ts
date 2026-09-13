@@ -114,6 +114,16 @@ export function formatCatalogLabName(lab: string) {
   return known[catalogSlug(lab)] ?? lab.replace(/[-_]/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
 }
 
+export function isProviderlessLab(lab: string | undefined) {
+  return !lab || catalogSlug(lab) === "unknown"
+}
+
+export function isKnownCatalogLab(lab: string | undefined, catalogLabs: readonly string[]) {
+  if (!lab || isProviderlessLab(lab)) return false
+  const key = catalogSlug(formatCatalogLabName(lab))
+  return catalogLabs.some((candidate) => catalogSlug(formatCatalogLabName(candidate)) === key)
+}
+
 export function catalogSlug(value: string) {
   return value
     .trim()

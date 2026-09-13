@@ -134,6 +134,34 @@ const DOCS_LOCALE = {
   "zh-tw": "zht",
 } as const satisfies Record<string, Locale>
 
+// Heading IDs from the localized Go documentation.
+const GO_USAGE_LIMITS = {
+  en: "usage-limits",
+  zh: "使用限制",
+  zht: "使用限制",
+  ko: "사용-한도",
+  de: "nutzungslimits",
+  es: "límites-de-uso",
+  fr: "limites-dutilisation",
+  it: "limiti-di-utilizzo",
+  da: "forbrugsgrænser",
+  ja: "利用制限",
+  pl: "limity-użycia",
+  ru: "лимиты-использования",
+  uk: "usage-limits",
+  ar: "حدود-الاستخدام",
+  no: "bruksgrenser",
+  br: "limites-de-uso",
+  th: "usage-limits",
+  tr: "kullanım-limitleri",
+} satisfies Record<Locale, string>
+
+export function goUsageLimits(locale: Locale) {
+  // No Ukrainian Go docs yet; the explicit English path overrides the locale cookie.
+  if (locale === "uk") return "/docs/en/go/#usage-limits"
+  return docs(locale, `/docs/go/#${GO_USAGE_LIMITS[locale]}`)
+}
+
 function suffix(pathname: string) {
   const index = pathname.search(/[?#]/)
   if (index === -1) {

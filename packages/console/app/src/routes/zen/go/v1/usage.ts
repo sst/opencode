@@ -6,8 +6,11 @@ import { UserTable } from "@opencode-ai/console-core/schema/user.sql.js"
 import { WorkspaceTable } from "@opencode-ai/console-core/schema/workspace.sql.js"
 import { LiteData } from "@opencode-ai/console-core/lite.js"
 import { Subscription } from "@opencode-ai/console-core/subscription.js"
+import { inferenceUnavailable, proxyInference } from "~/lib/inference-proxy"
 
 export async function GET(input: APIEvent) {
+  const response = await proxyInference(input.request).catch(inferenceUnavailable)
+  if (response) return response
   const apiKey = input.request.headers.get("authorization")?.match(/^Bearer (\S+)$/)?.[1]
 
   if (!apiKey) {

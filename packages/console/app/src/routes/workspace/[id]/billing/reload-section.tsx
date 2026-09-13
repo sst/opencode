@@ -38,21 +38,25 @@ const setReload = action(async (form: FormData) => {
   }
 
   return json(
-    await Database.use((tx) =>
-      tx
-        .update(BillingTable)
-        .set({
-          reload: reloadValue,
-          ...(reloadAmount !== null ? { reloadAmount } : {}),
-          ...(reloadTrigger !== null ? { reloadTrigger } : {}),
-          ...(reloadValue
-            ? {
-                reloadError: null,
-                timeReloadError: null,
-              }
-            : {}),
-        })
-        .where(eq(BillingTable.workspaceID, workspaceID)),
+    await withActor(
+      () =>
+        Database.use((tx) =>
+          tx
+            .update(BillingTable)
+            .set({
+              reload: reloadValue,
+              ...(reloadAmount !== null ? { reloadAmount } : {}),
+              ...(reloadTrigger !== null ? { reloadTrigger } : {}),
+              ...(reloadValue
+                ? {
+                    reloadError: null,
+                    timeReloadError: null,
+                  }
+                : {}),
+            })
+            .where(eq(BillingTable.workspaceID, workspaceID)),
+        ),
+      workspaceID,
     ),
     { revalidate: queryBillingInfo.key },
   )

@@ -3,6 +3,8 @@ import { dict as en } from "./en"
 
 export const dict = {
   ...en,
+  "go.promo.deepseek": "DeepSeek V4.1 Flash offre limiti di utilizzo 4x superiori per un periodo limitato",
+  "go.graph.bonus": "Utilizzo {{count}}×",
   "nav.github": "GitHub",
   "nav.docs": "Documentazione",
   "nav.changelog": "Changelog",
@@ -58,6 +60,7 @@ export const dict = {
   "common.cancel": "Annulla",
   "common.creating": "Creazione...",
   "common.create": "Crea",
+  "common.contactUs": "Contattaci",
 
   "common.videoUnsupported": "Il tuo browser non supporta il tag video.",
   "common.figure": "Fig {{n}}.",
@@ -226,6 +229,9 @@ export const dict = {
   "zen.faq.q8": "Posso usare Zen con altri agenti di coding?",
   "zen.faq.a8":
     "Anche se Zen funziona alla grande con OpenCode, puoi usare Zen con qualsiasi agente. Segui le istruzioni di configurazione nel tuo agente di coding preferito.",
+  "zen.faq.q9": "Posso ottenere un rimborso?",
+  "zen.faq.a9":
+    "Potresti avere diritto a un rimborso se l'addebito è stato effettuato negli ultimi 14 giorni e non hai utilizzato il credito di quell'acquisto. {{contact}} per richiedere un rimborso.",
 
   "zen.cta.start": "Inizia con Zen",
   "zen.pricing.title": "Aggiungi $20 di saldo a consumo",
@@ -254,7 +260,6 @@ export const dict = {
   "zen.privacy.exceptionsLink": "seguenti eccezioni",
 
   "go.title": "OpenCode Go | Modelli di coding a basso costo per tutti",
-  "go.banner.text": "GLM-5.3-Flash offre limiti di utilizzo 2x superiori per un periodo limitato",
   "go.meta.description":
     "Go costa $10/mese, con limiti di utilizzo generosi e un accesso affidabile ai principali modelli di coding.",
   "go.hero.title": "Modelli di coding a basso costo per tutti",
@@ -271,6 +276,14 @@ export const dict = {
   "go.graph.freePill": "Big Pickle e modelli gratuiti",
   "go.graph.go": "Go",
   "go.graph.label": "Richieste ogni 5 ore",
+  "go.graph.period": "Utilizzo",
+  "go.graph.model": "Modello",
+  "go.graph.requests": "Richieste stimate / 5 ore",
+  "go.graph.allowance": "Utilizzo mensile",
+  "go.graph.new": "Nuovo",
+  "go.graph.scale": "Scala non lineare delle richieste",
+  "go.graph.showAll": "Mostra tutti i {{count}} modelli",
+  "go.graph.showLess": "Mostra meno modelli",
   "go.graph.limitedRegions": "regioni limitate",
   "go.graph.limitedTime": "periodo limitato",
   "go.graph.usageLimits": "Limiti di utilizzo",
@@ -353,7 +366,7 @@ export const dict = {
     "I log di monitoraggio degli abusi vengono generati per l'utilizzo di tutte le funzionalità API e conservati per un massimo di 30 giorni.",
   "go.faq.a5.learnMore": "Scopri di più",
   "go.faq.a5.deepseekRetention":
-    "L'accordo ZDR viene rinnovato mensilmente. L'accordo attuale è valido fino al 31 agosto 2026.",
+    "L'accordo ZDR viene rinnovato mensilmente. L'accordo attuale è valido fino al 30 settembre 2026.",
   "go.faq.a5.museRetention":
     "Prezzi dei token fortemente scontati in cambio dell'autorizzazione a utilizzare i tuoi prompt e completamenti per addestrare futuri modelli Meta.",
   "go.faq.a5.beforeExceptions":
@@ -369,7 +382,10 @@ export const dict = {
 
   "go.faq.q9": "Qual è la differenza tra i modelli gratuiti e Go?",
   "go.faq.a9":
-    "I modelli gratuiti includono Big Pickle più i modelli promozionali disponibili al momento, con una quota di 200 richieste/giorno. Go offre una selezione curata di modelli con quote di richiesta più elevate applicate su finestre mobili (5 ore, settimanale e mensile), approssimativamente equivalenti a $12 ogni 5 ore, $30 a settimana e $60 al mese (il conteggio effettivo delle richieste varia in base al modello e all'utilizzo).",
+    "I modelli gratuiti includono Big Pickle più i modelli promozionali disponibili al momento, con una quota di 200 richieste/giorno. Go offre una selezione curata di modelli con quote di richiesta più elevate applicate su finestre mobili (5 ore, settimanale e mensile), approssimativamente equivalenti a quote base di $12 ogni 5 ore, $30 a settimana e $60 al mese; le quote specifiche possono variare in base al modello (il conteggio effettivo delle richieste varia in base al modello e all'utilizzo).",
+  "go.faq.q10": "Posso ottenere un rimborso?",
+  "go.faq.a10":
+    "Potresti avere diritto a un rimborso se l'addebito è stato effettuato negli ultimi 14 giorni e non hai utilizzato la tua quota Go durante quel periodo di fatturazione. {{contact}} per richiedere un rimborso.",
 
   "zen.api.error.rateLimitExceeded": "Limite di richieste superato. Riprova più tardi.",
   "zen.api.error.modelNotSupported": "Modello {{model}} non supportato",

@@ -459,7 +459,7 @@ If you encounter "I'm sorry, but I cannot assist with that request" errors, try 
 
 #### Microsoft Entra ID (Azure CLI)
 
-You can use your Azure CLI session instead of an API key. [Install the Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli), run `az login`, then run `/connect`, select **Azure**, and choose **Microsoft Entra ID (Azure CLI)**. OpenCode lists the Resources visible to your Azure CLI session and their Resource groups. Select a Resource, or choose **Enter another resource name** to enter one manually. If resource listing is unavailable, OpenCode asks for the name directly. Use `az login --tenant TENANT_ID` if the Resource belongs to a different tenant.
+You can use your Azure CLI session instead of an API key. [Install the Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli), run `az login`, then run `/connect`, select **Azure**, and choose **Microsoft Entra ID (Azure CLI)**. Enter the Azure Resource name when prompted. Use `az login --tenant TENANT_ID` if the Resource belongs to a different tenant.
 
 Find the Resource name by opening your Azure OpenAI or Foundry Resource in the [Azure portal](https://portal.azure.com/) or [Microsoft Foundry](https://ai.azure.com/). It is also the first part of the endpoint: `my-models` in `https://my-models.openai.azure.com/` or `https://my-models.services.ai.azure.com/`. If your identity can list Resources, you can also find their names and Resource groups with:
 
@@ -469,9 +469,7 @@ az cognitiveservices account list \
   --output table
 ```
 
-OpenCode finds the Resource group and discovers its deployed models from the active Azure CLI subscription. Run `az account set --subscription NAME_OR_ID` first if the Resource is in a different subscription. Set `AZURE_RESOURCE_GROUP` to skip listing the subscription and query a known Resource directly.
-
-Model discovery requires Azure control-plane permissions, which are separate from inference permissions. If your identity cannot list deployments, OpenCode keeps the Azure model catalog available instead. Select a model whose name matches your deployment, or configure its deployment name explicitly:
+OpenCode does not query Azure management APIs or discover deployments. Select a model whose catalog name matches your deployment, or configure its deployment name explicitly:
 
 ```json title="opencode.json"
 {
@@ -873,6 +871,54 @@ export DIGITALOCEAN_ACCESS_TOKEN=your-model-access-key
 Inference Routers let you define a routing policy across multiple models — picking the cheapest, fastest, or most appropriate model per request based on the task. After OAuth, OpenCode surfaces each router as `router:<router-name>` in the model picker.
 
 Selecting a router model is a drop-in replacement for any other model — OpenCode forwards your request and DigitalOcean picks the underlying model based on your router's policy. Learn more about [Inference Routers](https://docs.digitalocean.com/products/inference/how-to/use-inference-router/)
+
+---
+
+### Eden AI
+
+[Eden AI](https://www.edenai.co/) is an EU-based gateway that serves models from many vendors over a single OpenAI-compatible API, with a separate EU endpoint for teams that need inference to stay in the EU.
+
+1. Head over to the [Eden AI platform](https://app.edenai.run/user/register) to create an account and generate an API key.
+
+2. Run the `/connect` command and search for **Eden AI**.
+
+   ```txt
+   /connect
+   ```
+
+3. Enter your Eden AI API key.
+
+   ```txt
+   ┌ API key
+   │
+   │
+   └ enter
+   ```
+
+4. Run the `/models` command to select a model like _Mistral Large 3_ or _Claude Sonnet 5_.
+
+   ```txt
+   /models
+   ```
+
+   Eden AI model ids are themselves in `vendor/model` form, so a full reference has three segments, for example `edenai/anthropic/claude-sonnet-5`.
+
+5. To keep requests on Eden AI's EU gateway, set its base URL.
+
+   ```json title="opencode.json"
+   {
+     "$schema": "https://opencode.ai/config.json",
+     "provider": {
+       "edenai": {
+         "options": {
+           "baseURL": "https://api.eu.edenai.run/v3"
+         }
+       }
+     }
+   }
+   ```
+
+   The default is `https://api.edenai.run/v3`, so this swaps the global endpoint for the EU one. The EU endpoint serves the subset of the catalog that is available in the EU, so a model chosen in step 4 may not be reachable through it.
 
 ---
 

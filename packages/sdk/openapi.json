@@ -20780,11 +20780,20 @@
                     "enum": [false]
                   }
                 ],
-                "description": "Timeout in milliseconds to wait for response headers. Provider integrations may set defaults. Set to false to disable timeout."
+                "description": "Timeout in milliseconds to wait for response headers (default: 300000). Set to false to disable timeout."
               },
               "chunkTimeout": {
-                "type": "integer",
-                "exclusiveMinimum": 0
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  {
+                    "type": "boolean",
+                    "enum": [false]
+                  }
+                ],
+                "description": "Timeout in milliseconds between streamed SSE chunks for this provider (default: 300000). If no chunk arrives within this window, the request is aborted. Set to false to disable timeout."
               }
             },
             "additionalProperties": {}

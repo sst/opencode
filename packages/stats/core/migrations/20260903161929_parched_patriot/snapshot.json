@@ -1,0 +1,2367 @@
+{
+  "version": "6",
+  "dialect": "mysql",
+  "id": "43e72697-1bf9-4df7-bc8e-5ca091bf2ff1",
+  "prevIds": ["9d4d1a06-7d28-4cb4-b0cd-3dfb7b481b8b"],
+  "ddl": [
+    {
+      "name": "geo_stat",
+      "entityType": "tables"
+    },
+    {
+      "name": "model_retention",
+      "entityType": "tables"
+    },
+    {
+      "name": "model_stat",
+      "entityType": "tables"
+    },
+    {
+      "name": "provider_stat",
+      "entityType": "tables"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": true,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "varchar(16)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "grain",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "varchar(32)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "period_key",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "varchar(64)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "'all'",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "dataset",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "varchar(64)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "'all'",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "tier",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "varchar(64)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "'all'",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "client",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "varchar(64)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "'all'",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "source",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "varchar(128)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "'all'",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "provider",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "varchar(256)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "'all'",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "model",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "char(2)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "country",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "varchar(8)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "''",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "continent",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "sessions",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "requests",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "unique_users",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "input_tokens",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "output_tokens",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "reasoning_tokens",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "cache_read_tokens",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "total_tokens",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "input_cost_microcents",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "output_cost_microcents",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "total_cost_microcents",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "decimal(12,2)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "avg_duration_ms",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "p50_duration_ms",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "p95_duration_ms",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "decimal(12,2)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "avg_ttfb_ms",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "p50_ttfb_ms",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "p95_ttfb_ms",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "decimal(12,4)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "avg_output_tps",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "success_count",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "error_count",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "sample_count",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "decimal(10,6)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "market_share_tokens",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "decimal(10,6)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "market_share_requests",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "decimal(10,6)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "market_share_sessions",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rank_by_tokens",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rank_by_requests",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rank_by_sessions",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rank_by_cost",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(now())",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(now())",
+      "onUpdateNow": true,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "geo_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": true,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "model_retention"
+    },
+    {
+      "type": "char(10)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "cohort_date",
+      "entityType": "columns",
+      "table": "model_retention"
+    },
+    {
+      "type": "varchar(64)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "'all'",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "dataset",
+      "entityType": "columns",
+      "table": "model_retention"
+    },
+    {
+      "type": "varchar(64)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "'all'",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "tier",
+      "entityType": "columns",
+      "table": "model_retention"
+    },
+    {
+      "type": "varchar(128)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "provider",
+      "entityType": "columns",
+      "table": "model_retention"
+    },
+    {
+      "type": "varchar(256)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "model",
+      "entityType": "columns",
+      "table": "model_retention"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "eligible_users",
+      "entityType": "columns",
+      "table": "model_retention"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "retained_users",
+      "entityType": "columns",
+      "table": "model_retention"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(now())",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "model_retention"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(now())",
+      "onUpdateNow": true,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "model_retention"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": true,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "varchar(16)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "grain",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "varchar(32)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "period_key",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "varchar(64)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "'all'",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "dataset",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "varchar(64)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "'all'",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "tier",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "varchar(64)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "'all'",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "client",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "varchar(64)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "'all'",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "source",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "varchar(128)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "provider",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "varchar(256)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "model",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "varchar(256)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "''",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "provider_model",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "sessions",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "requests",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "unique_users",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "input_tokens",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "output_tokens",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "reasoning_tokens",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "cache_read_tokens",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "total_tokens",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "input_cost_microcents",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "output_cost_microcents",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "total_cost_microcents",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "decimal(12,2)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "avg_duration_ms",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "p50_duration_ms",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "p95_duration_ms",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "decimal(12,2)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "avg_ttfb_ms",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "p50_ttfb_ms",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "p95_ttfb_ms",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "decimal(12,4)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "avg_output_tps",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "success_count",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "error_count",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "sample_count",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rank_by_tokens",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rank_by_requests",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rank_by_cost",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(now())",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(now())",
+      "onUpdateNow": true,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "model_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": true,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "varchar(16)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "grain",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "varchar(32)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "period_key",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "varchar(64)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "'all'",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "dataset",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "varchar(64)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "'all'",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "tier",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "varchar(64)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "'all'",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "client",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "varchar(64)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "'all'",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "source",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "varchar(128)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "provider",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "sessions",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "requests",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "unique_users",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "input_tokens",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "output_tokens",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "reasoning_tokens",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "cache_read_tokens",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "total_tokens",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "input_cost_microcents",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "output_cost_microcents",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "total_cost_microcents",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "decimal(12,2)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "avg_duration_ms",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "p50_duration_ms",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "p95_duration_ms",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "decimal(12,2)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "avg_ttfb_ms",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "p50_ttfb_ms",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "p95_ttfb_ms",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "decimal(12,4)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "avg_output_tps",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "success_count",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "error_count",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "sample_count",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "decimal(10,6)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "market_share_tokens",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "decimal(10,6)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "market_share_requests",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "decimal(10,6)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "market_share_sessions",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rank_by_tokens",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rank_by_requests",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rank_by_sessions",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rank_by_cost",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(now())",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(now())",
+      "onUpdateNow": true,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "table": "provider_stat"
+    },
+    {
+      "columns": ["id"],
+      "name": "PRIMARY",
+      "table": "geo_stat",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "name": "PRIMARY",
+      "table": "model_retention",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "name": "PRIMARY",
+      "table": "model_stat",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "name": "PRIMARY",
+      "table": "provider_stat",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        {
+          "value": "grain",
+          "isExpression": false
+        },
+        {
+          "value": "period_key",
+          "isExpression": false
+        },
+        {
+          "value": "dataset",
+          "isExpression": false
+        },
+        {
+          "value": "tier",
+          "isExpression": false
+        },
+        {
+          "value": "client",
+          "isExpression": false
+        },
+        {
+          "value": "source",
+          "isExpression": false
+        },
+        {
+          "value": "provider",
+          "isExpression": false
+        },
+        {
+          "value": "model",
+          "isExpression": false
+        },
+        {
+          "value": "country",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "uniq_country_period",
+      "entityType": "indexes",
+      "table": "geo_stat"
+    },
+    {
+      "columns": [
+        {
+          "value": "grain",
+          "isExpression": false
+        },
+        {
+          "value": "period_key",
+          "isExpression": false
+        },
+        {
+          "value": "dataset",
+          "isExpression": false
+        },
+        {
+          "value": "tier",
+          "isExpression": false
+        },
+        {
+          "value": "total_tokens",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_country_map_tokens",
+      "entityType": "indexes",
+      "table": "geo_stat"
+    },
+    {
+      "columns": [
+        {
+          "value": "grain",
+          "isExpression": false
+        },
+        {
+          "value": "period_key",
+          "isExpression": false
+        },
+        {
+          "value": "dataset",
+          "isExpression": false
+        },
+        {
+          "value": "tier",
+          "isExpression": false
+        },
+        {
+          "value": "rank_by_tokens",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_country_rank",
+      "entityType": "indexes",
+      "table": "geo_stat"
+    },
+    {
+      "columns": [
+        {
+          "value": "country",
+          "isExpression": false
+        },
+        {
+          "value": "grain",
+          "isExpression": false
+        },
+        {
+          "value": "period_key",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_country",
+      "entityType": "indexes",
+      "table": "geo_stat"
+    },
+    {
+      "columns": [
+        {
+          "value": "continent",
+          "isExpression": false
+        },
+        {
+          "value": "grain",
+          "isExpression": false
+        },
+        {
+          "value": "period_key",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_continent",
+      "entityType": "indexes",
+      "table": "geo_stat"
+    },
+    {
+      "columns": [
+        {
+          "value": "model",
+          "isExpression": false
+        },
+        {
+          "value": "country",
+          "isExpression": false
+        },
+        {
+          "value": "grain",
+          "isExpression": false
+        },
+        {
+          "value": "period_key",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_country_model",
+      "entityType": "indexes",
+      "table": "geo_stat"
+    },
+    {
+      "columns": [
+        {
+          "value": "model",
+          "isExpression": false
+        },
+        {
+          "value": "provider",
+          "isExpression": false
+        },
+        {
+          "value": "grain",
+          "isExpression": false
+        },
+        {
+          "value": "dataset",
+          "isExpression": false
+        },
+        {
+          "value": "client",
+          "isExpression": false
+        },
+        {
+          "value": "source",
+          "isExpression": false
+        },
+        {
+          "value": "tier",
+          "isExpression": false
+        },
+        {
+          "value": "period_key",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_country_model_range",
+      "entityType": "indexes",
+      "table": "geo_stat"
+    },
+    {
+      "columns": [
+        {
+          "value": "cohort_date",
+          "isExpression": false
+        },
+        {
+          "value": "dataset",
+          "isExpression": false
+        },
+        {
+          "value": "tier",
+          "isExpression": false
+        },
+        {
+          "value": "provider",
+          "isExpression": false
+        },
+        {
+          "value": "model",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "uniq_model_retention_cohort",
+      "entityType": "indexes",
+      "table": "model_retention"
+    },
+    {
+      "columns": [
+        {
+          "value": "dataset",
+          "isExpression": false
+        },
+        {
+          "value": "tier",
+          "isExpression": false
+        },
+        {
+          "value": "cohort_date",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_model_retention_recent",
+      "entityType": "indexes",
+      "table": "model_retention"
+    },
+    {
+      "columns": [
+        {
+          "value": "model",
+          "isExpression": false
+        },
+        {
+          "value": "cohort_date",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_model_retention_model",
+      "entityType": "indexes",
+      "table": "model_retention"
+    },
+    {
+      "columns": [
+        {
+          "value": "grain",
+          "isExpression": false
+        },
+        {
+          "value": "period_key",
+          "isExpression": false
+        },
+        {
+          "value": "dataset",
+          "isExpression": false
+        },
+        {
+          "value": "tier",
+          "isExpression": false
+        },
+        {
+          "value": "client",
+          "isExpression": false
+        },
+        {
+          "value": "source",
+          "isExpression": false
+        },
+        {
+          "value": "provider",
+          "isExpression": false
+        },
+        {
+          "value": "model",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "uniq_model_period",
+      "entityType": "indexes",
+      "table": "model_stat"
+    },
+    {
+      "columns": [
+        {
+          "value": "grain",
+          "isExpression": false
+        },
+        {
+          "value": "period_key",
+          "isExpression": false
+        },
+        {
+          "value": "dataset",
+          "isExpression": false
+        },
+        {
+          "value": "tier",
+          "isExpression": false
+        },
+        {
+          "value": "total_tokens",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_leaderboard_tokens",
+      "entityType": "indexes",
+      "table": "model_stat"
+    },
+    {
+      "columns": [
+        {
+          "value": "model",
+          "isExpression": false
+        },
+        {
+          "value": "grain",
+          "isExpression": false
+        },
+        {
+          "value": "period_key",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_model",
+      "entityType": "indexes",
+      "table": "model_stat"
+    },
+    {
+      "columns": [
+        {
+          "value": "grain",
+          "isExpression": false
+        },
+        {
+          "value": "period_key",
+          "isExpression": false
+        },
+        {
+          "value": "dataset",
+          "isExpression": false
+        },
+        {
+          "value": "tier",
+          "isExpression": false
+        },
+        {
+          "value": "client",
+          "isExpression": false
+        },
+        {
+          "value": "source",
+          "isExpression": false
+        },
+        {
+          "value": "provider",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "uniq_provider_period",
+      "entityType": "indexes",
+      "table": "provider_stat"
+    },
+    {
+      "columns": [
+        {
+          "value": "grain",
+          "isExpression": false
+        },
+        {
+          "value": "period_key",
+          "isExpression": false
+        },
+        {
+          "value": "dataset",
+          "isExpression": false
+        },
+        {
+          "value": "tier",
+          "isExpression": false
+        },
+        {
+          "value": "total_tokens",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_provider_leaderboard_tokens",
+      "entityType": "indexes",
+      "table": "provider_stat"
+    },
+    {
+      "columns": [
+        {
+          "value": "grain",
+          "isExpression": false
+        },
+        {
+          "value": "period_key",
+          "isExpression": false
+        },
+        {
+          "value": "dataset",
+          "isExpression": false
+        },
+        {
+          "value": "tier",
+          "isExpression": false
+        },
+        {
+          "value": "market_share_tokens",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_provider_market_share",
+      "entityType": "indexes",
+      "table": "provider_stat"
+    },
+    {
+      "columns": [
+        {
+          "value": "grain",
+          "isExpression": false
+        },
+        {
+          "value": "period_key",
+          "isExpression": false
+        },
+        {
+          "value": "dataset",
+          "isExpression": false
+        },
+        {
+          "value": "tier",
+          "isExpression": false
+        },
+        {
+          "value": "rank_by_tokens",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_provider_rank",
+      "entityType": "indexes",
+      "table": "provider_stat"
+    },
+    {
+      "columns": [
+        {
+          "value": "provider",
+          "isExpression": false
+        },
+        {
+          "value": "grain",
+          "isExpression": false
+        },
+        {
+          "value": "period_key",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_provider",
+      "entityType": "indexes",
+      "table": "provider_stat"
+    }
+  ],
+  "renames": []
+}

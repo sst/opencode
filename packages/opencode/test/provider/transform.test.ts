@@ -6,7 +6,9 @@ import { ProviderV2 } from "@opencode-ai/core/provider"
 import { ModelV2 } from "@opencode-ai/core/model"
 import { ModelsDev } from "@opencode-ai/core/models-dev"
 import { generateText, jsonSchema, type ModelMessage } from "ai"
-import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock"
+import { createAmazonBedrock, type AmazonBedrockLanguageModelOptions } from "@ai-sdk/amazon-bedrock"
+import { createAnthropic } from "@ai-sdk/anthropic"
+import { createVertexAnthropic } from "@ai-sdk/google-vertex/anthropic"
 
 describe("ProviderTransform.options - setCacheKey", () => {
   const sessionID = "test-session-123"
@@ -842,6 +844,354 @@ describe("ProviderTransform.providerOptions", () => {
 
     expect(ProviderTransform.providerOptions(model, { promptCacheKey: "session" })).toEqual({
       xai: { promptCacheKey: "session" },
+    })
+  })
+
+  describe("anthropic thinking block binding", () => {
+    const binding = { prefixMismatchBehavior: "drop_block" }
+    const claude = (npm: string, id: string) =>
+      createModel({ providerID: "custom", api: { id, url: "https://example.com", npm } })
+    const sdks = [
+      { npm: "@ai-sdk/anthropic", key: "anthropic", option: "thinking" },
+      { npm: "@ai-sdk/google-vertex/anthropic", key: "anthropic", option: "thinking" },
+      { npm: "@ai-sdk/amazon-bedrock", key: "bedrock", option: "reasoningConfig" },
+    ]
+
+    test("adds blockBinding to explicit adaptive thinking on @ai-sdk/anthropic", () => {
+      const model = claude("@ai-sdk/anthropic", "claude-fable-5-1")
+      expect(ProviderTransform.providerOptions(model, { thinking: { type: "adaptive" }, effort: "high" })).toEqual({
+        anthropic: { thinking: { type: "adaptive", blockBinding: binding }, effort: "high" },
+      })
+    })
+
+    test("leaves explicit enabled thinking on older models alone", () => {
+      const model = claude("@ai-sdk/anthropic", "claude-haiku-4-5")
+      expect(ProviderTransform.providerOptions(model, { thinking: { type: "enabled", budgetTokens: 4000 } })).toEqual({
+        anthropic: { thinking: { type: "enabled", budgetTokens: 4000 } },
+      })
+    })
+
+    sdks.forEach((sdk) => {
+      describe(sdk.npm, () => {
+        test.each([
+          "claude-fable-5-1",
+          "claude-fable-5.1",
+          "claude-5.1-fable",
+          "global.anthropic.claude-fable-5-1",
+          "us.anthropic.claude-fable-5-1-v1:0",
+          "claude-fable-5-1@default",
+          "CLAUDE-FABLE-5-1",
+          "claude-opus-5-1",
+          "claude-sonnet-5-2",
+          "claude-mythos-5-2",
+          "claude-mythos-5-10",
+          "claude-opus-6",
+          "claude-6-opus",
+          "claude-mythos-6-20270901",
+        ])("adds binding for %s", (id) => {
+          const model = claude(sdk.npm, id)
+          expect(ProviderTransform.providerOptions(model, {})).toEqual({
+            [sdk.key]: { [sdk.option]: { type: "adaptive", blockBinding: binding } },
+          })
+          expect(
+            ProviderTransform.providerOptions(model, { [sdk.option]: { type: "adaptive", display: "summarized" } }),
+          ).toEqual({
+            [sdk.key]: { [sdk.option]: { type: "adaptive", display: "summarized", blockBinding: binding } },
+          })
+          expect(
+            ProviderTransform.providerOptions(model, { [sdk.option]: { type: "enabled", budgetTokens: 4000 } }),
+          ).toEqual({
+            [sdk.key]: { [sdk.option]: { type: "enabled", budgetTokens: 4000, blockBinding: binding } },
+          })
+          expect(ProviderTransform.providerOptions(model, { [sdk.option]: { type: "disabled" } })).toEqual({
+            [sdk.key]: { [sdk.option]: { type: "disabled" } },
+          })
+        })
+
+        test.each([
+          "claude-haiku-4-5",
+          "claude-opus-4-8",
+          "claude-sonnet-4-6",
+          "claude-opus-5",
+          "claude-sonnet-5",
+          "claude-fable-5",
+          "claude-opus-5-0",
+          "claude-opus-5-20260724",
+          "global.anthropic.claude-opus-5",
+          "us.anthropic.claude-opus-5",
+          "claude-sonnet-5@default",
+          "claude-mythos-5-1",
+          "claude-mythos-5.1",
+          "claude-5.1-mythos",
+          "global.anthropic.claude-mythos-5-1-v1:0",
+          "claude-mythos-5-1@default",
+          "CLAUDE-MYTHOS-5-1",
+          "claude-future",
+        ])("leaves thinking unchanged for %s", (id) => {
+          const model = claude(sdk.npm, id)
+          expect(ProviderTransform.providerOptions(model, {})).toEqual({ [sdk.key]: {} })
+          expect(
+            ProviderTransform.providerOptions(model, { [sdk.option]: { type: "adaptive", display: "summarized" } }),
+          ).toEqual({ [sdk.key]: { [sdk.option]: { type: "adaptive", display: "summarized" } } })
+          expect(
+            ProviderTransform.providerOptions(model, { [sdk.option]: { type: "enabled", budgetTokens: 4000 } }),
+          ).toEqual({ [sdk.key]: { [sdk.option]: { type: "enabled", budgetTokens: 4000 } } })
+        })
+
+        test.each(["claude-fable-5-1", "claude-opus-5"])("honors explicit binding controls for %s", (id) => {
+          const model = claude(sdk.npm, id)
+          const options = Object.freeze({
+            [sdk.option]: Object.freeze({ type: "adaptive", blockBinding: false }),
+          })
+          expect(ProviderTransform.providerOptions(model, options)).toEqual({
+            [sdk.key]: { [sdk.option]: { type: "adaptive" } },
+          })
+          expect(ProviderTransform.providerOptions(model, { [sdk.option]: { blockBinding: false } })).toEqual({
+            [sdk.key]: {},
+          })
+          const custom = { [sdk.option]: { type: "adaptive", blockBinding: { prefixMismatchBehavior: "error" } } }
+          expect(ProviderTransform.providerOptions(model, custom)).toEqual({ [sdk.key]: custom })
+        })
+
+        test.each([
+          ["claude-opus-5", "default"],
+          ["claude-opus-5", "high"],
+          ["claude-sonnet-5", "default"],
+          ["claude-sonnet-5", "high"],
+          ["claude-mythos-5-1", "default"],
+          ["claude-mythos-5-1", "high"],
+          ["claude-haiku-4-5", "title"],
+        ])("omits binding from the %s %s request body and betas", async (id, mode) => {
+          const requests: Request[] = []
+          const capture = Object.assign(
+            async (...args: Parameters<typeof fetch>) => {
+              requests.push(new Request(...args))
+              return Response.json(
+                sdk.key === "bedrock"
+                  ? {
+                      output: { message: { role: "assistant", content: [{ text: "ok" }] } },
+                      stopReason: "end_turn",
+                      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+                    }
+                  : {
+                      type: "message",
+                      id: "msg_1",
+                      model: "test-model",
+                      role: "assistant",
+                      content: [{ type: "text", text: "ok" }],
+                      stop_reason: "end_turn",
+                      usage: { input_tokens: 1, output_tokens: 1 },
+                    },
+              )
+            },
+            { preconnect: () => undefined },
+          )
+          const provider =
+            sdk.key === "bedrock"
+              ? createAmazonBedrock({ apiKey: "test-key", region: "ap-southeast-1", fetch: capture })
+              : sdk.npm === "@ai-sdk/google-vertex/anthropic"
+                ? createVertexAnthropic({
+                    project: "test-project",
+                    location: "global",
+                    generateAuthToken: async () => "test-token",
+                    fetch: capture,
+                  })
+                : createAnthropic({ apiKey: "test-key", fetch: capture })
+          const model = claude(
+            sdk.npm,
+            sdk.key === "bedrock"
+              ? `global.anthropic.${id}`
+              : sdk.npm === "@ai-sdk/google-vertex/anthropic"
+                ? `${id}@default`
+                : id,
+          )
+          const variants = ProviderTransform.variants(model)
+          const options =
+            mode === "title"
+              ? ProviderTransform.smallOptions({ ...model, variants })
+              : mode === "high"
+                ? variants.high
+                : {}
+          await generateText({
+            model: provider(model.api.id),
+            prompt: "hi",
+            maxOutputTokens: 32000,
+            providerOptions: ProviderTransform.providerOptions(model, options),
+          })
+          expect(requests).toHaveLength(1)
+          const body = await requests[0].json()
+          const fields = sdk.key === "bedrock" ? (body.additionalModelRequestFields ?? {}) : body
+          expect(fields.thinking).toEqual(
+            mode === "title"
+              ? { type: "enabled", budget_tokens: 16000 }
+              : mode === "high"
+                ? { type: "adaptive", display: "summarized" }
+                : undefined,
+          )
+          expect(fields.output_config).toEqual(mode === "high" ? { effort: "high" } : undefined)
+          expect(fields.anthropic_beta ?? []).not.toContain("thinking-binding-controls-2026-08-01")
+          expect(requests[0].headers.get("anthropic-beta")?.split(",") ?? []).not.toContain(
+            "thinking-binding-controls-2026-08-01",
+          )
+        })
+      })
+    })
+
+    test("leaves disabled thinking alone", () => {
+      const model = claude("@ai-sdk/anthropic", "claude-fable-5-1")
+      expect(ProviderTransform.providerOptions(model, { thinking: { type: "disabled" } })).toEqual({
+        anthropic: { thinking: { type: "disabled" } },
+      })
+    })
+
+    test("applies to vertex anthropic", () => {
+      const model = claude("@ai-sdk/google-vertex/anthropic", "claude-fable-5-1")
+      expect(ProviderTransform.providerOptions(model, { thinking: { type: "adaptive" }, effort: "max" })).toEqual({
+        anthropic: { thinking: { type: "adaptive", blockBinding: binding }, effort: "max" },
+      })
+    })
+
+    test("applies to bedrock reasoningConfig", () => {
+      const model = claude("@ai-sdk/amazon-bedrock", "us.anthropic.claude-fable-5-1-v1:0")
+      expect(
+        ProviderTransform.providerOptions(model, { reasoningConfig: { type: "adaptive", maxReasoningEffort: "high" } }),
+      ).toEqual({
+        bedrock: { reasoningConfig: { type: "adaptive", maxReasoningEffort: "high", blockBinding: binding } },
+      })
+      expect(ProviderTransform.providerOptions(model, {})).toEqual({
+        bedrock: { reasoningConfig: { type: "adaptive", blockBinding: binding } },
+      })
+    })
+
+    test("does not touch bedrock non-anthropic models", () => {
+      const model = claude("@ai-sdk/amazon-bedrock", "amazon.nova-pro-v1:0")
+      expect(ProviderTransform.providerOptions(model, { reasoningConfig: { type: "enabled" } })).toEqual({
+        bedrock: { reasoningConfig: { type: "enabled" } },
+      })
+    })
+
+    test("does not touch non-claude models on anthropic-compatible transports", () => {
+      const model = claude("@ai-sdk/anthropic", "kimi-k2-thinking")
+      expect(ProviderTransform.providerOptions(model, { thinking: { type: "adaptive" } })).toEqual({
+        anthropic: { thinking: { type: "adaptive" } },
+      })
+    })
+
+    test("reaches the anthropic wire as block_binding plus beta header", async () => {
+      const model = claude("@ai-sdk/anthropic", "claude-fable-5-1")
+      let sent: { headers: Headers; body: any } | undefined
+      const provider = createAnthropic({
+        apiKey: "test-key",
+        fetch: Object.assign(
+          async (...args: Parameters<typeof fetch>) => {
+            sent = { headers: new Headers(args[1]?.headers), body: JSON.parse(String(args[1]?.body)) }
+            return Response.json({
+              type: "message",
+              id: "msg_1",
+              model: "claude-fable-5-1",
+              role: "assistant",
+              content: [{ type: "text", text: "ok" }],
+              stop_reason: "end_turn",
+              usage: { input_tokens: 1, output_tokens: 1 },
+              input_transformations: [
+                { type: "thinking_dropped", path: "messages.1.content.0", reason: "prefix_binding_mismatch" },
+              ],
+            })
+          },
+          { preconnect: () => undefined },
+        ),
+      })
+      const result = await generateText({
+        model: provider("claude-fable-5-1"),
+        prompt: "hi",
+        providerOptions: ProviderTransform.providerOptions(model, {}),
+      })
+      expect(sent?.body.thinking).toEqual({
+        type: "adaptive",
+        block_binding: { prefix_mismatch_behavior: "drop_block" },
+      })
+      expect(sent?.headers.get("anthropic-beta")?.split(",")).toContain("thinking-binding-controls-2026-08-01")
+      expect(result.providerMetadata?.anthropic?.inputTransformations).toEqual([
+        { type: "thinking_dropped", path: "messages.1.content.0", reason: "prefix_binding_mismatch" },
+      ])
+    })
+
+    test("reaches the vertex anthropic wire as block_binding plus beta header", async () => {
+      const model = claude("@ai-sdk/google-vertex/anthropic", "claude-fable-5-1")
+      let sent: { url: string; headers: Headers; body: any } | undefined
+      const provider = createVertexAnthropic({
+        project: "test-project",
+        location: "global",
+        generateAuthToken: async () => "test-token",
+        fetch: Object.assign(
+          async (...args: Parameters<typeof fetch>) => {
+            sent = {
+              url: String(args[0]),
+              headers: new Headers(args[1]?.headers),
+              body: JSON.parse(String(args[1]?.body)),
+            }
+            return Response.json({
+              type: "message",
+              id: "msg_1",
+              model: "claude-fable-5-1",
+              role: "assistant",
+              content: [{ type: "text", text: "ok" }],
+              stop_reason: "end_turn",
+              usage: { input_tokens: 1, output_tokens: 1 },
+            })
+          },
+          { preconnect: () => undefined },
+        ),
+      })
+      await generateText({
+        model: provider("claude-fable-5-1"),
+        prompt: "hi",
+        providerOptions: ProviderTransform.providerOptions(model, {}),
+      })
+      // Same wire shape Anthropic's own Vertex SDK produces: rawPredict URL, model moved
+      // out of the body, anthropic_version added, betas carried in the anthropic-beta header.
+      expect(sent?.url).toBe(
+        "https://aiplatform.googleapis.com/v1/projects/test-project/locations/global/publishers/anthropic/models/claude-fable-5-1:rawPredict",
+      )
+      expect(sent?.body.model).toBeUndefined()
+      expect(sent?.body.anthropic_version).toBe("vertex-2023-10-16")
+      expect(sent?.body.thinking).toEqual({
+        type: "adaptive",
+        block_binding: { prefix_mismatch_behavior: "drop_block" },
+      })
+      expect(sent?.headers.get("anthropic-beta")?.split(",")).toContain("thinking-binding-controls-2026-08-01")
+    })
+
+    test("reaches the bedrock wire as additionalModelRequestFields", async () => {
+      const model = claude("@ai-sdk/amazon-bedrock", "us.anthropic.claude-fable-5-1-v1:0")
+      let body: any
+      const provider = createAmazonBedrock({
+        apiKey: "test-key",
+        region: "us-east-1",
+        fetch: Object.assign(
+          async (...args: Parameters<typeof fetch>) => {
+            body = JSON.parse(String(args[1]?.body))
+            return Response.json({
+              output: { message: { role: "assistant", content: [{ text: "ok" }] } },
+              stopReason: "end_turn",
+              usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+            })
+          },
+          { preconnect: () => undefined },
+        ),
+      })
+      await generateText({
+        model: provider("us.anthropic.claude-fable-5-1-v1:0"),
+        prompt: "hi",
+        providerOptions: ProviderTransform.providerOptions(model, {
+          reasoningConfig: { type: "adaptive", maxReasoningEffort: "high" },
+        }),
+      })
+      expect(body.additionalModelRequestFields.thinking).toEqual({
+        type: "adaptive",
+        block_binding: { prefix_mismatch_behavior: "drop_block" },
+      })
+      expect(body.additionalModelRequestFields.anthropic_beta).toContain("thinking-binding-controls-2026-08-01")
     })
   })
 
@@ -3448,10 +3798,11 @@ describe("ProviderTransform sampling defaults - DeepSeek", () => {
 
 describe("ProviderTransform.reasoningVariants", () => {
   const model = (reasoning_options: ModelsDev.Model["reasoning_options"]) => ({ reasoning_options }) as ModelsDev.Model
-  const target = (npm: string, id = "test-model") =>
+  const target = (npm: string, id = "test-model", family = "") =>
     ({
       id,
       providerID: "test",
+      family,
       api: { id, npm, url: "" },
       capabilities: { reasoning: true },
       limit: { output: 64_000 },
@@ -3522,6 +3873,42 @@ describe("ProviderTransform.reasoningVariants", () => {
     )
   })
 
+  test.each(["luna", "sol", "terra"])("serializes Bedrock GPT-5.6 %s none effort", async (name) => {
+    const item = target("@ai-sdk/amazon-bedrock", `global.openai.gpt-5.6-${name}`)
+    const variants = ProviderTransform.reasoningVariants(
+      model([{ type: "effort", values: ["none", "low", "medium", "high", "xhigh", "max"] }]),
+      item,
+    )
+    for (const effort of ["low", "medium", "high", "xhigh", "max"]) {
+      expect(variants?.[effort]).toEqual({ reasoningConfig: { type: "enabled", maxReasoningEffort: effort } })
+    }
+    expect(variants?.none).toEqual({
+      reasoningConfig: { type: "enabled", maxReasoningEffort: "none" },
+    } satisfies AmazonBedrockLanguageModelOptions)
+    const sent: unknown[] = []
+    const provider = createAmazonBedrock({
+      apiKey: "test-key",
+      region: "us-east-1",
+      fetch: Object.assign(
+        async (...args: Parameters<typeof fetch>) => {
+          sent.push(JSON.parse(String(args[1]?.body)))
+          return Response.json({
+            output: { message: { role: "assistant", content: [{ text: "ok" }] } },
+            stopReason: "end_turn",
+            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          })
+        },
+        { preconnect: () => undefined },
+      ),
+    })
+    await generateText({
+      model: provider(item.api.id),
+      prompt: "hi",
+      providerOptions: ProviderTransform.providerOptions(item, variants?.none ?? {}),
+    })
+    expect(sent).toEqual([expect.objectContaining({ additionalModelRequestFields: { reasoning: { effort: "none" } } })])
+  })
+
   test("combines effort with extended thinking for Claude Opus 4.5", () => {
     expect(
       ProviderTransform.reasoningVariants(
@@ -3562,6 +3949,19 @@ describe("ProviderTransform.reasoningVariants", () => {
       low: { thinking: { type: "adaptive", display: "summarized" }, effort: "low" },
       high: { thinking: { type: "adaptive", display: "summarized" }, effort: "high" },
       max: { thinking: { type: "adaptive", display: "summarized" }, effort: "max" },
+    })
+  })
+
+  test("maps GitLab model efforts to provider-specific options", () => {
+    const options = model([{ type: "effort", values: ["max"] }])
+    const openai = target("gitlab-ai-provider", "duo-chat-gpt-5-6-sol", "gpt-sol")
+    const anthropic = target("gitlab-ai-provider", "duo-chat-opus-4-8", "claude-opus")
+
+    expect(ProviderTransform.reasoningVariants(options, openai)).toEqual({
+      max: { reasoningEffort: "max" },
+    })
+    expect(ProviderTransform.reasoningVariants(options, anthropic)).toEqual({
+      max: { thinking: { type: "adaptive", effort: "max" } },
     })
   })
 
@@ -3764,7 +4164,7 @@ describe("ProviderTransform.reasoningVariants", () => {
     expect(ProviderTransform.reasoningVariants(effort, target("@ai-sdk/github-copilot", "gemini-3-pro"))).toEqual({})
   })
 
-  test.each(["@ai-sdk/cohere", "@ai-sdk/perplexity", "@ai-sdk/vercel", "@ai-sdk/alibaba", "gitlab-ai-provider"])(
+  test.each(["@ai-sdk/cohere", "@ai-sdk/perplexity", "@ai-sdk/vercel", "@ai-sdk/alibaba"])(
     "does not invent effort controls for %s",
     (npm) => {
       expect(ProviderTransform.reasoningVariants(model([{ type: "effort", values: ["high"] }]), target(npm))).toEqual(

@@ -21,7 +21,7 @@ import { LocaleLinks } from "../component/locale-links"
 import { useI18n } from "../context/i18n"
 import { useLanguage } from "../context/language"
 import { localizedUrl } from "../lib/language"
-import { findModelCatalogEntry, loadModelCatalog, type ModelCatalog } from "./model-catalog"
+import { findModelCatalogEntry, isKnownCatalogLab, loadModelCatalog, type ModelCatalog } from "./model-catalog"
 import { SectionHeading } from "./section-heading"
 import { setStatsPageCacheHeaders } from "./stats-cache"
 import { ComparisonCardsSection, uniqueComparisonPairs, type ComparisonModelRef } from "./compare-cards"
@@ -72,6 +72,7 @@ type StatsHomePageData = {
   sessionCost: SessionCostEntry[]
   retention: RetentionEntry[]
   country: CountryEntry[]
+  catalogLabs: string[]
 }
 
 const countryNumericIds = new Map(
@@ -91,7 +92,8 @@ const getData = query(async () => {
     cacheRatio: stats.cacheRatio.Go,
     sessionCost: stats.sessionCost.Go,
     retention: stats.retention,
-    country: stats.country["2M"],
+    country: stats.country,
+    catalogLabs: catalog.labs.map((lab) => lab.id),
   } satisfies StatsHomePageData
 }, "getStatsHomeData")
 
@@ -147,7 +149,11 @@ export default function StatsHome() {
             {(stats) => (
               <>
                 <Hero updatedAt={stats().updatedAt} />
-                <TopModelsSection data={stats().usage} leaderboard={stats().leaderboard} />
+                <TopModelsSection
+                  data={stats().usage}
+                  leaderboard={stats().leaderboard}
+                  catalogLabs={stats().catalogLabs}
+                />
                 <UniqueUsersSection data={stats().users} />
                 <RetentionSection data={stats().retention} />
                 <SessionCostSection data={stats().sessionCost} />
@@ -156,7 +162,7 @@ export default function StatsHome() {
                 <MarketShareSection data={stats().market} />
                 <GeoBreakdownSection data={stats().country} />
                 <ComparisonCardsSection
-                  pairs={homeComparisonPairs(stats().leaderboard)}
+                  pairs={homeComparisonPairs(stats().leaderboard, stats().catalogLabs)}
                   title="Model Comparisons"
                   description="Popular model pairs from the leaderboard."
                   variant="featured"
@@ -368,7 +374,11 @@ function formatUpdatedAtLabel(value: { date: string; time: string }) {
   return `${value.date}, ${value.time}`
 }
 
-function TopModelsSection(props: { data: UsagePoint[]; leaderboard: LeaderboardEntry[] }) {
+function TopModelsSection(props: {
+  data: UsagePoint[]
+  leaderboard: LeaderboardEntry[]
+  catalogLabs: readonly string[]
+}) {
   const i18n = useI18n()
   const [activeModel, setActiveModel] = createSignal<string>()
 
@@ -393,7 +403,12 @@ function TopModelsSection(props: { data: UsagePoint[]; leaderboard: LeaderboardE
           <EmptyState title={i18n.t("home.noLeaderboardTitle")} description={i18n.t("home.noLeaderboardDescription")} />
         }
       >
-        <Leaderboard data={props.leaderboard} activeModel={activeModel()} onActiveModelChange={setActiveModel} />
+        <Leaderboard
+          data={props.leaderboard}
+          activeModel={activeModel()}
+          onActiveModelChange={setActiveModel}
+          catalogLabs={props.catalogLabs}
+        />
       </Show>
     </section>
   )
@@ -806,6 +821,7 @@ function Leaderboard(props: {
   data: LeaderboardEntry[]
   activeModel: string | undefined
   onActiveModelChange: (model: string | undefined) => void
+  catalogLabs: readonly string[]
 }) {
   const featured = createMemo(() => props.data.slice(0, 3))
   const compact = createMemo(() => props.data.slice(3))
@@ -820,6 +836,7 @@ function Leaderboard(props: {
               size="featured"
               active={props.activeModel === entry.model}
               onActiveModelChange={props.onActiveModelChange}
+              catalogLabs={props.catalogLabs}
             />
           )}
         </For>
@@ -833,6 +850,7 @@ function Leaderboard(props: {
               size="compact"
               active={props.activeModel === entry.model}
               onActiveModelChange={props.onActiveModelChange}
+              catalogLabs={props.catalogLabs}
             />
           )}
         </For>
@@ -845,6 +863,7 @@ function Leaderboard(props: {
               size="featured"
               active={props.activeModel === entry.model}
               onActiveModelChange={props.onActiveModelChange}
+              catalogLabs={props.catalogLabs}
             />
           )}
         </For>
@@ -858,9 +877,11 @@ function LeaderboardCard(props: {
   size: "featured" | "compact"
   active: boolean
   onActiveModelChange: (model: string | undefined) => void
+  catalogLabs: readonly string[]
 }) {
   const i18n = useI18n()
   const language = useLanguage()
+  const hasProvider = () => isKnownCatalogLab(props.entry.provider, props.catalogLabs)
   return (
     <a
       data-component="leader-card"
@@ -879,16 +900,22 @@ function LeaderboardCard(props: {
       onClick={() => props.onActiveModelChange(props.entry.model)}
     >
       <span data-slot="rank">{String(props.entry.rank).padStart(2, "0")}</span>
-      <ProviderIcon data-slot="leader-watermark" aria-hidden="true" id={getProviderIconId(props.entry.author)} />
+      <Show when={hasProvider()}>
+        <ProviderIcon data-slot="leader-watermark" aria-hidden="true" id={getProviderIconId(props.entry.author)} />
+      </Show>
       <div data-slot="leader-body">
-        <ProviderIcon data-slot="leader-avatar" aria-hidden="true" id={getProviderIconId(props.entry.author)} />
+        <Show when={hasProvider()}>
+          <ProviderIcon data-slot="leader-avatar" aria-hidden="true" id={getProviderIconId(props.entry.author)} />
+        </Show>
         <div data-slot="leader-copy">
           <div>
             <strong>{props.entry.model}</strong>
             <span>{formatBillions(props.entry.tokens)}</span>
           </div>
           <div>
-            <span>{props.entry.author}</span>
+            <Show when={hasProvider()} fallback={<span />}>
+              <span>{props.entry.author}</span>
+            </Show>
             <span
               data-slot="delta"
               data-new={props.entry.change === null ? "true" : undefined}
@@ -928,7 +955,7 @@ function MarketShareSection(props: { data: MarketDay[] }) {
   const [inspecting, setInspecting] = createSignal(false)
   const authorOrder = createMemo(() => getMarketAuthorOrder(props.data))
   const selectedIndex = createMemo(() => Math.min(activeIndex(), Math.max(props.data.length - 1, 0)))
-  const activeDay = createMemo(() => props.data[selectedIndex()])
+  const today = createMemo(() => props.data[props.data.length - 1])
 
   return (
     <section
@@ -947,7 +974,7 @@ function MarketShareSection(props: { data: MarketDay[] }) {
         description={i18n.t("home.marketShareDescription")}
       />
       <Show
-        when={activeDay()}
+        when={today()}
         fallback={<EmptyState title={i18n.t("home.noMarketTitle")} description={i18n.t("home.noMarketDescription")} />}
       >
         {(day) => (
@@ -963,19 +990,14 @@ function MarketShareSection(props: { data: MarketDay[] }) {
                 setActiveIndex(index)
                 setInspecting(true)
               }}
-              onActiveAuthorChange={(author) => {
-                setActiveAuthor(author)
-                setInspecting(true)
-              }}
+              onActiveAuthorChange={setActiveAuthor}
+              onInspectingChange={setInspecting}
             />
             <MarketShareList
-              data={day().authors}
+              data={rankedMarketAuthors(day())}
               authorOrder={authorOrder()}
               activeAuthor={activeAuthor()}
-              onActiveAuthorChange={(author) => {
-                setActiveAuthor(author)
-                setInspecting(true)
-              }}
+              onActiveAuthorChange={setActiveAuthor}
             />
           </>
         )}
@@ -983,11 +1005,7 @@ function MarketShareSection(props: { data: MarketDay[] }) {
       <div data-slot="market-footer">
         <p>
           <span>[*]</span>
-          <strong>
-            {inspecting()
-              ? formatMarketDate(activeDay(), i18n.t("home.noData"))
-              : formatMarketRange(props.data, i18n.t("home.noData"))}
-          </strong>
+          <strong>{formatMarketDate(today(), i18n.t("home.noData"))}</strong>
         </p>
       </div>
     </section>
@@ -1002,10 +1020,15 @@ function MarketShare(props: {
   activeAuthor: string | undefined
   inspecting: boolean
   onActiveIndexChange: (index: number) => void
-  onActiveAuthorChange: (author: string) => void
+  onActiveAuthorChange: (author: string | undefined) => void
+  onInspectingChange: (inspecting: boolean) => void
 }) {
   const i18n = useI18n()
   let chartRef: HTMLDivElement | undefined
+  const inspectDay = (index: number) => {
+    props.onActiveIndexChange(index)
+    props.onActiveAuthorChange(undefined)
+  }
 
   createEffect(() => scrollDenseChartToEnd(chartRef, props.range, props.data.length))
 
@@ -1018,6 +1041,10 @@ function MarketShare(props: {
       role="img"
       aria-label={i18n.t("home.marketChart")}
       style={{ "--market-count": props.data.length } as JSX.CSSProperties}
+      onPointerLeave={(event) => {
+        if (event.pointerType === "touch") return
+        props.onInspectingChange(false)
+      }}
     >
       <div data-slot="market-labels">
         <For each={props.data}>
@@ -1028,8 +1055,11 @@ function MarketShare(props: {
               data-active={props.inspecting && props.activeIndex === index() ? "true" : undefined}
               data-label-hidden={isColumnLabelHidden(index(), props.data.length) ? "true" : undefined}
               data-mobile-hidden={isMarketMobileLabelHidden(index(), props.data.length) ? "true" : undefined}
-              onClick={() => props.onActiveIndexChange(index())}
-              onPointerEnter={() => props.onActiveIndexChange(index())}
+              aria-describedby={props.inspecting && props.activeIndex === index() ? "market-share-tooltip" : undefined}
+              onBlur={() => props.onInspectingChange(false)}
+              onClick={() => inspectDay(index())}
+              onFocus={() => inspectDay(index())}
+              onPointerEnter={() => inspectDay(index())}
             >
               <span data-slot="market-axis-label">
                 <span data-slot="market-total">{formatTrillions(day.total)}</span>
@@ -1049,8 +1079,11 @@ function MarketShare(props: {
               type="button"
               aria-label={`${day.date} ${formatTrillions(day.total)}`}
               data-active={props.inspecting && props.activeIndex === index() ? "true" : undefined}
-              onClick={() => props.onActiveIndexChange(index())}
-              onPointerEnter={() => props.onActiveIndexChange(index())}
+              aria-describedby={props.inspecting && props.activeIndex === index() ? "market-share-tooltip" : undefined}
+              onBlur={() => props.onInspectingChange(false)}
+              onClick={() => inspectDay(index())}
+              onFocus={() => inspectDay(index())}
+              onPointerEnter={() => inspectDay(index())}
             >
               <For each={stackedMarketAuthors(day, props.authorOrder)}>
                 {(item) => (
@@ -1090,6 +1123,45 @@ function MarketShare(props: {
           )}
         </For>
       </div>
+      <Show when={props.inspecting ? props.data[props.activeIndex] : undefined} keyed>
+        {(day) => (
+          <div
+            id="market-share-tooltip"
+            data-component="chart-tooltip"
+            data-placement={props.activeIndex > props.data.length * 0.62 ? "left" : "right"}
+            role="tooltip"
+            style={
+              {
+                "--market-tooltip-left": `${((props.activeIndex + 0.5) / props.data.length) * 100}%`,
+                "--market-tooltip-right": `${100 - ((props.activeIndex + 0.5) / props.data.length) * 100}%`,
+              } as JSX.CSSProperties
+            }
+          >
+            <strong>{day.date}</strong>
+            <span>
+              {formatTrillions(day.total)} {i18n.t("home.total")}
+            </span>
+            <div data-slot="tooltip-divider" />
+            <For each={rankedMarketAuthors(day)}>
+              {(item, index) => (
+                <p
+                  data-active={props.activeAuthor === item.author ? "true" : undefined}
+                  data-muted={
+                    props.activeAuthor !== undefined && props.activeAuthor !== item.author ? "true" : undefined
+                  }
+                >
+                  <span data-slot="tooltip-label">
+                    <i style={{ background: getRankColor(item.author, index(), props.authorOrder, marketColors) }} />
+                    <span data-slot="tooltip-name">{item.author}</span>
+                  </span>
+                  <em>{formatTrillions(item.tokens)}</em>
+                  <b>{item.share.toFixed(1)}%</b>
+                </p>
+              )}
+            </For>
+          </div>
+        )}
+      </Show>
     </div>
   )
 }
@@ -1248,6 +1320,10 @@ function getMarketSegmentColor(author: string, color: string, activeAuthor: stri
   return "var(--stats-bar-idle)"
 }
 
+function rankedMarketAuthors(day: MarketDay) {
+  return day.authors.toSorted((a, b) => b.tokens - a.tokens || a.author.localeCompare(b.author))
+}
+
 function stackedMarketAuthors(day: MarketDay, order: Map<string, number>) {
   return day.authors
     .map((author, index) => ({ author, index }))
@@ -1300,16 +1376,6 @@ function formatTrillions(value: number) {
 function formatMarketDate(day: MarketDay | undefined, fallback: string) {
   if (!day) return fallback
   return formatMarketDateLabel(day.date)
-}
-
-function formatMarketRange(data: MarketDay[], fallback: string) {
-  const first = data[0]?.date
-  const last = data[data.length - 1]?.date
-  if (!first || !last) return fallback
-  const start = marketDateParts(first).start
-  const end = marketDateParts(last).end
-  if (start === end) return formatMarketDateLabel(start)
-  return `${start} ${new Date().getFullYear()} → ${end} ${new Date().getFullYear()}`
 }
 
 function formatMarketDateLabel(label: string) {
@@ -1630,22 +1696,24 @@ function formatSessionCost(value: number) {
   return `$${value.toFixed(4)}`
 }
 
-function homeComparisonPairs(leaderboard: LeaderboardEntry[]) {
+function homeComparisonPairs(leaderboard: LeaderboardEntry[], catalogLabs: readonly string[]) {
   return uniqueComparisonPairs(
     comparisonPairIndexes.flatMap(([firstIndex, secondIndex, detail]) => {
       const first = leaderboard[firstIndex]
       const second = leaderboard[secondIndex]
-      return first && second ? [{ first: leaderboardRef(first), second: leaderboardRef(second), detail }] : []
+      return first && second
+        ? [{ first: leaderboardRef(first, catalogLabs), second: leaderboardRef(second, catalogLabs), detail }]
+        : []
     }),
   )
 }
 
-function leaderboardRef(entry: LeaderboardEntry): ComparisonModelRef {
+function leaderboardRef(entry: LeaderboardEntry, catalogLabs: readonly string[]): ComparisonModelRef {
   return {
     name: entry.model,
     lab: entry.provider,
     slug: modelSlug(entry.model),
-    labName: entry.author,
+    labName: isKnownCatalogLab(entry.provider, catalogLabs) ? entry.author : undefined,
     metric: `#${entry.rank} / ${formatBillions(entry.tokens)}`,
   }
 }

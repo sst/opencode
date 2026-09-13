@@ -766,7 +766,7 @@ function DiffViewer(props: { api: TuiPluginApi }) {
             <Match when={diff.loading}>
               <Separator axis="x" />
               <box flexGrow={1} paddingLeft={1}>
-                <text fg={theme().textMuted}>Loading diff...</text>
+                <text fg={theme().textMuted}>Loading diff…</text>
               </box>
             </Match>
             <Match when={!diff.loading && files().length === 0}>
