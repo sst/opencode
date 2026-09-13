@@ -56,6 +56,7 @@ export const Options = Schema.Struct({
   global: Schema.optional(Schema.Boolean),
   file: Schema.optional(Schema.String),
   content: Schema.optional(Schema.String),
+  disableClaudeCode: Schema.optional(Schema.Boolean),
 })
 export type Options = typeof Options.Type
 

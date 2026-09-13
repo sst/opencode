@@ -1615,4 +1615,45 @@ describe("Config", () => {
       }),
     ),
   )
+
+  it.live("excludes claude sources when disableClaudeCode option is set", () =>
+    Effect.acquireRelease(
+      Effect.promise(() => tmpdir()),
+      (tmp) => Effect.promise(() => tmp[Symbol.asyncDispose]()),
+    ).pipe(
+      Effect.flatMap((tmp) => {
+        const global = path.join(tmp.path, "global")
+        const directory = path.join(tmp.path, "repo")
+        const globalAgents = path.join(global, "home", ".agents")
+        const globalClaude = path.join(global, "home", ".claude")
+        return Effect.gen(function* () {
+          yield* Effect.promise(async () => {
+            await fs.mkdir(global, { recursive: true })
+            await fs.mkdir(globalAgents, { recursive: true })
+            await fs.mkdir(globalClaude, { recursive: true })
+            await fs.mkdir(directory, { recursive: true })
+            await fs.mkdir(path.join(directory, ".agents"), { recursive: true })
+          })
+
+          return yield* Effect.gen(function* () {
+            const config = yield* Config.Service
+            const entries = (yield* config.entries()).filter(
+              (entry) => !entry.path || inFixture(tmp.path, entry.path),
+            )
+            expect(entries.filter((entry) => entry.type === "claude").map((entry) => entry.path)).toEqual([])
+            expect(entries.filter((entry) => entry.type === "agents").map((entry) => entry.path)).toEqual([
+              AbsolutePath.make(globalAgents),
+              AbsolutePath.make(path.join(directory, ".agents")),
+            ])
+          }).pipe(
+            Effect.provide(
+              testLayer(directory, global, directory, undefined, Watcher.testLayer, emptyCredentialNode, emptyWellknownNode, {
+                disableClaudeCode: true,
+              }),
+            ),
+          )
+        })
+      }),
+    ),
+  )
 })

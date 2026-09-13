@@ -1,7 +1,7 @@
 export * as ConfigDiscovery from "./discovery.js"
 
 import path from "path"
-import { Effect } from "effect"
+import { Config, Effect } from "effect"
 import { FSUtil } from "@opencode/util/fs-util"
 import { Global } from "@opencode/util/global"
 import { Location } from "../location.js"
@@ -50,6 +50,8 @@ export const discover = Effect.fn("ConfigDiscovery.discover")(function* (options
   )
 
   const globalEnabled = options?.global !== false
+  const disableClaudeCode =
+    options?.disableClaudeCode ?? (yield* Config.boolean("OPENCODE_DISABLE_CLAUDE_CODE").pipe(Config.withDefault(false)))
   const globalFiles = yield* Effect.forEach(names, (name) => fs.resolve(path.join(globalDirectory, name)))
   // Global sources must not re-enter through the project walk.
   const visible = discovered
@@ -68,12 +70,14 @@ export const discover = Effect.fn("ConfigDiscovery.discover")(function* (options
       visible.filter((item) => path.basename(item) === ".opencode").toReversed(),
       (directory) => fs.isDir(directory).pipe(Effect.map((present) => ({ path: directory, present }))),
     ),
-    claude: [
-      ...new Set([
-        ...(globalEnabled ? [globalClaudeDirectory] : []),
-        ...visible.filter((item) => path.basename(item) === ".claude").toReversed(),
-      ]),
-    ],
+    claude: disableClaudeCode
+      ? []
+      : [
+          ...new Set([
+            ...(globalEnabled ? [globalClaudeDirectory] : []),
+            ...visible.filter((item) => path.basename(item) === ".claude").toReversed(),
+          ]),
+        ],
     agents: [
       ...new Set([
         ...(globalEnabled ? [globalAgentsDirectory] : []),
