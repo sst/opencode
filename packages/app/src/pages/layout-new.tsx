@@ -1,14 +1,29 @@
 import { createEffect, Suspense, type ParentProps } from "solid-js"
 import { createStore } from "solid-js/store"
+import { useNavigate } from "@solidjs/router"
 import { DebugBar } from "@/components/debug-bar"
 import { TabsInfoPopup } from "@/components/help-button"
 import { Titlebar, type TitlebarUpdate } from "@/components/titlebar"
 import { usePlatform } from "@/context/platform"
+import { useServer } from "@/context/server"
 import { setV2Toast, ToastRegion } from "@/utils/toast"
+import { useOpenProject } from "@/pages/layout/open-project"
+import { useDeepLinks } from "@/pages/layout/use-deep-links"
 
 export default function NewLayout(props: ParentProps) {
   const platform = usePlatform()
+  const server = useServer()
+  const navigate = useNavigate()
   const [state, setState] = createStore({ debugTools: true })
+  const openProject = useOpenProject({
+    open: (directory) => server.projects.open(directory),
+    touch: (directory) => server.projects.touch(directory),
+  })
+  useDeepLinks({
+    enabled: () => server.isLocal(),
+    openProject: openProject.ensureProject,
+    navigate,
+  })
 
   createEffect(() => setV2Toast(true))
 

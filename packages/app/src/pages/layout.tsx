@@ -67,13 +67,9 @@ import {
   latestRootSession,
   sortedRootSessions,
 } from "./layout/helpers"
-import {
-  collectNewSessionDeepLinks,
-  collectOpenProjectDeepLinks,
-  deepLinkEvent,
-  drainPendingDeepLinks,
-} from "./layout/deep-links"
 import { createInlineEditorController } from "./layout/inline-editor"
+import { useOpenProject } from "./layout/open-project"
+import { useDeepLinks } from "./layout/use-deep-links"
 import {
   LocalWorkspace,
   SortableWorkspace,
@@ -118,6 +114,10 @@ export default function LegacyLayout(props: ParentProps) {
   const navigate = useNavigate()
   const providers = useProviders(() => undefined)
   const dialog = useDialog()
+  const openProjects = useOpenProject({
+    projectDirectory: (directory) => projectRoot(directory),
+    open: (directory) => layout.projects.open(directory),
+  })
   const command = useCommand()
   const theme = useTheme()
   const language = useLanguage()
@@ -1244,41 +1244,21 @@ export default function LegacyLayout(props: ParentProps) {
     navigateWithSidebarReset(`/${base64Encode(session.directory)}/session/${session.id}`)
   }
 
-  function openProject(directory: string, navigate = true) {
-    layout.projects.open(directory)
+  async function openProject(directory: string, navigate = true) {
+    await openProjects.ensureProject(directory)
     if (navigate) return navigateToProject(directory)
   }
 
-  const handleDeepLinks = (urls: string[]) => {
-    if (!server.isLocal()) return
-
-    for (const directory of collectOpenProjectDeepLinks(urls)) {
-      void openProject(directory)
-    }
-
-    for (const link of collectNewSessionDeepLinks(urls)) {
-      void openProject(link.directory, false)
-      const slug = base64Encode(link.directory)
-      if (link.prompt) {
-        setSessionHandoff(SessionStateKey.from(server.scope(), SessionRouteKey.fromLegacy(slug)), {
-          prompt: link.prompt,
-        })
-      }
-      const href = link.prompt ? `/${slug}/session?prompt=${encodeURIComponent(link.prompt)}` : `/${slug}/session`
-      navigateWithSidebarReset(href)
-    }
-  }
-
-  onMount(() => {
-    const handler = (event: Event) => {
-      const detail = (event as CustomEvent<{ urls: string[] }>).detail
-      const urls = detail?.urls ?? []
-      if (urls.length === 0) return
-      handleDeepLinks(urls)
-    }
-
-    handleDeepLinks(drainPendingDeepLinks(window))
-    makeEventListener(window, deepLinkEvent, handler as EventListener)
+  useDeepLinks({
+    enabled: () => server.isLocal() && !settings.general.newLayoutDesigns(),
+    openProject: (directory) => openProjects.ensureProject(directory),
+    prepareNewSession: (link) => {
+      if (!link.prompt) return
+      setSessionHandoff(SessionStateKey.from(server.scope(), SessionRouteKey.fromLegacy(base64Encode(link.directory))), {
+        prompt: link.prompt,
+      })
+    },
+    navigate: navigateWithSidebarReset,
   })
 
   async function renameProject(project: LocalProject, next: string) {
