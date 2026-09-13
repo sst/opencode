@@ -9,11 +9,14 @@ import { Formatter } from "@opencode/core/formatter"
 import { FileMutation } from "@opencode/core/file-mutation"
 import { Location } from "@opencode/core/location"
 import { FileAccess } from "@opencode/core/file-access"
+import { Model } from "@opencode/core/model"
 import { Permission } from "@opencode/core/permission"
+import { Provider } from "@opencode/core/provider"
 import { AbsolutePath } from "@opencode/core/schema"
 import { Session } from "@opencode/core/session"
 import { Tool } from "@opencode/core/tool"
 import { PatchTool } from "@opencode/core/tool/plugin/patch"
+import type { SessionHooks } from "@opencode/plugin/effect/session"
 import { transformEnvironmentFiles } from "./fixture/environment"
 import { location } from "./fixture/location"
 import { tmpdir } from "./fixture/tmpdir"
@@ -22,9 +25,20 @@ import { testEffect } from "./lib/effect"
 import { permissionLayer } from "./lib/permission"
 import { toolIdentity, executeTool, registerToolPlugin, toolDefinitions } from "./lib/tool"
 
+const sessionHooks = new Map<string, (event: SessionHooks["context"]) => Effect.Effect<void>>()
 const patchToolNode = makeLocationNode({
   name: "test/patch-tool-plugin",
-  layer: Layer.effectDiscard(registerToolPlugin(PatchTool.Plugin)),
+  layer: Layer.effectDiscard(
+    registerToolPlugin(PatchTool.Plugin, {
+      session: {
+        hook: (name, callback) =>
+          Effect.sync(() => {
+            sessionHooks.set(name, callback as (event: SessionHooks["context"]) => Effect.Effect<void>)
+            return { dispose: Effect.void }
+          }),
+      },
+    }),
+  ),
   deps: [
     Tool.node,
     FileAccess.node,
@@ -153,6 +167,34 @@ const withTempTool = <A, E, R>(body: (directory: string, registry: Tool.Interfac
   )
 
 describe("PatchTool", () => {
+  it.live("selects the same edit tools for compaction and generate requests as the agent loop", () =>
+    withTempTool(() =>
+      Effect.gen(function* () {
+        const event = (id: string): SessionHooks["context"] => ({
+          sessionID,
+          agent: toolIdentity.agent,
+          model: Model.Ref.make({ providerID: Provider.ID.make("test"), id: Model.ID.make(id) }),
+          system: [],
+          messages: [],
+          tools: Object.fromEntries(
+            ["patch", "edit", "write", "read"].map((name) => [name, { description: name, input: { type: "object" } }]),
+          ),
+          options: {},
+        })
+        for (const name of ["context", "compaction", "generate"]) {
+          const hook = sessionHooks.get(name)
+          expect(hook).toBeDefined()
+          const claude = event("claude-sonnet-4")
+          yield* hook!(claude)
+          expect(Object.keys(claude.tools)).toEqual(["edit", "write", "read"])
+          const gpt = event("gpt-5")
+          yield* hook!(gpt)
+          expect(Object.keys(gpt.tools)).toEqual(["patch", "read"])
+        }
+      }),
+    ),
+  )
+
   it.live("registers and sequentially applies add, update, and delete hunks", () =>
     Effect.acquireUseRelease(
       Effect.promise(() => tmpdir()),
