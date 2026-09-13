@@ -46,6 +46,7 @@ import { SystemPrompt } from "../../src/session/system"
 import { Shell } from "@opencode-ai/core/shell"
 import { Snapshot } from "../../src/snapshot"
 import { ToolRegistry } from "@/tool/registry"
+import { TaskTool, type TaskPromptOps } from "../../src/tool/task"
 import { Truncate } from "@/tool/truncate"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { Ripgrep } from "@opencode-ai/core/ripgrep"
@@ -165,6 +166,7 @@ const blockingProcessor = Layer.succeed(
 )
 
 const runtimeFlags = RuntimeFlags.layer({ experimentalEventSystem: true })
+const backgroundRuntimeFlags = RuntimeFlags.layer({ experimentalEventSystem: true, experimentalBackgroundSubagents: true })
 
 const testLLMServerNode = LayerNode.make({ service: TestLLMServer, layer: TestLLMServer.layer, deps: [] })
 
@@ -208,12 +210,18 @@ const promptRoot = LayerNode.group([
   RuntimeFlags.node,
 ])
 
-function makePrompt(input?: { mcpInstructions?: MCP.ServerInstructions[]; processor?: "blocking" }) {
+type PromptTestInput = {
+  mcpInstructions?: MCP.ServerInstructions[]
+  processor?: "blocking"
+  runtimeFlags?: Layer.Layer<RuntimeFlags.Service>
+}
+
+function makePrompt(input?: PromptTestInput) {
   const replacements = [
     [SessionSummary.node, summary],
     [LSP.node, lsp],
     [MCP.node, makeMcp(input?.mcpInstructions)],
-    [RuntimeFlags.node, runtimeFlags],
+    [RuntimeFlags.node, input?.runtimeFlags ?? runtimeFlags],
   ] as const
   if (input?.processor === "blocking") {
     return LayerNode.compile(promptRoot, [...replacements, [SessionProcessor.node, blockingProcessor]])
@@ -241,6 +249,9 @@ function makeHttpNoLLMServer(input?: { mcpInstructions?: MCP.ServerInstructions[
 
 const it = testEffect(makeHttp())
 const noLLMServer = testEffect(makeHttpNoLLMServer())
+const backgroundNoLLMServer = testEffect(
+  makePrompt({ runtimeFlags: backgroundRuntimeFlags }) as unknown as Layer.Layer<any, any, never>,
+)
 const raceNoLLMServer = testEffect(makeHttpNoLLMServer({ processor: "blocking" }))
 const withMcpInstructions = testEffect(
   makeHttp({
@@ -2333,6 +2344,7 @@ noLLMServer.instance(
       const match = yield* prompt.prompt({
         sessionID: session.id,
         agent: "build",
+        model: ref,
         noReply: true,
         parts: [{ type: "text", text: "hello again" }],
       })
@@ -2467,4 +2479,243 @@ noLLMServer.instance(
       }
     }),
   30_000,
+)
+
+// Agent/model preservation
+
+noLLMServer.instance(
+  "prompt without agent and model preserves current session agent and model",
+  () =>
+    Effect.gen(function* () {
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const session = yield* sessions.create({})
+
+      yield* prompt.prompt({
+        sessionID: session.id,
+        agent: "build",
+        model: ref,
+        noReply: true,
+        parts: [{ type: "text", text: "hello" }],
+      })
+
+      const next = yield* prompt.prompt({
+        sessionID: session.id,
+        noReply: true,
+        parts: [{ type: "text", text: "hello again" }],
+      })
+      if (next.info.role !== "user") throw new Error("expected user message")
+      expect(next.info.agent).toBe("build")
+      expect(next.info.model).toEqual(ref)
+
+      yield* sessions.remove(session.id)
+    }),
+  {
+    config: {
+      ...cfg,
+      default_agent: "plan",
+    },
+  },
+)
+
+noLLMServer.instance(
+  "explicit agent without model keeps the session's current model",
+  () =>
+    Effect.gen(function* () {
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const session = yield* sessions.create({})
+
+      yield* prompt.prompt({
+        sessionID: session.id,
+        agent: "build",
+        model: { providerID: ProviderV2.ID.make("opencode"), modelID: ModelV2.ID.make("kimi-k2.5-free") },
+        noReply: true,
+        parts: [{ type: "text", text: "hello" }],
+      })
+
+      const next = yield* prompt.prompt({
+        sessionID: session.id,
+        agent: "build",
+        noReply: true,
+        parts: [{ type: "text", text: "notification" }],
+      })
+      if (next.info.role !== "user") throw new Error("expected user message")
+      expect(next.info.agent).toBe("build")
+      expect(next.info.model.providerID).toBe(ProviderV2.ID.make("opencode"))
+      expect(next.info.model.modelID).toBe(ModelV2.ID.make("kimi-k2.5-free"))
+
+      yield* sessions.remove(session.id)
+    }),
+  {
+    config: {
+      ...cfg,
+      agent: {
+        build: {
+          model: "test/test-model",
+        },
+      },
+    },
+  },
+)
+
+noLLMServer.instance(
+  "explicit agent switch without model uses the new agent's model",
+  () =>
+    Effect.gen(function* () {
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const session = yield* sessions.create({})
+
+      yield* prompt.prompt({
+        sessionID: session.id,
+        agent: "build",
+        model: { providerID: ProviderV2.ID.make("opencode"), modelID: ModelV2.ID.make("kimi-k2.5-free") },
+        noReply: true,
+        parts: [{ type: "text", text: "hello" }],
+      })
+
+      const next = yield* prompt.prompt({
+        sessionID: session.id,
+        agent: "plan",
+        noReply: true,
+        parts: [{ type: "text", text: "switch" }],
+      })
+      if (next.info.role !== "user") throw new Error("expected user message")
+      expect(next.info.agent).toBe("plan")
+      expect(next.info.model.providerID).toBe(ProviderV2.ID.make("test"))
+      expect(next.info.model.modelID).toBe(ModelV2.ID.make("test-model"))
+
+      yield* sessions.remove(session.id)
+    }),
+  {
+    config: {
+      ...cfg,
+      agent: {
+        plan: {
+          model: "test/test-model",
+        },
+      },
+    },
+  },
+)
+
+noLLMServer.instance(
+  "prompt without agent, model, and variant preserves the current variant",
+  () =>
+    Effect.gen(function* () {
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const session = yield* sessions.create({})
+
+      yield* prompt.prompt({
+        sessionID: session.id,
+        agent: "build",
+        model: ref,
+        variant: "xhigh",
+        noReply: true,
+        parts: [{ type: "text", text: "hello" }],
+      })
+
+      const next = yield* prompt.prompt({
+        sessionID: session.id,
+        noReply: true,
+        parts: [{ type: "text", text: "hello again" }],
+      })
+      if (next.info.role !== "user") throw new Error("expected user message")
+      expect(next.info.agent).toBe("build")
+      expect(next.info.model).toEqual({ ...ref, variant: "xhigh" })
+
+      yield* sessions.remove(session.id)
+    }),
+  {
+    config: {
+      ...cfg,
+      provider: {
+        ...cfg.provider,
+        test: {
+          ...cfg.provider.test,
+          models: {
+            "test-model": {
+              ...cfg.provider.test.models["test-model"],
+              variants: { xhigh: {}, high: {} },
+            },
+          },
+        },
+      },
+      default_agent: "plan",
+    },
+  },
+)
+
+backgroundNoLLMServer.instance(
+  "background completion injection preserves the parent session model",
+  () =>
+    Effect.gen(function* () {
+      const prompt = yield* SessionPrompt.Service
+      const sessions = yield* Session.Service
+      const parent = yield* sessions.create({ permission: [{ permission: "*", pattern: "*", action: "allow" }] })
+      const seeded = yield* seed(parent.id)
+      yield* sessions.setAgentModel({
+        sessionID: parent.id,
+        agent: "build",
+        model: { id: ref.modelID, providerID: ref.providerID, variant: "default" },
+        time: Date.now(),
+      })
+
+      const taskInfo = yield* TaskTool
+      const task = yield* taskInfo.init()
+      const promptOps: TaskPromptOps = {
+        cancel: () => Effect.void,
+        resolvePromptParts: () => Effect.succeed([{ type: "text", text: "child prompt" }]),
+        prompt: (input) => prompt.prompt({ ...input, noReply: true }).pipe(Effect.orDie),
+      }
+
+      yield* task.execute(
+        {
+          description: "background completion",
+          prompt: "child prompt",
+          subagent_type: "build",
+          background: true,
+        },
+        {
+          sessionID: parent.id,
+          messageID: seeded.assistant.id,
+          agent: "build",
+          abort: new AbortController().signal,
+          messages: [],
+          metadata: () => Effect.void,
+          ask: () => Effect.void,
+          extra: { bypassAgentCheck: true, promptOps },
+        },
+      )
+
+      const injected = yield* pollWithTimeout(
+        Effect.gen(function* () {
+          const messages = yield* sessions.messages({ sessionID: parent.id })
+          const match = messages.findLast(
+            (message) =>
+              message.info.role === "user" &&
+              message.parts.some((part) => part.type === "text" && part.synthetic === true),
+          )
+          if (match?.info.role === "user") return match
+        }),
+        "timed out waiting for background completion injection",
+      )
+
+      if (injected.info.role !== "user") throw new Error("expected user message")
+      expect(injected.info.agent).toBe("build")
+      expect(injected.info.model).toEqual(ref)
+    }),
+  {
+    config: {
+      ...cfg,
+      agent: {
+        build: {
+          model: "test/other-model",
+        },
+      },
+    },
+  },
+  10_000,
 )
