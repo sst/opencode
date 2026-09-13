@@ -383,6 +383,17 @@ const layer: Layer.Layer<Service, never, FSUtil.Service | AppProcess.Service | C
           return yield* locked(
             Effect.gen(function* () {
               yield* Effect.logInfo("restore", { commit: snapshot })
+              // Compare the worktree against the snapshot content-wise first. If
+              // they already match, skip the checkout entirely: `checkout-index
+              // -a -f` force-rewrites every indexed file, which bumps mtimes on
+              // byte-identical files and breaks mtime-based sync tools.
+              const changed = yield* git([...quote, ...args(["diff", "--name-only", "-z", snapshot, "--", "."])], {
+                cwd: state.worktree,
+              })
+              if (changed.code === 0 && !changed.text) {
+                yield* Effect.logInfo("restore skipped, worktree already matches snapshot", { snapshot })
+                return
+              }
               const result = yield* git([...core, ...args(["read-tree", snapshot])], { cwd: state.worktree })
               if (result.code === 0) {
                 const checkout = yield* git([...core, ...args(["checkout-index", "-a", "-f"])], {
