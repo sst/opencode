@@ -24,7 +24,7 @@ export function TerminalsTab(props: { sessionID: string; visibleTerminalID?: str
   createEffect(() => {
     if (!composer.active("terminals")) return
     const index = entries().findIndex((terminal) => terminal.id === props.visibleTerminalID)
-    setSelected(index < 0 ? undefined : index)
+    setSelected(index < 0 ? 0 : index)
   })
 
   const select = () => {
