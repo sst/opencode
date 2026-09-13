@@ -84,7 +84,7 @@ import { DialogVariant } from "./component/dialog-variant"
 import { createTuiAttention } from "./attention"
 import * as TuiAudio from "./audio"
 import { win32DisableProcessedInput, win32FlushInputBuffer } from "./terminal-win32"
-import { destroyRenderer } from "./util/renderer"
+import { destroyRenderer, terminalReset } from "./util/renderer"
 import { cliErrorMessage, errorFormat } from "./util/error"
 
 registerOpencodeSpinner()
@@ -229,9 +229,23 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
       yield* Effect.addFinalizer(() => Effect.sync(TuiAudio.dispose))
       const shutdown = yield* Deferred.make<unknown>()
       const onSighup = () => destroyRenderer(renderer)
+      const onSigterm = () => {
+        destroyRenderer(renderer)
+        process.exit(143)
+      }
+      const onProcessExit = () => terminalReset()
       yield* Effect.acquireRelease(
-        Effect.sync(() => process.on("SIGHUP", onSighup)),
-        () => Effect.sync(() => process.off("SIGHUP", onSighup)),
+        Effect.sync(() => {
+          process.on("SIGHUP", onSighup)
+          process.on("SIGTERM", onSigterm)
+          process.on("exit", onProcessExit)
+        }),
+        () =>
+          Effect.sync(() => {
+            process.off("SIGHUP", onSighup)
+            process.off("SIGTERM", onSigterm)
+            process.off("exit", onProcessExit)
+          }),
       )
       renderer.once("destroy", () => Deferred.doneUnsafe(shutdown, Effect.void))
       const pluginRuntime = createPluginRuntime()
