@@ -1219,7 +1219,7 @@ function createLayer(input: StreamInput) {
 
           const req = {
             sessionID: input.sessionID,
-            messageID: next.prompt.messageID,
+            messageID: next.prompt.localMessageID ? undefined : next.prompt.messageID,
             agent: next.agent,
             model: next.model,
             variant: next.variant,
@@ -1281,7 +1281,7 @@ function createLayer(input: StreamInput) {
                         input.sdk.session.command(
                           {
                             sessionID: input.sessionID,
-                            messageID: next.prompt.messageID,
+                            messageID: next.prompt.localMessageID ? undefined : next.prompt.messageID,
                             agent: next.agent,
                             model: next.model ? `${next.model.providerID}/${next.model.modelID}` : undefined,
                             variant: next.variant,

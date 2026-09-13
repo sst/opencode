@@ -22,7 +22,7 @@ import { InstanceRef } from "@/effect/instance-ref"
 import { SessionShare } from "@/share/session"
 import { Session } from "@/session/session"
 import type { SessionID } from "../../session/schema"
-import { MessageID, PartID } from "../../session/schema"
+import { PartID } from "../../session/schema"
 import { Provider } from "@/provider/provider"
 import { MessageV2 } from "../../session/message-v2"
 import { EventV2Bridge } from "@/event-v2-bridge"
@@ -902,7 +902,6 @@ export const githubRun = Effect.fn("Cli.github.run")(function* (args: { event?: 
           const prompt = sessionPrompt
           const result = yield* prompt.prompt({
             sessionID: session.id,
-            messageID: MessageID.ascending(),
             variant,
             model: {
               providerID,
@@ -950,7 +949,6 @@ export const githubRun = Effect.fn("Cli.github.run")(function* (args: { event?: 
           console.log("Requesting summary from agent...")
           const summary = yield* prompt.prompt({
             sessionID: session.id,
-            messageID: MessageID.ascending(),
             variant,
             model: {
               providerID,

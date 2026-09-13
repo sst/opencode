@@ -76,6 +76,11 @@ function footer() {
     removeQueued(messageID: string) {
       for (const fn of [...queuedRemoves]) fn(messageID)
     },
+    submitPrompt(prompt: RunPrompt) {
+      for (const fn of [...prompts]) {
+        fn(prompt)
+      }
+    },
   }
 }
 
@@ -263,6 +268,47 @@ describe("run runtime queue", () => {
     })
 
     expect(seen).toEqual(["  hello  "])
+  })
+
+  test("marks queue-minted message IDs as local and preserves caller IDs", async () => {
+    const ui = footer()
+    const seen: RunPrompt[] = []
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+
+    const task = runPromptQueue({
+      footer: ui.api,
+      initialInput: "generated",
+      run: async (input) => {
+        seen.push(input)
+        if (seen.length === 1) {
+          await gate
+          return
+        }
+
+        ui.api.close()
+      },
+    })
+
+    await Promise.resolve()
+    ui.submitPrompt({ messageID: "msg-explicit", text: "explicit", parts: [] })
+    release()
+    await task
+
+    expect(seen[0]).toEqual(
+      expect.objectContaining({
+        messageID: expect.any(String),
+        localMessageID: true,
+      }),
+    )
+    expect(seen[1]).toEqual(
+      expect.objectContaining({
+        messageID: "msg-explicit",
+        localMessageID: undefined,
+      }),
+    )
   })
 
   test("appends the user row before the turn starts", async () => {

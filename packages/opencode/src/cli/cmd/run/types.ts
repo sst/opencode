@@ -32,6 +32,7 @@ export type RunProvider = NonNullable<Awaited<ReturnType<OpencodeClient["provide
 
 export type RunPrompt = {
   messageID?: string
+  localMessageID?: boolean
   partID?: string
   text: string
   parts: RunPromptPart[]

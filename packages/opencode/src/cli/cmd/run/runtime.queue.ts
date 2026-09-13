@@ -168,6 +168,7 @@ export async function runPromptQueue(input: QueueInput): Promise<void> {
               : {
                   ...prompt,
                   messageID: prompt.messageID ?? queued?.messageID ?? MessageID.ascending(),
+                  localMessageID: prompt.messageID ? undefined : true,
                 }
           state.active = sent
 

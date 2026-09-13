@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, mock, spyOn, test } from "bun:test"
-import { OpencodeClient, type GlobalEvent } from "@opencode-ai/sdk/v2"
+import { OpencodeClient, type AssistantMessage, type GlobalEvent } from "@opencode-ai/sdk/v2"
 import { createSessionTransport } from "@/cli/cmd/run/stream.transport"
 import type { FooterApi, FooterEvent, LocalReplayRow, RunFilePart, StreamCommit } from "@/cli/cmd/run/types"
 
@@ -219,6 +219,13 @@ function assistantMessage(input: { sessionID: string; id: string; parts: Session
   }
 }
 
+function commandResponse() {
+  return {
+    info: assistantMessage({ sessionID: "session-1", id: "msg-command", parts: [] }).info as AssistantMessage,
+    parts: [],
+  }
+}
+
 function runningTool(input: {
   sessionID: string
   messageID: string
@@ -420,6 +427,7 @@ function sdk(
     subscribe?: OpencodeClient["event"]["subscribe"]
     globalEvent?: OpencodeClient["global"]["event"]
     promptAsync?: OpencodeClient["session"]["promptAsync"]
+    command?: OpencodeClient["session"]["command"]
     status?: OpencodeClient["session"]["status"]
     messages?: OpencodeClient["session"]["messages"]
     children?: OpencodeClient["session"]["children"]
@@ -442,6 +450,9 @@ function sdk(
   spyOn(client.event, "subscribe").mockImplementation(subscribe)
   spyOn(client.global, "event").mockImplementation(globalEvent)
   spyOn(client.session, "promptAsync").mockImplementation(promptAsync)
+  if (input.command) {
+    spyOn(client.session, "command").mockImplementation(input.command)
+  }
   spyOn(client.session, "status").mockImplementation(status)
   spyOn(client.session, "messages").mockImplementation(messages)
   spyOn(client.session, "children").mockImplementation(children)
@@ -2061,6 +2072,173 @@ describe("run stream transport", () => {
           parts: [{ type: "text", text: "again" }],
         }),
       ])
+    } finally {
+      src.close()
+      await transport.close()
+    }
+  })
+
+  test("omits queue-local message IDs from prompt requests", async () => {
+    const src = eventFeed()
+    const ui = footer()
+    let seen: unknown
+    const transport = await createSessionTransport({
+      sdk: sdk({
+        stream: src.stream,
+        promptAsync: async (input) => {
+          seen = input
+          queueMicrotask(() => {
+            src.push(busy())
+            src.push(idle())
+          })
+          return ok(undefined)
+        },
+      }),
+      sessionID: "session-1",
+      thinking: true,
+      limits: () => ({}),
+      footer: ui.api,
+    })
+
+    try {
+      await transport.runPromptTurn({
+        agent: undefined,
+        model: undefined,
+        variant: undefined,
+        prompt: { messageID: "msg-local", localMessageID: true, text: "hello", parts: [] },
+        files: [],
+        includeFiles: false,
+      })
+
+      expect(seen).toEqual(expect.objectContaining({ messageID: undefined }))
+    } finally {
+      src.close()
+      await transport.close()
+    }
+  })
+
+  test("preserves caller message IDs in prompt requests", async () => {
+    const src = eventFeed()
+    const ui = footer()
+    let seen: unknown
+    const transport = await createSessionTransport({
+      sdk: sdk({
+        stream: src.stream,
+        promptAsync: async (input) => {
+          seen = input
+          queueMicrotask(() => {
+            src.push(busy())
+            src.push(idle())
+          })
+          return ok(undefined)
+        },
+      }),
+      sessionID: "session-1",
+      thinking: true,
+      limits: () => ({}),
+      footer: ui.api,
+    })
+
+    try {
+      await transport.runPromptTurn({
+        agent: undefined,
+        model: undefined,
+        variant: undefined,
+        prompt: { messageID: "msg-explicit", text: "hello", parts: [] },
+        files: [],
+        includeFiles: false,
+      })
+
+      expect(seen).toEqual(expect.objectContaining({ messageID: "msg-explicit" }))
+    } finally {
+      src.close()
+      await transport.close()
+    }
+  })
+
+  test("omits queue-local message IDs from command requests", async () => {
+    const src = eventFeed()
+    const ui = footer()
+    let seen: unknown
+    const transport = await createSessionTransport({
+      sdk: sdk({
+        stream: src.stream,
+        command: async (input) => {
+          seen = input
+          queueMicrotask(() => {
+            src.push(busy())
+            src.push(idle())
+          })
+          return ok(commandResponse())
+        },
+      }),
+      sessionID: "session-1",
+      thinking: true,
+      limits: () => ({}),
+      footer: ui.api,
+    })
+
+    try {
+      await transport.runPromptTurn({
+        agent: undefined,
+        model: undefined,
+        variant: undefined,
+        prompt: {
+          messageID: "msg-local",
+          localMessageID: true,
+          text: "/skill",
+          parts: [],
+          command: { name: "skill", arguments: "" },
+        },
+        files: [],
+        includeFiles: false,
+      })
+
+      expect(seen).toEqual(expect.objectContaining({ messageID: undefined }))
+    } finally {
+      src.close()
+      await transport.close()
+    }
+  })
+
+  test("preserves caller message IDs in command requests", async () => {
+    const src = eventFeed()
+    const ui = footer()
+    let seen: unknown
+    const transport = await createSessionTransport({
+      sdk: sdk({
+        stream: src.stream,
+        command: async (input) => {
+          seen = input
+          queueMicrotask(() => {
+            src.push(busy())
+            src.push(idle())
+          })
+          return ok(commandResponse())
+        },
+      }),
+      sessionID: "session-1",
+      thinking: true,
+      limits: () => ({}),
+      footer: ui.api,
+    })
+
+    try {
+      await transport.runPromptTurn({
+        agent: undefined,
+        model: undefined,
+        variant: undefined,
+        prompt: {
+          messageID: "msg-explicit",
+          text: "/skill",
+          parts: [],
+          command: { name: "skill", arguments: "" },
+        },
+        files: [],
+        includeFiles: false,
+      })
+
+      expect(seen).toEqual(expect.objectContaining({ messageID: "msg-explicit" }))
     } finally {
       src.close()
       await transport.close()
