@@ -68,4 +68,17 @@ describe("Repository", () => {
     expect(Repository.same(shorthand, Repository.parseRemote("https://github.com/owner/repo.git"))).toBe(true)
     expect(Repository.same(shorthand, Repository.parseRemote("github.com/owner/repo"))).toBe(true)
   })
+
+  test("normalizes GitHub casing only for cache identity", () => {
+    const canonical = Repository.parseRemote("github.com/owner/repo")
+    const cased = Repository.parseRemote("GitHub.com/Owner/Repo")
+    const gitlab = Repository.parseRemote("GitLab.com/Group/Repo")
+
+    expect(Repository.same(canonical, cased)).toBe(true)
+    expect(Repository.cachePath("/cache", cased)).toBe(Repository.cachePath("/cache", canonical))
+    expect(cased.label).toBe("Owner/Repo")
+    expect(cased.remote).toBe("https://github.com/Owner/Repo.git")
+    expect(Repository.cacheIdentity(gitlab)).toBe("gitlab.com/Group/Repo")
+    expect(Repository.cachePath("/cache", gitlab)).toBe(path.join("/cache", "gitlab.com", "Group", "Repo"))
+  })
 })

@@ -124,12 +124,16 @@ export function isRemote(reference: Reference): reference is RemoteReference {
  * percent-encoded because valid branch names may contain `/`.
  */
 export function cachePath(root: string, reference: Reference, branch?: string): string {
-  const base = path.join(root, ...reference.host.split(":"), ...reference.segments)
+  const base = path.join(
+    root,
+    ...reference.host.split(":"),
+    ...reference.segments.map((segment) => (reference.host === "github.com" ? segment.toLowerCase() : segment)),
+  )
   return branch ? `${base}@${encodeURIComponent(branch)}` : base
 }
 
 export function cacheIdentity(reference: Reference): string {
-  return `${reference.host}/${reference.path}`
+  return `${reference.host}/${reference.host === "github.com" ? reference.path.toLowerCase() : reference.path}`
 }
 
 export function same(left: Reference, right: Reference): boolean {
