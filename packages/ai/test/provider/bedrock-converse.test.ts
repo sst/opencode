@@ -1765,7 +1765,9 @@ describe("Bedrock Converse route", () => {
             role: "user",
             content: [
               { text: "Summarize these documents." },
+              { text: 'Attached file "report.pdf" has document label "report".' },
               { document: { format: "pdf", name: "report", source: { bytes: "UERGREFUQQ==" } } },
+              { text: 'Attached file "data.csv" has document label "data".' },
               { document: { format: "csv", name: "data", source: { bytes: "Q1NWREFUQQ==" } } },
             ],
           },
@@ -1852,8 +1854,10 @@ describe("Bedrock Converse route", () => {
         const second = yield* compileRequest(request)
         const expected = { format: "pdf", name: item.expected, source: { bytes: "UERGREFUQQ==" } }
 
-        expect(first.body.messages[0].content[1].document).toEqual(expected)
-        expect(first.body.messages[2].content[0].toolResult.content[1].document).toEqual({
+        expect(first.body.messages[0].content.find((part) => "document" in part)?.document).toEqual(expected)
+        expect(
+          first.body.messages[2].content[0].toolResult.content.find((part) => "document" in part)?.document,
+        ).toEqual({
           ...expected,
           name: item.duplicate,
         })
@@ -1882,16 +1886,20 @@ describe("Bedrock Converse route", () => {
           ],
         }),
       )
-      expect(prepared.body.messages[0].content.slice(1).map((part) => part.document.name)).toEqual([
-        "report v1",
-        "report v1 2",
-        "report v1 2 2",
-        "report v1 3",
+      expect(prepared.body.messages[0].content.slice(1)).toEqual([
+        { text: 'Attached file "report_v1.txt" has document label "report v1".' },
+        { document: { format: "txt", name: "report v1", source: { bytes: "SGVsbG8=" } } },
+        { text: 'Attached file "report#v1.txt" has document label "report v1 2".' },
+        { document: { format: "txt", name: "report v1 2", source: { bytes: "SGVsbG8=" } } },
+        { text: 'Attached file "report v1 2.txt" has document label "report v1 2 2".' },
+        { document: { format: "txt", name: "report v1 2 2", source: { bytes: "SGVsbG8=" } } },
+        { text: 'Attached file "report v1.txt" has document label "report v1 3".' },
+        { document: { format: "txt", name: "report v1 3", source: { bytes: "SGVsbG8=" } } },
       ])
     }),
   )
 
-  it.effect("passes named document-only messages through for provider validation", () =>
+  it.effect("annotates renamed document-only messages with their original filename", () =>
     Effect.gen(function* () {
       const prepared = yield* compileRequest(
         LLM.request({
@@ -1911,8 +1919,40 @@ describe("Bedrock Converse route", () => {
       expect(prepared.body.messages).toEqual([
         {
           role: "user",
-          content: [{ document: { format: "pdf", name: "report", source: { bytes: "UERGREFUQQ==" } } }],
+          content: [
+            { text: 'Attached file "report.pdf" has document label "report".' },
+            { document: { format: "pdf", name: "report", source: { bytes: "UERGREFUQQ==" } } },
+          ],
         },
+      ])
+    }),
+  )
+
+  it.effect("quotes original filenames in annotations and omits redundant mappings", () =>
+    Effect.gen(function* () {
+      const prepared = yield* compileRequest(
+        LLM.request({
+          model,
+          cache: "none",
+          messages: [
+            Message.user([
+              { type: "text", text: "Read these documents" },
+              ...["report", undefined, 'report "final"\n.pdf'].map((filename) => ({
+                type: "media" as const,
+                mediaType: "text/plain",
+                data: "SGVsbG8=",
+                filename,
+              })),
+            ]),
+          ],
+        }),
+      )
+      expect(prepared.body.messages[0].content).toEqual([
+        { text: "Read these documents" },
+        { document: { format: "txt", name: "report", source: { bytes: "SGVsbG8=" } } },
+        { document: { format: "txt", name: "document", source: { bytes: "SGVsbG8=" } } },
+        { text: 'Attached file "report \\"final\\"\\n.pdf" has document label "report final".' },
+        { document: { format: "txt", name: "report final", source: { bytes: "SGVsbG8=" } } },
       ])
     }),
   )
@@ -1936,7 +1976,7 @@ describe("Bedrock Converse route", () => {
                     type: "file",
                     uri: "data:application/pdf;base64,UERGREFUQQ==",
                     mime: "application/pdf",
-                    name: "report",
+                    name: "report.pdf",
                   },
                 ],
               },
@@ -1959,6 +1999,7 @@ describe("Bedrock Converse route", () => {
                 status: "success",
                 content: [
                   { text: "Read successfully" },
+                  { text: 'Attached file "report.pdf" has document label "report".' },
                   { document: { format: "pdf", name: "report", source: { bytes: "UERGREFUQQ==" } } },
                 ],
               },

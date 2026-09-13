@@ -311,7 +311,7 @@ const lowerToolResultContent = Effect.fn("BedrockConverse.lowerToolResultContent
       },
       documentNames,
     )
-    content.push(media)
+    content.push(...media)
   }
   return content
 })
@@ -358,7 +358,7 @@ const lowerMessages = Effect.fn("BedrockConverse.lowerMessages")(function* (
           continue
         }
         if (part.type === "media") {
-          content.push(yield* BedrockMedia.lower(part, documentNames))
+          content.push(...(yield* BedrockMedia.lower(part, documentNames)))
           continue
         }
       }
