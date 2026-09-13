@@ -4,9 +4,11 @@ import { createMemo, createRoot } from "solid-js"
 import { createStore } from "solid-js/store"
 import {
   cacheReuseDrop,
+  isToolRow,
   messageBoundaryIDs,
   reduceSessionRows,
   sessionRowID,
+  survivingScrollAnchor,
   turnDuration,
   turnTokensPerSecond,
 } from "../../../src/routes/session/rows"
@@ -568,6 +570,50 @@ function assistant(id: string, content: SessionMessageAssistant["content"]): Ses
   }
 }
 
+test("hides grouped and individual tools without removing text, reasoning, or errors", () => {
+  const message = assistant("assistant", [
+    { type: "text", text: "Checking files" },
+    { type: "reasoning", text: "Reasoning", time: { created: 1 } },
+    ...["read", "glob", "grep", "shell"].map((name) => ({
+      type: "tool" as const,
+      id: name,
+      name,
+      state: pending(),
+      time: { created: 1 },
+    })),
+    { type: "text", text: "Finished" },
+  ])
+  message.error = { type: "provider.transport", message: "Disconnected" }
+  const messages: SessionMessageInfo[] = [
+    { type: "user", id: "user", text: "Check files", time: { created: 0 } },
+    message,
+  ]
+  const rows = reduceSessionRows(messages)
+  const lookup = (id: string) => messages.find((message) => message.id === id)
+  expect(rows.filter((row) => isToolRow(row, lookup))).toHaveLength(2)
+  expect(rows.filter((row) => !isToolRow(row, lookup))).toEqual([
+    { type: "message", messageID: "user" },
+    { type: "part", ref: { messageID: "assistant", partID: "text:0" } },
+    { type: "group", kind: "reasoning", refs: [{ messageID: "assistant", partID: "reasoning:0" }], completed: true },
+    { type: "part", ref: { messageID: "assistant", partID: "text:1" } },
+    { type: "assistant-footer", messageID: "assistant" },
+  ])
+})
+
 function pending() {
   return { status: "streaming" as const, input: "" }
 }
+
+test("restores surviving anchors and falls back when a tool-only boundary is hidden", () => {
+  const messages: SessionMessageInfo[] = [
+    { type: "user", id: "user", text: "Check", time: { created: 0 } },
+    assistant("tools", []),
+    assistant("answer", [{ type: "text", text: "Done" }]),
+  ]
+  const anchor = { messageID: "tools", screenY: -3 }
+  expect(survivingScrollAnchor(anchor, ["user", "tools", "answer"], messages)).toEqual(anchor)
+  expect(survivingScrollAnchor(anchor, ["user", "answer"], messages)).toEqual({ messageID: "user", screenY: 0 })
+  expect(survivingScrollAnchor(anchor, ["answer"], messages)).toEqual({ messageID: "answer", screenY: 0 })
+  expect(survivingScrollAnchor(anchor, [], messages)).toBeUndefined()
+  expect(survivingScrollAnchor(undefined, ["answer"], messages)).toBeUndefined()
+})

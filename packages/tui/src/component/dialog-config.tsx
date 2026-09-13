@@ -94,6 +94,14 @@ export const settings: Setting[] = [
     keywords: ["transcript", "messages", "reads", "searches"],
   },
   {
+    title: "Tool calls",
+    category: "Session",
+    path: ["session", "tool_calls"],
+    default: "show",
+    values: ["hide", "minimal", "show"],
+    keywords: ["tools", "hide", "minimal", "collapse", "tool output"],
+  },
+  {
     title: "Transcript images",
     category: "Session",
     path: ["session", "image_preview"],

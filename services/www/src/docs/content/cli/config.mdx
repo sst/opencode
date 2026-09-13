@@ -180,6 +180,37 @@ In `/diff`, press `d` to change the scope or choose a comparison branch from **B
 
 Your base choice for each branch and last selected scope survive closing and reopening the viewer, but reset when the TUI exits. These selections do not change `cli.json`.
 
+## Tool calls
+
+Choose **Session > Tool calls > hide** in settings to hide all tool calls from the full-screen transcript:
+
+```json title="cli.json"
+{
+  "session": {
+    "tool_calls": "hide"
+  }
+}
+```
+
+Choose `minimal` to keep every tool call on one line with its details collapsed:
+
+```json title="cli.json"
+{
+  "session": {
+    "tool_calls": "minimal"
+  }
+}
+```
+
+Long summaries truncate instead of wrapping. Click a row to expand its details, then click again to collapse them.
+Minimal mode shows each read and search separately, even when tool grouping is enabled.
+
+The default is `show`. The `hide` option hides individual tool calls, grouped reads and searches, and tool output.
+It applies to existing history and new calls without restarting the TUI.
+
+Tools still run normally. Permission prompts, questions, assistant messages, and session errors remain visible.
+Set `tool_calls` to `show` to restore the tool calls. This setting does not change Mini output.
+
 ## Tabs
 
 Choose **Tabs > Indicators** in settings, or set `tabs.indicators` in `cli.json`:

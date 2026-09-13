@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { For } from "solid-js"
+import { minimalToolSummary, ToolSummaryRow } from "../../../src/routes/session/tool-presentation"
+import { toolPresentationStatus } from "../../../src/util/tool-display"
 import { testRender, type JSX } from "@opentui/solid"
 import {
   InlineToolRow,
@@ -123,6 +125,44 @@ async function renderFrame(component: () => JSX.Element, options: { width: numbe
 }
 
 describe("TUI inline tool wrapping", () => {
+  test("minimal summaries describe targets without expanding input bodies", () => {
+    expect(minimalToolSummary("write", { path: "src/index.ts", content: "SECRET_BODY" })).toBe("write src/index.ts")
+    expect(
+      minimalToolSummary("patch", {
+        patchText:
+          "*** Begin Patch\n*** Add File: a.ts\n+SECRET_BODY\n*** Update File: b.ts\n@@\n-old\n+new\n*** End Patch",
+      }),
+    ).toBe("patch a.ts, b.ts")
+    expect(minimalToolSummary("shell", { command: "echo first\necho second" })).toBe("shell echo first echo second")
+    expect(minimalToolSummary("custom.lookup", { query: "two\nwords" })).toBe("custom.lookup two words")
+    expect(minimalToolSummary("execute", { code: "SECRET_BODY" })).toBe("execute")
+    expect(minimalToolSummary("custom.lookup", {})).toBe("custom.lookup")
+  })
+
+  test.each([24, 112])("minimal tool rows stay one line at %s columns", async (width) => {
+    const frame = await renderFrame(
+      () => (
+        <box width={width}>
+          <ToolSummaryRow
+            status={toolPresentationStatus(undefined)}
+            summary={minimalToolSummary("shell", { command: `echo first\necho ${"long-argument-".repeat(30)}` })}
+          />
+          <ToolSummaryRow
+            status={{ ...toolPresentationStatus(undefined), failed: true, error: "Hidden error details" }}
+            summary={`read ${"long/path/".repeat(30)} — failed`}
+          />
+          <text>AFTER_TOOLS</text>
+        </box>
+      ),
+      { width, height: 10 },
+    )
+    expect(frame.split("\n")).toHaveLength(3)
+    expect(frame).toContain("▸ shell")
+    expect(frame).toContain("✗ read")
+    expect(frame).not.toContain("Hidden error details")
+    expect(frame.split("\n")[2]).toBe("AFTER_TOOLS")
+  })
+
   test("falls back for unknown tool names", () => {
     expect(toolDisplay("shell")).toBe("shell")
     expect(toolDisplay("subagent")).toBe("subagent")

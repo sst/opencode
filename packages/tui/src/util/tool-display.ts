@@ -5,6 +5,23 @@ export function canonicalToolName(name: string) {
   return name
 }
 
+export function toolPresentationStatus(part: SessionMessageAssistantTool | undefined, backgroundRunning = false) {
+  const metadata = part ? toolDisplayMetadata(part.state) : {}
+  const running = backgroundRunning || part?.state.status === "running" || part?.state.status === "streaming"
+  const error = !running && part?.state.status === "error" ? part.state.error.message : undefined
+  const denied = Boolean(
+    error &&
+      ["QuestionRejectedError", "rejected permission", "specified a rule", "user dismissed"].some((text) =>
+        error.includes(text),
+      ),
+  )
+  const failed =
+    !running &&
+    !denied &&
+    Boolean(error || (part && canonicalToolName(part.name) === "execute" && metadata.error === true))
+  return { running, error, denied, failed, background: backgroundRunning && part?.state.status !== "running" }
+}
+
 export function finiteNumber(value: unknown): number | undefined {
   if (typeof value !== "number" || !Number.isFinite(value)) return
   return value

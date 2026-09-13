@@ -156,6 +156,9 @@ export const Info = Schema.Struct({
       grouping: Schema.optional(Schema.Literals(["auto", "none"])).annotate({
         description: "Group related transcript items automatically or render each item separately",
       }),
+      tool_calls: Schema.optional(Schema.Literals(["show", "minimal", "hide"])).annotate({
+        description: "Show tool calls normally, collapse each to one line, or hide them; permission prompts remain visible",
+      }),
       image_preview: Schema.optional(Schema.Boolean).annotate({
         description: "Show user attachment and tool-result images in the session transcript",
       }),
