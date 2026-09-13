@@ -90,6 +90,7 @@
     "@opentui/keymap": "catalog:",
     "@opentui/solid": "catalog:",
     "@solid-primitives/event-bus": "1.1.2",
+    "bidi-js": "1.1.0",
     "effect": "catalog:",
     "fuzzysort": "catalog:",
     "get-east-asian-width": "catalog:",

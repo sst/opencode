@@ -14,6 +14,7 @@ import { SplitBorder } from "../../ui/border"
 import { Locale } from "../../util/locale"
 import { use } from "./render-context"
 import { generateThinkingSyntax } from "./thinking-syntax"
+import "../../component/bidi-elements"
 
 export const INLINE_TOOL_ICON_WIDTH = 2
 

@@ -69,6 +69,7 @@ import { directoryRecentValue } from "../../prompt/directory-completion"
 import { useWorkingDirectoryActions } from "../../ui/working-directory-actions"
 import { truncateFilePath } from "../../ui/file-path"
 import { PromptMetadataRow } from "./metadata"
+import "../bidi-elements"
 
 export type PromptProps = {
   sessionID?: string
@@ -1757,7 +1758,7 @@ export function Prompt(props: PromptProps) {
                 </Show>
               </box>
             </Show>
-            <textarea
+            <bidi_textarea
               width="100%"
               placeholder={placeholderText()}
               placeholderColor={theme.text.subdued}
