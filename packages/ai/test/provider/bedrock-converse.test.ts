@@ -1765,25 +1765,129 @@ describe("Bedrock Converse route", () => {
             role: "user",
             content: [
               { text: "Summarize these documents." },
-              { document: { format: "pdf", name: "report.pdf", source: { bytes: "UERGREFUQQ==" } } },
-              { document: { format: "csv", name: "data.csv", source: { bytes: "Q1NWREFUQQ==" } } },
+              { document: { format: "pdf", name: "report", source: { bytes: "UERGREFUQQ==" } } },
+              { document: { format: "csv", name: "data", source: { bytes: "Q1NWREFUQQ==" } } },
             ],
           },
         ],
       })
     }),
   )
+  ;[
+    {
+      label: "filename punctuation",
+      filename: "report_v1.2?.pdf",
+      expected: "report v1 2",
+      duplicate: "report v1 2 2",
+    },
+    {
+      label: "repeated whitespace",
+      filename: "  Quarterly\t \n report.txt",
+      expected: "Quarterly report",
+      duplicate: "Quarterly report 2",
+    },
+    {
+      label: "allowed characters",
+      filename: "Report - Final (v2) [2026]",
+      expected: "Report - Final (v2) [2026]",
+      duplicate: "Report - Final (v2) [2026] 2",
+    },
+    { label: "accented filename", filename: "résumé.pdf", expected: "r sum", duplicate: "r sum 2" },
+    { label: "non-Latin filename", filename: "報告書.pdf", expected: "document", duplicate: "document 2" },
+    { label: "missing filename", filename: undefined, expected: "document", duplicate: "document 2" },
+    { label: "empty filename", filename: "", expected: "document", duplicate: "document 2" },
+    { label: "blank filename", filename: " \t\n", expected: "document", duplicate: "document 2" },
+    { label: "extension-only filename", filename: ".pdf", expected: "document", duplicate: "document 2" },
+    { label: "symbols-only filename", filename: "@@@.pdf", expected: "document", duplicate: "document 2" },
+    {
+      label: "overlong filename",
+      filename: `${"a".repeat(201)}.txt`,
+      expected: "a".repeat(200),
+      duplicate: `${"a".repeat(198)} 2`,
+    },
+    {
+      label: "maximum-length label",
+      filename: "a".repeat(200),
+      expected: "a".repeat(200),
+      duplicate: `${"a".repeat(198)} 2`,
+    },
+    {
+      label: "whitespace at truncation",
+      filename: `${"a".repeat(199)} b.txt`,
+      expected: "a".repeat(199),
+      duplicate: `${"a".repeat(198)} 2`,
+    },
+  ].forEach((item) => {
+    it.effect(`normalizes ${item.label} in user and tool-result documents`, () =>
+      Effect.gen(function* () {
+        const request = LLM.request({
+          model,
+          cache: "none",
+          messages: [
+            Message.user([
+              { type: "text", text: "Read this document" },
+              { type: "media", mediaType: "application/pdf", data: "UERGREFUQQ==", filename: item.filename },
+            ]),
+            Message.assistant([ToolCallPart.make({ id: "call_read", name: "read", input: {} })]),
+            Message.tool({
+              id: "call_read",
+              name: "read",
+              result: {
+                type: "content",
+                value: [
+                  { type: "text", text: "Read successfully" },
+                  {
+                    type: "file",
+                    uri: "data:application/pdf;base64,UERGREFUQQ==",
+                    mime: "application/pdf",
+                    name: item.filename,
+                  },
+                ],
+              },
+            }),
+          ],
+        })
+        const original = JSON.stringify(request.messages)
+        const first = yield* compileRequest(request)
+        const second = yield* compileRequest(request)
+        const expected = { format: "pdf", name: item.expected, source: { bytes: "UERGREFUQQ==" } }
 
-  it.effect("requires names for document media", () =>
+        expect(first.body.messages[0].content[1].document).toEqual(expected)
+        expect(first.body.messages[2].content[0].toolResult.content[1].document).toEqual({
+          ...expected,
+          name: item.duplicate,
+        })
+        expect(second.body).toEqual(first.body)
+        expect(JSON.stringify(request.messages)).toBe(original)
+      }),
+    )
+  })
+
+  it.effect("keeps colliding document labels distinct within a request", () =>
     Effect.gen(function* () {
-      const error = yield* compileRequest(
+      const prepared = yield* compileRequest(
         LLM.request({
           model,
-          messages: [Message.user({ type: "media", mediaType: "application/pdf", data: "UERGREFUQQ==" })],
+          cache: "none",
+          messages: [
+            Message.user([
+              { type: "text", text: "Read these documents" },
+              ...["report_v1.txt", "report#v1.txt", "report v1 2.txt", "report v1.txt"].map((filename) => ({
+                type: "media" as const,
+                mediaType: "text/plain",
+                data: "SGVsbG8=",
+                filename,
+              })),
+            ]),
+          ],
         }),
-      ).pipe(Effect.flip)
-
-      expect(error.message).toContain("document media requires a filename")
+      )
+      expect(prepared.body.messages[0].content.slice(1).map((part) => part.document.name)).toEqual([
+        "report v1",
+        "report v1 2",
+        "report v1 2 2",
+        "report v1 3",
+      ])
     }),
   )
 
@@ -1807,7 +1911,7 @@ describe("Bedrock Converse route", () => {
       expect(prepared.body.messages).toEqual([
         {
           role: "user",
-          content: [{ document: { format: "pdf", name: "report.pdf", source: { bytes: "UERGREFUQQ==" } } }],
+          content: [{ document: { format: "pdf", name: "report", source: { bytes: "UERGREFUQQ==" } } }],
         },
       ])
     }),
