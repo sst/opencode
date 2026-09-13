@@ -70,6 +70,12 @@ export function getLastFocusedWindow() {
   return win
 }
 
+export function getWindowByID(id: string) {
+  const win = registry.get(id)
+  if (!win || win.isDestroyed()) return null
+  return win
+}
+
 export function setWindowThemeReady(win: BrowserWindow) {
   themeReady.get(win)?.()
 }

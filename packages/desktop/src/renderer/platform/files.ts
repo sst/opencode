@@ -11,6 +11,7 @@ type DesktopFileAPI = Pick<
   | "getPathForFile"
   | "saveFile"
   | "openExternal"
+  | "openBrowser"
   | "openLocalFile"
   | "resolveAppPath"
   | "openPath"
@@ -55,6 +56,7 @@ export function createDesktopFiles(api: DesktopFileAPI, os: DesktopOS, acceptedE
     saveFile: (options: { title?: string; defaultPath?: string }, content: string) =>
       api.saveFile({ title: options.title, defaultPath: options.defaultPath }, content),
     openExternal: (url: string) => api.openExternal(url),
+    openBrowser: (url: string) => api.openBrowser(url),
     openLocalFile: (url: string) => api.openLocalFile(url),
     async openPath(path: string, app?: string) {
       if (os !== "windows") {

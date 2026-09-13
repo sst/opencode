@@ -37,6 +37,9 @@ type PlatformBase = {
   /** Open a web or mail URL in the default system application */
   openExternal(url: string): void
 
+  /** Open an authentication page, reporting whether the browser could be launched. */
+  openBrowser?(url: string): Promise<boolean>
+
   /** Open a local path in a local app (desktop only) */
   openPath?(path: string, app?: string): Promise<void>
 

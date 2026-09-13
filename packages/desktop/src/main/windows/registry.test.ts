@@ -25,6 +25,8 @@ describe("window registry", () => {
     app.registry.register("a", { name: "a" })
     app.registry.register("b", { name: "b" })
     expect(app.state.stored).toEqual(["a", "b"])
+    expect(app.registry.get("a")).toEqual({ name: "a" })
+    expect(app.registry.get("missing")).toBeUndefined()
   })
 
   test("forgets a deliberately closed window while others remain open", () => {

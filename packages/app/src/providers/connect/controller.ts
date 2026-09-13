@@ -13,18 +13,20 @@ export function createProviderConnectionController(options: {
   provider: () => string
   directory: () => string | undefined
   onComplete: () => void
+  initialMethod?: string
   pollInterval?: number
 }) {
   const language = useLanguage()
   const platform = usePlatform()
   const serverSDK = useServerSDK()
   const data = useData()
-  const location = () => {
-    const directory = options.directory()
-    return directory ? { directory } : undefined
-  }
+  // An authorization belongs to the server and Location where it began.
+  const directory = options.directory()
+  const integrationID = options.provider()
+  const desktopConsole = platform.platform === "desktop" && integrationID === "opencode"
+  const location = () => (directory ? { directory } : undefined)
   const [integration] = createResource(
-    () => ({ provider: options.provider(), directory: options.directory() }),
+    () => ({ provider: integrationID, directory }),
     (input) =>
       serverSDK.api.integration
         .get({ integrationID: input.provider, location: location() })
@@ -41,8 +43,12 @@ export function createProviderConnectionController(options: {
     methodIndex: undefined as number | undefined,
     authorization: undefined as Authorization | undefined,
     formAnswer: undefined as FormAnswer | undefined,
-    state: "pending" as "pending" | "complete" | "error" | "form" | undefined,
+    state: "pending" as "pending" | "waiting" | "refreshing" | "ready" | "error" | "form" | undefined,
     error: undefined as string | undefined,
+    connected: false,
+    browserFailed: false,
+    statusFailed: false,
+    selectingIndex: undefined as number | undefined,
   })
   const polling = {
     generation: 0,
@@ -59,7 +65,7 @@ export function createProviderConnectionController(options: {
     | { type: "auth.form" }
     | { type: "auth.answer"; answer: FormAnswer | undefined }
     | { type: "auth.pending" }
-    | { type: "auth.complete"; authorization: Authorization }
+    | { type: "auth.authorized"; index: number; authorization: Authorization }
     | { type: "auth.error"; error: string }
 
   const dispatch = (action: Action) => {
@@ -71,6 +77,10 @@ export function createProviderConnectionController(options: {
           draft.formAnswer = undefined
           draft.state = undefined
           draft.error = undefined
+          draft.connected = false
+          draft.browserFailed = false
+          draft.statusFailed = false
+          draft.selectingIndex = undefined
           return
         }
         if (action.type === "method.reset") {
@@ -79,6 +89,10 @@ export function createProviderConnectionController(options: {
           draft.formAnswer = undefined
           draft.state = undefined
           draft.error = undefined
+          draft.connected = false
+          draft.browserFailed = false
+          draft.statusFailed = false
+          draft.selectingIndex = undefined
           return
         }
         if (action.type === "auth.form") {
@@ -95,12 +109,15 @@ export function createProviderConnectionController(options: {
         if (action.type === "auth.pending") {
           draft.state = "pending"
           draft.error = undefined
+          draft.selectingIndex = undefined
           return
         }
-        if (action.type === "auth.complete") {
-          draft.state = "complete"
+        if (action.type === "auth.authorized") {
+          draft.methodIndex = action.index
+          draft.state = "waiting"
           draft.authorization = action.authorization
           draft.error = undefined
+          draft.selectingIndex = undefined
           return
         }
         draft.state = "error"
@@ -115,24 +132,59 @@ export function createProviderConnectionController(options: {
     clearTimeout(polling.timer)
     polling.timer = undefined
   }
+  const cancelAttempt = (authorization = store.authorization) => {
+    if (!desktopConsole) return
+    if (!authorization || (authorization.attemptID === store.authorization?.attemptID && store.connected)) return
+    void serverSDK.api.integration.oauth
+      .cancel({
+        integrationID,
+        attemptID: authorization.attemptID,
+        location: location(),
+      })
+      .catch(() => undefined)
+  }
+  const openBrowser = async () => {
+    const authorization = store.authorization
+    if (!authorization) return
+    const generation = polling.generation
+    const opened = await Promise.resolve()
+      .then(async () => {
+        if (platform.openBrowser) return platform.openBrowser(authorization.url)
+        platform.openExternal(authorization.url)
+        return true
+      })
+      .then((result) => result !== false)
+      .catch(() => false)
+    if (polling.disposed || generation !== polling.generation) return
+    setStore("browserFailed", !opened)
+  }
   const finish = async () => {
     cancelPolling()
+    const generation = polling.generation
+    setStore({ connected: true, state: "refreshing", error: undefined })
     const ref = location()
     data.location.integration.invalidate(ref)
     data.location.provider.invalidate(ref)
     data.location.model.invalidate(ref)
-    await Promise.all([
+    const refreshed = await Promise.all([
       data.location.integration.sync(ref),
       data.location.provider.sync(ref),
       data.location.model.sync(ref),
-    ]).catch(() => undefined)
-    if (polling.disposed) return
+    ])
+      .then(() => true)
+      .catch(() => false)
+    if (polling.disposed || generation !== polling.generation) return
+    if (!refreshed && desktopConsole) {
+      dispatch({ type: "auth.error", error: language.t("provider.connect.console.refreshFailed") })
+      return
+    }
+    setStore("state", "ready")
     options.onComplete()
   }
   const poll = async (authorization: Authorization, generation: number) => {
     const result = await serverSDK.api.integration.oauth
       .status({
-        integrationID: options.provider(),
+        integrationID,
         attemptID: authorization.attemptID,
         location: location(),
       })
@@ -140,9 +192,14 @@ export function createProviderConnectionController(options: {
       .catch((error) => ({ ok: false as const, error }))
     if (polling.disposed || generation !== polling.generation) return
     if (!result.ok) {
+      setStore("statusFailed", true)
       dispatch({
         type: "auth.error",
-        error: result.error instanceof Error ? result.error.message : String(result.error),
+        error: desktopConsole
+          ? language.t("provider.connect.console.statusFailed")
+          : result.error instanceof Error
+            ? result.error.message
+            : String(result.error),
       })
       return
     }
@@ -151,20 +208,37 @@ export function createProviderConnectionController(options: {
       return
     }
     if (result.status.status === "failed") {
-      dispatch({ type: "auth.error", error: result.status.message })
+      const message = result.status.message
+      dispatch({
+        type: "auth.error",
+        error:
+          desktopConsole && message.includes("expired_token")
+            ? language.t("provider.connect.console.expired")
+            : desktopConsole && message.includes("access_denied")
+              ? language.t("provider.connect.console.denied")
+              : message,
+      })
       return
     }
     if (result.status.status === "expired") {
-      dispatch({ type: "auth.error", error: language.t("common.requestFailed") })
+      dispatch({
+        type: "auth.error",
+        error: language.t(desktopConsole ? "provider.connect.console.expired" : "common.requestFailed"),
+      })
       return
     }
-    polling.timer = setTimeout(() => void poll(authorization, generation), options.pollInterval ?? 1_000)
+    polling.timer = setTimeout(
+      () => void poll(authorization, generation),
+      options.pollInterval ?? (desktopConsole ? 500 : 1_000),
+    )
   }
   const select = async (index: number, answer?: FormAnswer) => {
     cancelPolling()
+    cancelAttempt()
     const generation = polling.generation
     const selected = methods()[index]
-    dispatch({ type: "method.select", index })
+    const awaitAuthorization = desktopConsole && selected.type === "oauth" && selected.id === "device"
+    if (!awaitAuthorization) dispatch({ type: "method.select", index })
     if (selected.form?.length && !answer) {
       dispatch({ type: "auth.form" })
       return
@@ -175,41 +249,62 @@ export function createProviderConnectionController(options: {
     }
     if (selected.type !== "oauth") return
     if (selected.form?.some((field) => field.type !== "string")) {
-      dispatch({ type: "auth.error", error: "This authentication form contains unsupported fields" })
+      dispatch({ type: "auth.error", error: language.t("provider.connect.form.unsupported") })
       return
     }
-    dispatch({ type: "auth.pending" })
+    if (awaitAuthorization) {
+      setStore({
+        selectingIndex: index,
+        authorization: undefined,
+        state: undefined,
+        error: undefined,
+        browserFailed: false,
+        statusFailed: false,
+      })
+    } else {
+      dispatch({ type: "auth.pending" })
+    }
     const result = await serverSDK.api.integration.oauth
       .connect({
-        integrationID: options.provider(),
+        integrationID,
         methodID: selected.id,
         ...(answer ? { answer } : {}),
         location: location(),
       })
       .then((response) => {
-        if (options.provider() === "opencode" && platform.platform === "desktop") {
+        if (integrationID === "opencode" && platform.platform === "desktop") {
           const url = new URL(response.data.url)
           url.searchParams.set("client_id", "opencode-desktop")
+          url.searchParams.set("return_window", platform.windowID)
           response.data.url = url.href
         }
         return { ok: true as const, authorization: response.data }
       })
       .catch((error) => ({ ok: false as const, error }))
-    if (polling.disposed || generation !== polling.generation) return
-    if (!result.ok) {
-      dispatch({ type: "auth.error", error: String(result.error) })
+    if (polling.disposed || generation !== polling.generation) {
+      if (result.ok) cancelAttempt(result.authorization)
       return
     }
-    dispatch({ type: "auth.complete", authorization: result.authorization })
+    if (!result.ok) {
+      if (awaitAuthorization) dispatch({ type: "method.select", index })
+      dispatch({
+        type: "auth.error",
+        error: desktopConsole ? language.t("provider.connect.console.startFailed") : String(result.error),
+      })
+      return
+    }
+    dispatch({ type: "auth.authorized", index, authorization: result.authorization })
+    if (desktopConsole && selected.id === "device") void openBrowser()
     if (result.authorization.mode === "auto") void poll(result.authorization, generation)
   }
   const reset = () => {
     cancelPolling()
+    cancelAttempt()
     dispatch({ type: "method.reset" })
   }
   const connectKey = async (key: string) => {
     await serverSDK.api.integration.connect.key({
-      integrationID: options.provider(),
+      integrationID,
       location: location(),
       key,
       ...(store.formAnswer ? { answer: store.formAnswer } : {}),
@@ -221,7 +316,7 @@ export function createProviderConnectionController(options: {
     if (!authorization) return language.t("provider.connect.oauth.code.invalid")
     const result = await serverSDK.api.integration.oauth
       .complete({
-        integrationID: options.provider(),
+        integrationID,
         attemptID: authorization.attemptID,
         location: location(),
         code,
@@ -238,13 +333,20 @@ export function createProviderConnectionController(options: {
 
   let auto = false
   createEffect(() => {
-    if (auto || integration.loading || methods().length !== 1) return
+    if (auto || integration.loading) return
+    const index = options.initialMethod
+      ? methods().findIndex((method) => method.type === "oauth" && method.id === options.initialMethod)
+      : methods().length === 1
+        ? 0
+        : -1
+    if (index < 0) return
     auto = true
-    void select(0)
+    void select(index)
   })
   onCleanup(() => {
     polling.disposed = true
     cancelPolling()
+    cancelAttempt()
   })
 
   return {
@@ -254,6 +356,9 @@ export function createProviderConnectionController(options: {
     currentMethod,
     methodIndex: () => store.methodIndex,
     authorization: () => store.authorization,
+    browserFailed: () => store.browserFailed,
+    selecting: (index: number) => store.selectingIndex === index,
+    openBrowser,
     auth: {
       state: () => store.state,
       error: () => store.error,
@@ -261,6 +366,15 @@ export function createProviderConnectionController(options: {
       reset,
       connectKey,
       completeCode,
+      refresh: finish,
+      retry: () => {
+        if (store.connected) return finish()
+        if (store.statusFailed && store.authorization) {
+          setStore({ state: "waiting", error: undefined, statusFailed: false })
+          return poll(store.authorization, polling.generation)
+        }
+        return store.methodIndex === undefined ? Promise.resolve() : select(store.methodIndex, store.formAnswer)
+      },
     },
   }
 }

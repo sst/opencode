@@ -42,7 +42,7 @@ export const useComposerCommands = (input: { model?: ModelSelection } = {}) => {
     }
     const { DialogSelectModel } = await import("@/providers/models/select-dialog")
     owner.run(() => {
-      void dialog.show(() => <DialogSelectModel model={model} />, restoreComposer)
+      void dialog.show(() => <DialogSelectModel model={model} onDone={restoreComposer} />, restoreComposer)
     })
   }
 

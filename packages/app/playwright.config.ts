@@ -19,6 +19,7 @@ const workers = Number(process.env.PLAYWRIGHT_WORKERS ?? (process.env.CI ? 5 : 0
 export default defineConfig({
   testDir: "./e2e",
   testIgnore: [
+    "desktop/**",
     "service-worker/**",
     process.env.OPENCODE_PERFORMANCE === "1" ? "performance/**/*.test.ts" : "performance/**",
   ],

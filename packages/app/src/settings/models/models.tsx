@@ -24,7 +24,12 @@ export const ModelProvidersSchema = Schema.Struct({
   collapsed: Persistence.record(Persistence.fallback(Schema.Boolean, () => false)),
 })
 
-export const SettingsModels: Component<{ active?: boolean; autofocus?: boolean }> = (props) => {
+export const SettingsModels: Component<{
+  active?: boolean
+  autofocus?: boolean
+  provider?: string
+  onReveal?: () => void
+}> = (props) => {
   const language = useLanguage()
   const models = useModels()
   const serverSdk = useServerSDK()
@@ -47,6 +52,7 @@ export const SettingsModels: Component<{ active?: boolean; autofocus?: boolean }
     ModelProvidersSchema,
     { collapsed: {} },
   )
+  const sections = new Map<string, HTMLElement>()
 
   const list = useFilteredList<ModelItem>({
     items: (_filter) => models.list(),
@@ -68,6 +74,24 @@ export const SettingsModels: Component<{ active?: boolean; autofocus?: boolean }
       const bName = b.items[0].provider.name
       return aName.localeCompare(bName)
     },
+  })
+
+  createEffect(() => {
+    if (!props.active || !props.provider) return
+    const provider = props.provider
+    if (list.filter()) {
+      list.clear()
+      return
+    }
+    if (!list.grouped.latest.some((group) => group.category === provider)) return
+    const section = sections.get(provider)
+    if (!section?.isConnected) return
+    list.grouped.latest.forEach((group) => setStore("collapsed", group.category, group.category !== provider))
+    requestAnimationFrame(() => {
+      section.scrollIntoView({ block: "start" })
+      section.querySelector<HTMLElement>(".settings-models-group-trigger")?.focus({ preventScroll: true })
+      props.onReveal?.()
+    })
   })
 
   return (
@@ -134,6 +158,7 @@ export const SettingsModels: Component<{ active?: boolean; autofocus?: boolean }
 
                 return (
                   <div
+                    ref={(element) => sections.set(group.category, element)}
                     class="settings-section"
                     data-component="settings-models-provider"
                     data-expanded={expanded() ? "" : undefined}

@@ -1,11 +1,14 @@
 import { Button } from "@opencode/ui/button"
 import { Badge } from "@opencode/ui/badge"
 import { useDialog } from "@opencode/ui/context/dialog"
+import { Icon } from "@opencode/ui/icon"
 import { ProviderIcon } from "@opencode/ui/provider-icon"
+import { OpenCodeLogo } from "@/providers/opencode-logo"
 import { showToast } from "@/shell/notifications/toast"
 import { popularProviders, useProviders } from "@/providers/catalog/providers"
 import { useIntegrations } from "@/providers/catalog/integrations"
-import { createMemo, type Component, For, Show } from "solid-js"
+import { createEffect, createMemo, type Component, For, Show } from "solid-js"
+import { createStore } from "solid-js/store"
 import { useLanguage } from "@/runtime/i18n/language"
 import { useServerSDK } from "@/runtime/server/client"
 import { DialogConnectProvider, useProviderConnectController } from "@/providers/connect/dialog"
@@ -31,6 +34,7 @@ const PROVIDER_ICON_SIZE = 16
 export const SettingsProviders: Component<{
   directory: string | undefined
   onBack?: () => void
+  onSelectProvider?: (providerID: string) => void
 }> = (props) => {
   const dialog = useDialog()
   const language = useLanguage()
@@ -38,14 +42,33 @@ export const SettingsProviders: Component<{
   const providers = useProviders(() => props.directory)
   const integrations = useIntegrations(() => props.directory)
   const providerConnect = useProviderConnectController({ onBack: props.onBack })
+  const [state, setState] = createStore({
+    disconnecting: {} as Record<string, "removing" | "removed" | undefined>,
+    consoleExpanded: false,
+  })
+  const updateDisconnecting = (ids: string[], status: "removing" | "removed" | undefined) =>
+    setState("disconnecting", (current) => ({
+      ...current,
+      ...Object.fromEntries(ids.map((id) => [id, status])),
+    }))
   const integration = (providerID: string) => integrations.list().find((item) => item.id === providerID)
 
   const connect = (provider?: string) => {
     providerConnect.select(provider)
-    void dialog.show(() => <DialogConnectProvider directory={props.directory} controller={providerConnect} />)
+    void dialog.show(() => (
+      <DialogConnectProvider
+        directory={props.directory}
+        controller={providerConnect}
+        onConnected={(providerID) =>
+          setState("disconnecting", (current) =>
+            providerID === "opencode" ? {} : { ...current, [providerID]: undefined },
+          )
+        }
+      />
+    ))
   }
 
-  const connected = createMemo(() => {
+  const available = createMemo(() => {
     return providers
       .connected()
       .filter(
@@ -53,6 +76,37 @@ export const SettingsProviders: Component<{
           provider.id !== "opencode" || Object.values(provider.models).some((model) => model.cost.input > 0),
       )
       .toSorted((a, b) => Number(b.id === "opencode-go") - Number(a.id === "opencode-go"))
+  })
+
+  createEffect(() => {
+    const ids = new Set(available().map((item) => item.id))
+    Object.entries(state.disconnecting).forEach(([id, status]) => {
+      if (status === "removing" && !ids.has(id)) setState("disconnecting", id, "removed")
+    })
+  })
+
+  const connected = createMemo(() => available().filter((item) => !state.disconnecting[item.id]))
+
+  const consoleGroup = createMemo(() => {
+    const root = available().find((item) => item.id === "opencode")
+    const suffix = " / OpenCode"
+    if (!root?.name.endsWith(suffix)) return
+    const workspace = root.name.slice(0, -suffix.length).trim()
+    if (!workspace) return
+    const prefix = `${workspace} / `
+    return {
+      root,
+      workspace,
+      providers: available().filter((item) => item.name.startsWith(prefix)),
+      prefix,
+    }
+  })
+
+  const displayed = createMemo(() => {
+    const group = consoleGroup()
+    if (!group) return connected()
+    const grouped = new Set(group.providers.filter((item) => item.id !== group.root.id).map((item) => item.id))
+    return connected().filter((item) => !grouped.has(item.id))
   })
 
   const popular = createMemo(() => {
@@ -98,6 +152,10 @@ export const SettingsProviders: Component<{
   const note = (id: string) => PROVIDER_NOTES.find((item) => item.match(id))?.key
 
   const disconnect = async (providerID: string, name: string) => {
+    if (state.disconnecting[providerID]) return
+    const group = consoleGroup()
+    const ids = group?.root.id === providerID ? group.providers.map((provider) => provider.id) : [providerID]
+    updateDisconnecting(ids, "removing")
     const location = props.directory ? { directory: props.directory } : undefined
     await serverSdk.api.integration
       .get({ integrationID: providerID, location })
@@ -107,6 +165,7 @@ export const SettingsProviders: Component<{
         await Promise.all(
           credentials.map((credential) => serverSdk.api.credential.remove({ credentialID: credential.id, location })),
         )
+        updateDisconnecting(ids, "removed")
         showToast({
           variant: "success",
           icon: "circle-check",
@@ -115,6 +174,7 @@ export const SettingsProviders: Component<{
         })
       })
       .catch((err: unknown) => {
+        updateDisconnecting(ids, undefined)
         const message = err instanceof Error ? err.message : String(err)
         showToast({ title: language.t("common.requestFailed"), description: message })
       })
@@ -136,38 +196,127 @@ export const SettingsProviders: Component<{
           <h3 class="settings-section-title">{language.t("settings.providers.section.connected")}</h3>
           <SettingsList variant="catalog">
             <Show
-              when={connected().length > 0}
+              when={displayed().length > 0}
               fallback={<div class="settings-provider-empty">{language.t("settings.providers.connected.empty")}</div>}
             >
-              <For each={connected()}>
-                {(item) => (
-                  <div class="settings-provider-row group">
-                    <div class="settings-provider-lead">
-                      <ProviderIcon
-                        id={item.id}
-                        width={PROVIDER_ICON_SIZE}
-                        height={PROVIDER_ICON_SIZE}
-                        class="settings-provider-icon shrink-0"
-                      />
-                      <div class="settings-provider-main">
-                        <span class="settings-provider-name truncate">{item.name}</span>
-                        <Badge>{type(item)}</Badge>
-                      </div>
-                    </div>
+              <For each={displayed()}>
+                {(item) => {
+                  const console = () => (consoleGroup()?.root.id === item.id ? consoleGroup() : undefined)
+                  return (
                     <Show
-                      when={canDisconnect(item)}
+                      when={console()}
                       fallback={
-                        <span class="settings-provider-env-hint">
-                          {language.t("settings.providers.connected.environmentDescription")}
-                        </span>
+                        <div class="settings-provider-row group">
+                          <div class="settings-provider-lead">
+                            <Show
+                              when={item.id === "opencode"}
+                              fallback={
+                                <ProviderIcon
+                                  id={item.id}
+                                  width={PROVIDER_ICON_SIZE}
+                                  height={PROVIDER_ICON_SIZE}
+                                  class="settings-provider-icon shrink-0"
+                                />
+                              }
+                            >
+                              <OpenCodeLogo class="settings-provider-icon size-4 shrink-0" />
+                            </Show>
+                            <div class="settings-provider-main">
+                              <span class="settings-provider-name truncate">{item.name}</span>
+                              <Badge>{type(item)}</Badge>
+                            </div>
+                          </div>
+                          <Show
+                            when={canDisconnect(item)}
+                            fallback={
+                              <span class="settings-provider-env-hint">
+                                {language.t("settings.providers.connected.environmentDescription")}
+                              </span>
+                            }
+                          >
+                            <Button
+                              size="normal"
+                              variant="ghost-muted"
+                              onClick={() => void disconnect(item.id, item.name)}
+                            >
+                              {language.t("common.disconnect")}
+                            </Button>
+                          </Show>
+                        </div>
                       }
                     >
-                      <Button size="normal" variant="ghost-muted" onClick={() => void disconnect(item.id, item.name)}>
-                        {language.t("common.disconnect")}
-                      </Button>
+                      {(group) => (
+                        <div class="settings-provider-console group">
+                          <div class="settings-provider-console-header">
+                            <div class="settings-provider-lead">
+                              <OpenCodeLogo class="settings-provider-icon size-4 shrink-0" />
+                              <div class="settings-provider-console-summary">
+                                <div class="settings-provider-main">
+                                  <span class="settings-provider-name truncate">
+                                    {language.t("provider.connect.console.name")}
+                                  </span>
+                                  <Badge>{group().workspace}</Badge>
+                                </div>
+                                <Show when={group().providers.length > 1}>
+                                  <button
+                                    type="button"
+                                    class="settings-provider-console-toggle"
+                                    aria-expanded={state.consoleExpanded}
+                                    onClick={() => setState("consoleExpanded", (value) => !value)}
+                                  >
+                                    <span>
+                                      {language.plural(
+                                        "settings.providers.console.available",
+                                        group().providers.length,
+                                        { count: group().providers.length },
+                                      )}
+                                    </span>
+                                    <Icon
+                                      name="chevron-right"
+                                      size="small"
+                                      classList={{
+                                        "settings-provider-console-chevron": true,
+                                        open: state.consoleExpanded,
+                                      }}
+                                    />
+                                  </button>
+                                </Show>
+                              </div>
+                            </div>
+                            <Button
+                              size="normal"
+                              variant="ghost-muted"
+                              onClick={() => void disconnect(item.id, language.t("provider.connect.console.name"))}
+                            >
+                              {language.t("common.disconnect")}
+                            </Button>
+                          </div>
+                          <Show when={state.consoleExpanded}>
+                            <div class="settings-provider-console-list">
+                              <div class="settings-provider-console-separator" aria-hidden="true" />
+                              <For each={group().providers}>
+                                {(provider) => (
+                                  <button
+                                    type="button"
+                                    class="settings-provider-console-item"
+                                    onClick={() => props.onSelectProvider?.(provider.id)}
+                                  >
+                                    <span>{provider.name.slice(group().prefix.length)}</span>
+                                    <Icon
+                                      name="chevron-right"
+                                      size="small"
+                                      class="settings-provider-console-item-chevron"
+                                    />
+                                  </button>
+                                )}
+                              </For>
+                            </div>
+                          </Show>
+                        </div>
+                      )}
                     </Show>
-                  </div>
-                )}
+                  )
+                }}
               </For>
             </Show>
           </SettingsList>
@@ -180,12 +329,19 @@ export const SettingsProviders: Component<{
               {(item) => (
                 <div class="settings-provider-row">
                   <div class="settings-provider-lead">
-                    <ProviderIcon
-                      id={item.id}
-                      width={PROVIDER_ICON_SIZE}
-                      height={PROVIDER_ICON_SIZE}
-                      class="settings-provider-icon shrink-0"
-                    />
+                    <Show
+                      when={item.id === "opencode"}
+                      fallback={
+                        <ProviderIcon
+                          id={item.id}
+                          width={PROVIDER_ICON_SIZE}
+                          height={PROVIDER_ICON_SIZE}
+                          class="settings-provider-icon shrink-0"
+                        />
+                      }
+                    >
+                      <OpenCodeLogo class="settings-provider-icon size-4 shrink-0" />
+                    </Show>
                     <div class="settings-provider-copy">
                       <div class="settings-provider-main">
                         <span class="settings-provider-name">{item.name}</span>

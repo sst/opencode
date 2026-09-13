@@ -45,6 +45,10 @@ export function useProviders(directory: Accessor<string | undefined>) {
     },
     all: () => providers().all,
     default: () => providers().default,
+    usable: () =>
+      (data.location.model.list(location()) ?? []).some(
+        (model) => model.enabled && model.status !== "deprecated" && providers().connected.includes(model.providerID),
+      ),
     // V2 servers list only available providers, so the connectable catalog
     // comes from the integration list, with the provider catalog as fallback.
     popular: () => {
@@ -72,15 +76,12 @@ export function useProviders(directory: Accessor<string | undefined>) {
     },
     paid: () => {
       const connected = new Set(providers().connected)
-      const paid = [
-        ...Iterable.filter(
-          providers().all,
-          ([id]) =>
-            connected.has(id) &&
-            (id !== "opencode" || Object.values(providers().all.get(id)?.models ?? {}).some((m) => m.cost?.input)),
-        ),
-      ]
-      return paid
+      const paid = new Set(
+        (data.location.model.list(location()) ?? [])
+          .filter((model) => model.enabled && model.cost.some((cost) => cost.input > 0))
+          .map((model) => model.providerID),
+      )
+      return [...Iterable.filter(providers().all, ([id]) => connected.has(id) && paid.has(id))]
     },
   }
 }

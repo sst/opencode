@@ -1,0 +1,17 @@
+[data-first-provider-model]:has(+ [data-first-provider-model]:hover),
+[data-first-provider-model]:hover {
+  border-block-end-color: transparent;
+}
+
+[data-first-provider-model]:hover {
+  background-color: var(--v2-overlay-simple-overlay-hover);
+}
+
+[data-component="first-provider-models"] [data-component="settings-list"] {
+  background-color: var(--v2-background-bg-layer-02);
+  overflow: hidden;
+}
+
+[data-component="first-provider-models"] .settings-section[data-expanded] {
+  padding-bottom: 0;
+}

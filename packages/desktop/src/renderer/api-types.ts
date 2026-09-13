@@ -63,6 +63,7 @@ export type ElectronAPI = {
   getPathForFile(file: File): string
   saveFile(opts: SaveFilePickerOptions, content: string): Promise<boolean>
   openExternal(url: string): void
+  openBrowser(url: string): Promise<boolean>
   openLocalFile(url: string): void
   openPath(path: string, app?: string): Promise<string | undefined>
   revealPath(path: string): Promise<boolean>

@@ -16,7 +16,7 @@ type ModelState = ModelSelection
 const featuredProviders = ["opencode-go", "opencode", "openai", "anthropic", "google", "github-copilot"]
 const displayModelName = (name: string) => name.replace(/\s+(?:\(free\)|free)$/i, "")
 
-export const DialogSelectModelUnpaid: Component<{ model?: ModelState }> = (props) => {
+export const DialogSelectModelUnpaid: Component<{ model?: ModelState; onDone?: () => void }> = (props) => {
   const local = useLocal()
   const model = props.model ?? local.model
   const dialog = useDialog()
@@ -33,12 +33,11 @@ export const DialogSelectModelUnpaid: Component<{ model?: ModelState }> = (props
     item.provider.id === "opencode" && (!item.cost || item.cost.input === 0)
   const freeModels = createMemo(() => model.list().filter(isFree))
 
-  const openProviders = (provider?: string) => {
-    void import("@/providers/connect/dialog").then((x) => {
-      const controller = x.useProviderConnectController()
-      controller.select(provider)
-      void dialog.show(() => <x.DialogConnectProvider controller={controller} directory={directory()} />)
-    })
+  const openProviders = async (provider?: string) => {
+    const { DialogConnectProvider } = await import("@/providers/connect/dialog")
+    void dialog.show(() => (
+      <DialogConnectProvider provider={provider} directory={directory()} selection={model} onDone={props.onDone} />
+    ))
   }
 
   const selectModel = (item: ReturnType<ModelState["list"]>[number]) => {

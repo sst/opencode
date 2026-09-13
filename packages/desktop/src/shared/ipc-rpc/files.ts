@@ -42,6 +42,10 @@ export const FilesSaveFile = Rpc.make("FilesSaveFile", {
 export const FilesOpenExternal = Rpc.make("FilesOpenExternal", {
   payload: { url: Schema.String },
 })
+export const FilesOpenBrowser = Rpc.make("FilesOpenBrowser", {
+  payload: { url: Schema.String },
+  success: Schema.Boolean,
+})
 export const FilesOpenLocalFile = Rpc.make("FilesOpenLocalFile", {
   payload: { url: Schema.String },
 })
@@ -67,6 +71,7 @@ export const FileRpcs = RpcGroup.make(
   FilesReleasePickedFiles,
   FilesSaveFile,
   FilesOpenExternal,
+  FilesOpenBrowser,
   FilesOpenLocalFile,
   FilesOpenPath,
   FilesRevealPath,

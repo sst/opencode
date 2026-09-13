@@ -38,7 +38,11 @@ export function Composer(props: { class?: string; model: ComposerModel; borderUn
             providerID={props.model.model.selection.current()?.provider?.id}
             modelName={props.model.model.selection.current()?.name ?? language.t("dialog.model.select.title")}
             onClose={props.model.restoreFocus}
-            onUnpaidClick={() => dialog.show(() => <DialogSelectModelUnpaid model={props.model.model.selection} />)}
+            onUnpaidClick={() =>
+              dialog.show(() => (
+                <DialogSelectModelUnpaid model={props.model.model.selection} onDone={props.model.restoreFocus} />
+              ))
+            }
           />
         }
       />

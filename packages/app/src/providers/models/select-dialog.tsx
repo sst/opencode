@@ -248,10 +248,9 @@ export function ModelSelectorPopover(props: {
       groups={controller.groups}
       current={controller.current()}
       select={controller.select}
-      onManage={() => {
-        void import("./manage").then((module) => {
-          void dialog.show(() => <module.DialogManageModels />)
-        })
+      onManage={async () => {
+        const { DialogManageModels } = await import("./manage")
+        void dialog.show(() => <DialogManageModels model={props.model} onDone={props.onClose} />)
       }}
       onClose={() => props.onClose?.()}
     />
@@ -527,22 +526,22 @@ function ModelSelectorPopoverView(props: {
   )
 }
 
-export const DialogSelectModel: Component<{ provider?: string; model?: ModelState }> = (props) => {
+export const DialogSelectModel: Component<{ provider?: string; model?: ModelState; onDone?: () => void }> = (props) => {
   const dialog = useDialog()
   const language = useLanguage()
   const local = useLocal()
   const directory = () => decode64(local.slug())
 
-  const provider = () => {
-    void import("@/providers/connect/dialog").then((x) => {
-      void dialog.show(() => <x.DialogConnectProvider directory={directory()} />)
-    })
+  const provider = async () => {
+    const { DialogConnectProvider } = await import("@/providers/connect/dialog")
+    void dialog.show(() => (
+      <DialogConnectProvider directory={directory()} selection={props.model ?? local.model} onDone={props.onDone} />
+    ))
   }
 
-  const manage = () => {
-    void import("./manage").then((x) => {
-      dialog.show(() => <x.DialogManageModels />)
-    })
+  const manage = async () => {
+    const { DialogManageModels } = await import("./manage")
+    void dialog.show(() => <DialogManageModels model={props.model} onDone={props.onDone} />)
   }
 
   return (
