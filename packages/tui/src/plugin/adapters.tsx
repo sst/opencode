@@ -16,6 +16,7 @@ import { Prompt } from "../component/prompt"
 import type { useToast } from "../ui/toast"
 import * as Keymap from "../keymap"
 import { createCommandShim } from "./command-shim"
+import { sessionScroll } from "../util/session-scroll"
 import type { PluginRoutes } from "./api"
 export type { RouteMap } from "./api"
 export { createPluginRoutes, createTuiApi } from "./api"
@@ -158,6 +159,12 @@ function stateApi(sync: ReturnType<typeof useSync>): TuiPluginApi["state"] {
           status: item.status,
           error: item.status === "failed" ? item.error : undefined,
         }))
+    },
+    scrollToMessage(messageID) {
+      return sessionScroll.scrollToMessage(messageID)
+    },
+    scrollToBottom() {
+      return sessionScroll.scrollToBottom()
     },
   }
 }

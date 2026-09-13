@@ -1,4 +1,4 @@
-import { MacOSScrollAccel, type ScrollAcceleration } from "@opentui/core"
+import { MacOSScrollAccel, type ScrollAcceleration, type ScrollBoxRenderable } from "@opentui/core"
 
 export type ScrollConfig = {
   scroll_acceleration?: { enabled?: boolean }
@@ -24,4 +24,11 @@ export function getScrollAcceleration(tuiConfig?: ScrollConfig): ScrollAccelerat
   }
 
   return new CustomSpeedScroll(3)
+}
+
+export function scrollToMessageID(scroll: ScrollBoxRenderable, messageID: string): boolean {
+  const child = scroll.getChildren().find((child) => child.id === messageID)
+  if (!child) return false
+  scroll.scrollBy(child.y - scroll.y - 1)
+  return true
 }
