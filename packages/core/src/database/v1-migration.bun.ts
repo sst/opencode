@@ -378,19 +378,23 @@ export function transformSession(input: TransformInput): TransformResult {
       )
         return []
       const content = owned.flatMap((part): Array<Record<string, unknown>> => {
-        if (part.type === "text")
-          return [{ type: "text", text: part.text, ...(part.metadata ? { state: part.metadata } : {}) }]
-        if (part.type === "reasoning")
+        if (part.type === "text") {
+          const state = migrateProviderState(assistant.providerID, part.metadata)
+          return [{ type: "text", text: part.text, ...(state ? { state } : {}) }]
+        }
+        if (part.type === "reasoning") {
+          const state = migrateProviderState(assistant.providerID, part.metadata)
           return [
             {
               type: "reasoning",
               text: part.text,
-              ...(part.metadata ? { state: part.metadata } : {}),
+              ...(state ? { state } : {}),
               time: { created: part.time.start, ...(part.time.end === undefined ? {} : { completed: part.time.end }) },
             },
           ]
+        }
         if (part.type !== "tool") return []
-        return [migrateTool(part, item.row.time_created)]
+        return [migrateTool(part, item.row.time_created, assistant.providerID)]
       })
       const start =
         owned.flatMap((part) => (part.type === "step-start" && part.snapshot ? [part.snapshot] : []))[0] ??
@@ -878,12 +882,20 @@ function row(
   }
 }
 
-function migrateTool(part: typeof SessionV1.ToolPart.Type, fallback: number) {
+function migrateProviderState(providerID: string, metadata: Record<string, unknown> | undefined) {
+  if (!metadata) return undefined
+  const state = metadata[providerID]
+  if (typeof state === "object" && state !== null && !Array.isArray(state)) return state
+  return metadata
+}
+
+function migrateTool(part: typeof SessionV1.ToolPart.Type, fallback: number, providerID: string) {
+  const providerState = migrateProviderState(providerID, part.metadata)
   const base = {
     type: "tool" as const,
     id: part.callID,
     name: part.tool,
-    ...(part.metadata ? { providerState: part.metadata } : {}),
+    ...(providerState ? { providerState } : {}),
   }
   if (part.state.status === "completed")
     return {

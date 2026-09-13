@@ -311,7 +311,7 @@ describe("V1Migration.transformSession", () => {
         part("prt_2", message.id, {
           type: "reasoning",
           text: "think",
-          metadata: { provider: 1 },
+          metadata: { provider: { signature: "sig" } },
           time: { start: 21, end: 22 },
         }),
         part("prt_3", message.id, { type: "step-start", snapshot: "snap_start" }),
@@ -338,7 +338,7 @@ describe("V1Migration.transformSession", () => {
       model: { id: "model", providerID: "provider", variant: "fast" },
       content: [
         { type: "text", text: "", state: { separator: true } },
-        { type: "reasoning", text: "think", state: { provider: 1 }, time: { created: 21, completed: 22 } },
+        { type: "reasoning", text: "think", state: { signature: "sig" }, time: { created: 21, completed: 22 } },
       ],
       snapshot: { start: "snap_start", end: "snap_end", files: ["a.ts", "b.ts", "c.ts"] },
       finish: "stop",
@@ -386,7 +386,7 @@ describe("V1Migration.transformSession", () => {
               },
             ],
           },
-          { provider: true },
+          { provider: { tool: "state" } },
         ),
         tool("prt_4", "compacted", {
           status: "completed",
@@ -430,7 +430,7 @@ describe("V1Migration.transformSession", () => {
     })
     expect(content[2]).toMatchObject({
       id: "completed",
-      providerState: { provider: true },
+      providerState: { tool: "state" },
       state: {
         status: "completed",
         content: [
