@@ -572,6 +572,12 @@ export function fromPromise(plugin: Plugin) {
                 host.session.hook(name, (event) => Effect.promise(() => Promise.resolve(callback(event))), options),
               ),
             create: adaptApiMethod(SessionEndpoints["session.create"], host.session.create),
+            fork: (input) =>
+              adaptApiMethod<PromiseContext["session"]["fork"]>(
+                SessionEndpoints["session.fork"],
+                (request: Parameters<typeof host.session.fork>[0]) =>
+                  host.session.fork({ ...request, filter: input.filter }),
+              )(input),
             get: adaptApiMethod(SessionEndpoints["session.get"], host.session.get),
             switchAgent: adaptApiMethod(SessionEndpoints["session.switchAgent"], host.session.switchAgent),
             switchModel: adaptApiMethod(SessionEndpoints["session.switchModel"], host.session.switchModel),

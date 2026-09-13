@@ -40,6 +40,9 @@ import { offlineModels } from "./fixture/models"
 import { promptLocationNode } from "./fixture/prompt-location"
 import { globalProjectNode } from "./lib/project"
 import { tmpdirScoped } from "./fixture/tmpdir"
+import { Plugin } from "@opencode/plugin"
+import { PluginPromise } from "@opencode/core/plugin/promise"
+import { host } from "./plugin/host"
 
 const it = testEffect(
   AppNodeBuilder.build(
@@ -584,6 +587,98 @@ describe("Session.create", () => {
         ),
       ).toEqual([0, 5, 6])
       expect(yield* SessionInbox.find(db, admitted.id)).toBeUndefined()
+    }),
+  )
+
+  it.effect("freezes filtered fork history and replays it without invoking the callback", () =>
+    Effect.gen(function* () {
+      const session = yield* Session.Service
+      const bus = yield* Bus.Service
+      const { db } = yield* Database.Service
+      const parent = yield* session.create({ location })
+      yield* session.prompt({ sessionID: parent.id, text: "First", resume: false })
+      yield* SessionInbox.promote(db, bus, parent.id, "steer")
+      yield* session.synthetic({ sessionID: parent.id, text: "Original note", resume: false })
+      yield* SessionInbox.promote(db, bus, parent.id, "steer")
+      const last = yield* session.prompt({ sessionID: parent.id, text: "Excluded by boundary", resume: false })
+      yield* SessionInbox.promote(db, bus, parent.id, "steer")
+      const calls: number[] = []
+      const forked = yield* session.fork({
+        sessionID: parent.id,
+        boundary: { type: "before", messageID: last.id },
+        filter: (messages) => {
+          calls.push(messages.length)
+          return messages.flatMap((message) =>
+            message.type === "synthetic" ? [{ ...message, text: "Filtered note" }] : [],
+          )
+        },
+      })
+      const original = yield* session.context(forked.id)
+      expect(calls).toEqual([2])
+      expect(original).toMatchObject([{ type: "synthetic", text: "Filtered note" }])
+      const event = Array.from(yield* Stream.runCollect(logEvents(session, forked.id)))[0]
+      if (event.type !== "session.forked") return yield* Effect.die(new Error("Fork event not found"))
+      expect(typeof event.data.messages?.[0].time.created).toBe("number")
+      expect((yield* session.context(parent.id))[1]).toMatchObject({ text: "Original note" })
+      const recorded = yield* db.select().from(EventTable).where(eq(EventTable.aggregate_id, forked.id)).get()
+      if (!recorded) return yield* Effect.die(new Error("Fork event not found"))
+      yield* bus.remove(forked.id)
+      yield* db.delete(SessionTable).where(eq(SessionTable.id, forked.id)).run()
+      yield* bus.replay({
+        id: recorded.id,
+        created: recorded.created,
+        aggregateID: recorded.aggregate_id,
+        seq: recorded.seq,
+        type: recorded.type,
+        data: recorded.data,
+      })
+      expect(yield* session.context(forked.id)).toEqual(original)
+      expect(calls).toEqual([2])
+      yield* session.prompt({ sessionID: forked.id, text: "Continue", resume: false })
+      yield* SessionInbox.promote(db, bus, forked.id, "steer")
+      expect(yield* session.context(forked.id)).toMatchObject([
+        { type: "synthetic", text: "Filtered note" },
+        { type: "user", text: "Continue" },
+      ])
+      const empty = yield* session.fork({
+        sessionID: parent.id,
+        boundary: { type: "through" },
+        filter: () => [],
+      })
+      expect(yield* session.context(empty.id)).toEqual([])
+    }),
+  )
+
+  it.effect("exposes filtered forks to Promise plugins with decoded callback messages", () =>
+    Effect.gen(function* () {
+      const session = yield* Session.Service
+      const bus = yield* Bus.Service
+      const { db } = yield* Database.Service
+      const parent = yield* session.create({ location })
+      yield* session.prompt({ sessionID: parent.id, text: "Keep", resume: false })
+      yield* SessionInbox.promote(db, bus, parent.id, "steer")
+      yield* session.synthetic({ sessionID: parent.id, text: "Drop", resume: false })
+      yield* SessionInbox.promote(db, bus, parent.id, "steer")
+      const plugin = PluginPromise.fromPromise(
+        Plugin.define({
+          id: "filtered-fork",
+          async setup(ctx) {
+            const fork = await ctx.session.fork({
+              sessionID: parent.id,
+              boundary: { type: "through" },
+              filter: (messages) => {
+                expect(DateTime.isDateTime(messages[0].time.created)).toBe(true)
+                return messages.filter((message) => message.type === "user")
+              },
+            })
+            expect(typeof fork.time.created).toBe("number")
+            expect(await ctx.session.context({ sessionID: fork.id })).toMatchObject([{ type: "user", text: "Keep" }])
+          },
+        }),
+      )
+      yield* plugin.effect(
+        host({ session: { fork: session.fork, context: (input) => session.context(input.sessionID) } }),
+      )
     }),
   )
 

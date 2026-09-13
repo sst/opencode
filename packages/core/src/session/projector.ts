@@ -180,6 +180,32 @@ const projectFork = Effect.fn("SessionProjector.projectFork")(function* (
   if (event.data.instructionEntries)
     yield* InstructionEntry.initialize(db, event.data.sessionID, event.data.instructionEntries, event.created)
 
+  if (event.data.messages !== undefined) {
+    if (event.data.messages.length > 0) {
+      yield* db
+        .insert(SessionMessageTable)
+        .values(
+          event.data.messages.map((message, index) => {
+            const { id: _, type, ...data } = message
+            return {
+              id: SessionMessage.ID.make(`${SessionMessage.ID.fromEvent(event.id)}_${index + 1}`),
+              session_id: event.data.sessionID,
+              type,
+              seq: index + 1,
+              time_created: data.time.created,
+              data,
+            }
+          }),
+        )
+        .run()
+        .pipe(Effect.orDie)
+      yield* Bus.reserveSequence(db, event.data.sessionID, event.data.messages.length)
+    }
+    if (event.data.instructions)
+      yield* InstructionState.initialize(db, event.data.sessionID, event.durable.seq, event.data.instructions)
+    return
+  }
+
   let cursor = -1
   while (copiedSeq !== undefined) {
     const rows = yield* db

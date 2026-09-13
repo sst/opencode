@@ -125,5 +125,11 @@ export type SessionDomain = Pick<
   | "wait"
   | "context"
 > & {
+  readonly fork: (
+    input: Parameters<SessionApi["fork"]>[0] & {
+      /** Select or transform settled history in chronological order. Uses decoded Session messages, like session hooks. */
+      readonly filter?: (messages: readonly SessionMessage.Info[]) => readonly SessionMessage.Info[]
+    },
+  ) => ReturnType<SessionApi["fork"]>
   readonly hook: ModelHooks<SessionHooks>
 }

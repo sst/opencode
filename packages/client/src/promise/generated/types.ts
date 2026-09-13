@@ -167,6 +167,76 @@ export type InstructionEntryKey = string
 
 export type SessionGenerateResponse = { data: { text: string } }
 
+export type SessionMessageAgentSelected1 = {
+  id: string
+  metadata?: { [x: string]: any }
+  time: { created: number }
+  type: "agent-switched"
+  agent: string
+  previous?: string
+}
+
+export type SessionMessageSynthetic1 = {
+  id: string
+  metadata?: { [x: string]: any }
+  time: { created: number }
+  text: string
+  description?: string
+  type: "synthetic"
+}
+
+export type SessionMessageSystem1 = {
+  id: string
+  metadata?: { [x: string]: any }
+  time: { created: number }
+  type: "system"
+  text: string
+  description?: string
+}
+
+export type SessionMessageSkill1 = {
+  id: string
+  metadata?: { [x: string]: any }
+  time: { created: number }
+  type: "skill"
+  skill: string
+  name: string
+  text: string
+}
+
+export type SessionMessageShell1 = {
+  id: string
+  metadata?: { [x: string]: any }
+  time: { created: number; completed?: number }
+  type: "shell"
+  shellID: string
+  command: string
+  status: "running" | "exited" | "timeout" | "killed"
+  exit?: number
+  output?: { output: string; cursor: number; size: number; truncated: boolean }
+}
+
+export type SessionMessageProviderState1 = { [x: string]: any }
+
+export type SessionMessageToolStateRunning1 = {
+  status: "running"
+  input: { [x: string]: any }
+  metadata: { [x: string]: JsonValue }
+}
+
+export type ToolFileContent1 = { type: "file"; uri: string; mime: string; name?: string | undefined }
+
+export type SessionMessageCompactionRunning1 = {
+  type: "compaction"
+  id: string
+  metadata?: { [x: string]: any }
+  time: { created: number }
+  status: "running"
+  reason: "auto" | "manual"
+  summary: string
+  recent: string
+}
+
 export type SessionInboxSyntheticPayload1 = { text: string; description?: string; metadata?: { [x: string]: any } }
 
 export type ShellInfo = {
@@ -180,16 +250,6 @@ export type ShellInfo = {
   exit?: number
   metadata: { [x: string]: any }
   time: { started: number; completed?: number }
-}
-
-export type SessionMessageProviderState1 = { [x: string]: any }
-
-export type ToolFileContent1 = { type: "file"; uri: string; mime: string; name?: string | undefined }
-
-export type SessionMessageToolStateRunning1 = {
-  status: "running"
-  input: { [x: string]: any }
-  metadata: { [x: string]: JsonValue }
 }
 
 export type EventLogSynced = { type: "log.synced"; aggregateID: string; seq?: number }
@@ -466,6 +526,17 @@ export type SessionMessageLocationSwitched = {
 
 export type SessionInboxMovePayload = { location: LocationRef; projectID: string; subpath?: string }
 
+export type SessionMessageLocationSwitched1 = {
+  id: string
+  metadata?: { [x: string]: any }
+  time: { created: number }
+  type: "location-switched"
+  location: LocationRef
+  projectID?: string
+  subpath?: string
+  previous?: { location: LocationRef; projectID?: string; subpath?: string }
+}
+
 export type V2EventRpc = {
   id: string
   created: number
@@ -495,6 +566,15 @@ export type SessionStatsModelUsage = { model: ModelRef; steps: number; tokens: T
 export type SessionMessageModelSelected = {
   id: string
   metadata?: { [x: string]: JsonValue }
+  time: { created: number }
+  type: "model-switched"
+  model: ModelRef
+  previous?: ModelRef
+}
+
+export type SessionMessageModelSelected1 = {
+  id: string
+  metadata?: { [x: string]: any }
   time: { created: number }
   type: "model-switched"
   model: ModelRef
@@ -537,6 +617,16 @@ export type SessionMessageCompactionFailed = {
   error: SessionStructuredError
   cost?: MoneyUSD
   tokens?: TokenUsageInfo
+}
+
+export type SessionMessageCompactionFailed1 = {
+  type: "compaction"
+  id: string
+  metadata?: { [x: string]: any }
+  time: { created: number }
+  status: "failed"
+  reason: "auto" | "manual"
+  error: SessionStructuredError
 }
 
 export type SessionProviderContext = { version: 1; provenance: SessionProviderContextProvenance; messages: JsonValue }
@@ -1199,37 +1289,13 @@ export type McpResourcesChanged = {
   data: { server: string }
 }
 
-export type SessionShellStarted = {
-  id: string
-  created: number
-  metadata?: { [x: string]: any }
-  type: "session.shell.started"
-  durable: { aggregateID: string; seq: number; version: 1 }
-  location?: LocationRef
-  data: { sessionID: string; shell: ShellInfo }
-}
+export type SessionMessageAssistantText1 = { type: "text"; text: string; state?: SessionMessageProviderState1 }
 
-export type SessionShellEnded = {
-  id: string
-  created: number
-  metadata?: { [x: string]: any }
-  type: "session.shell.ended"
-  durable: { aggregateID: string; seq: number; version: 1 }
-  location?: LocationRef
-  data: {
-    sessionID: string
-    shell: ShellInfo
-    output: { output: string; cursor: number; size: number; truncated: boolean }
-  }
-}
-
-export type ShellCreated = {
-  id: string
-  created: number
-  metadata?: { [x: string]: any }
-  type: "shell.created"
-  location?: LocationRef
-  data: { info: ShellInfo }
+export type SessionMessageAssistantReasoning1 = {
+  type: "reasoning"
+  text: string
+  state?: SessionMessageProviderState1
+  time?: { created: number; completed?: number }
 }
 
 export type SessionStepEnded = {
@@ -1332,16 +1398,40 @@ export type SessionToolCalled = {
   }
 }
 
-export type SessionMessageAssistantText1 = { type: "text"; text: string; state?: SessionMessageProviderState1 }
+export type ToolContent1 = ToolTextContent | ToolFileContent1
 
-export type SessionMessageAssistantReasoning1 = {
-  type: "reasoning"
-  text: string
-  state?: SessionMessageProviderState1
-  time?: { created: number; completed?: number }
+export type SessionShellStarted = {
+  id: string
+  created: number
+  metadata?: { [x: string]: any }
+  type: "session.shell.started"
+  durable: { aggregateID: string; seq: number; version: 1 }
+  location?: LocationRef
+  data: { sessionID: string; shell: ShellInfo }
 }
 
-export type ToolContent1 = ToolTextContent | ToolFileContent1
+export type SessionShellEnded = {
+  id: string
+  created: number
+  metadata?: { [x: string]: any }
+  type: "session.shell.ended"
+  durable: { aggregateID: string; seq: number; version: 1 }
+  location?: LocationRef
+  data: {
+    sessionID: string
+    shell: ShellInfo
+    output: { output: string; cursor: number; size: number; truncated: boolean }
+  }
+}
+
+export type ShellCreated = {
+  id: string
+  created: number
+  metadata?: { [x: string]: any }
+  type: "shell.created"
+  location?: LocationRef
+  data: { info: ShellInfo }
+}
 
 export type ModelCompatibility = {
   reasoningField?: ModelReasoningField
@@ -1685,6 +1775,17 @@ export type SessionInboxUserPayload = {
   metadata?: { [x: string]: JsonValue }
 }
 
+export type SessionMessageUser1 = {
+  id: string
+  metadata?: { [x: string]: any }
+  time: { created: number }
+  text: string
+  files?: Array<PromptFileAttachment>
+  agents?: Array<PromptAgentAttachment>
+  skills?: Array<PromptSkillAttachment>
+  type: "user"
+}
+
 export type SessionInboxUserPayload1 = {
   text: string
   files?: Array<PromptFileAttachment>
@@ -1724,6 +1825,20 @@ export type SessionMessageCompactionCompleted = {
   tokens?: TokenUsageInfo
 }
 
+export type SessionMessageCompactionCompleted1 = {
+  type: "compaction"
+  id: string
+  metadata?: { [x: string]: any }
+  time: { created: number }
+  status: "completed"
+  reason: "auto" | "manual"
+  model?: ModelRef
+  providerState?: SessionMessageProviderState1
+  summary: string
+  recent: string
+  providerContext?: SessionProviderContext
+}
+
 export type SessionCompactionEnded = {
   id: string
   created: number
@@ -1744,20 +1859,19 @@ export type SessionCompactionEnded = {
   }
 }
 
-export type SessionForked = {
-  id: string
-  created: number
-  metadata?: { [x: string]: any }
-  type: "session.forked"
-  durable: { aggregateID: string; seq: number; version: 2 }
-  location?: LocationRef
-  data: {
-    sessionID: string
-    parentID: string
-    boundary: SessionForkBoundary
-    instructions?: { [x: string]: string }
-    instructionEntries?: InstructionEntrySnapshot
-  }
+export type SessionMessageToolStateCompleted1 = {
+  status: "completed"
+  input: { [x: string]: any }
+  content: [ToolContent1, ...Array<ToolContent1>]
+  metadata?: { [x: string]: JsonValue }
+}
+
+export type SessionMessageToolStateError1 = {
+  status: "error"
+  input: { [x: string]: any }
+  error: SessionStructuredError
+  content?: [ToolContent1, ...Array<ToolContent1>]
+  metadata?: { [x: string]: JsonValue }
 }
 
 export type SessionToolSuccess = {
@@ -1795,21 +1909,6 @@ export type SessionToolFailed = {
     executed: boolean
     resultState?: SessionMessageProviderState1
   }
-}
-
-export type SessionMessageToolStateCompleted1 = {
-  status: "completed"
-  input: { [x: string]: any }
-  content: [ToolContent1, ...Array<ToolContent1>]
-  metadata?: { [x: string]: JsonValue }
-}
-
-export type SessionMessageToolStateError1 = {
-  status: "error"
-  input: { [x: string]: any }
-  error: SessionStructuredError
-  content?: [ToolContent1, ...Array<ToolContent1>]
-  metadata?: { [x: string]: JsonValue }
 }
 
 export type ModelInfo = {
@@ -2143,6 +2242,11 @@ export type SessionMessageCompaction =
   | SessionMessageCompactionCompleted
   | SessionMessageCompactionFailed
 
+export type SessionMessageCompaction1 =
+  | SessionMessageCompactionRunning1
+  | SessionMessageCompactionCompleted1
+  | SessionMessageCompactionFailed1
+
 export type SessionMessageAssistantTool1 = {
   type: "tool"
   id: string
@@ -2194,6 +2298,24 @@ export type SessionMessageAssistant = {
   retry?: SessionMessageAssistantRetry
 }
 
+export type SessionMessageAssistant1 = {
+  id: string
+  metadata?: { [x: string]: any }
+  time: { created: number; streamed?: number; completed?: number }
+  type: "assistant"
+  agent: string
+  model: ModelRef
+  content: Array<SessionMessageAssistantText1 | SessionMessageAssistantReasoning1 | SessionMessageAssistantTool1>
+  snapshot?: { start?: string; end?: string; files?: Array<string> }
+  finish?: "stop" | "length" | "tool-calls" | "content-filter" | "error" | "unknown"
+  rawFinish?: string
+  providerState?: SessionMessageProviderState1
+  cost?: MoneyUSD
+  tokens?: TokenUsageInfo
+  error?: SessionStructuredError
+  retry?: SessionMessageAssistantRetry
+}
+
 export type SessionMessageAssistantContentEncoded =
   | SessionMessageAssistantText1
   | SessionMessageAssistantReasoning1
@@ -2219,6 +2341,18 @@ export type SessionMessageInfo =
   | SessionMessageAssistant
   | SessionMessageCompaction
   | SessionMessageIdle
+
+export type SessionMessageInfoEncoded =
+  | SessionMessageAgentSelected1
+  | SessionMessageModelSelected1
+  | SessionMessageLocationSwitched1
+  | SessionMessageUser1
+  | SessionMessageSynthetic1
+  | SessionMessageSystem1
+  | SessionMessageSkill1
+  | SessionMessageShell1
+  | SessionMessageAssistant1
+  | SessionMessageCompaction1
 
 export type SessionMessageContentUpdated = {
   id: string
@@ -2250,6 +2384,31 @@ export type SessionTransferData = { info: SessionInfo; messages: Array<SessionMe
 export type SessionMessagesResponse = {
   data: Array<SessionMessageInfo>
   cursor: { previous?: string | null; next?: string | null }
+}
+
+export type SessionForked = {
+  id: string
+  created: number
+  metadata?: { [x: string]: any }
+  type: "session.forked"
+  durable: { aggregateID: string; seq: number; version: 2 }
+  location?: LocationRef
+  data: {
+    sessionID: string
+    parentID: string
+    boundary: SessionForkBoundary
+    messages?: Array<SessionMessageInfoEncoded>
+    instructions?: { [x: string]: string }
+    instructionEntries?: InstructionEntrySnapshot
+  }
+}
+
+export type IntegrationInfo = {
+  id: string
+  name: string
+  metadata?: { [x: string]: any }
+  methods: Array<IntegrationMethod>
+  connections: Array<ConnectionInfo>
 }
 
 export type SessionEventDurable =
@@ -2297,14 +2456,6 @@ export type SessionEventDurable =
   | SessionRevertCommitted
   | SessionUsageRecorded
   | SessionMessageContentUpdated
-
-export type IntegrationInfo = {
-  id: string
-  name: string
-  metadata?: { [x: string]: any }
-  methods: Array<IntegrationMethod>
-  connections: Array<ConnectionInfo>
-}
 
 export type V2Event =
   | ModelsDevRefreshed

@@ -4,7 +4,7 @@ export * from "./session/schema.js"
 import { Effect, Layer, Schema, Context, Stream } from "effect"
 import { LLMClient } from "@opencode/ai"
 import { ListAnchor } from "@opencode/schema/session"
-import { and, desc, eq } from "drizzle-orm"
+import { and, asc, desc, eq, lt, lte, sql } from "drizzle-orm"
 import { Project } from "./project.js"
 import { Model } from "@opencode/schema/model"
 import { Location } from "./location.js"
@@ -24,6 +24,7 @@ import { Slug } from "./util/slug.js"
 import path from "path"
 import { SessionRunner } from "./session/runner/index.js"
 import { SessionStore } from "./session/store.js"
+import { decodeMessageRow } from "./session/history.js"
 import { SessionExecution } from "./session/execution.js"
 import {
   AttachmentError,
@@ -95,6 +96,7 @@ type CompactInput = Parameters<Session.Handle["compact"]>[0] & { sessionID: Sess
 type ForkInput = {
   sessionID: SessionSchema.ID
   boundary: SessionSchema.ForkRequestBoundary
+  filter?: (messages: readonly SessionMessage.Info[]) => readonly SessionMessage.Info[]
 }
 
 export {
@@ -303,7 +305,7 @@ const layer = Layer.effect(
       fork: Effect.fn("Session.fork")(function* (input) {
         const parent = yield* result.get(input.sessionID)
         const boundary = yield* db
-          .select({ id: SessionMessageTable.id })
+          .select({ id: SessionMessageTable.id, seq: SessionMessageTable.seq })
           .from(SessionMessageTable)
           .where(
             and(
@@ -321,6 +323,31 @@ const layer = Layer.effect(
             messageID: input.boundary.messageID,
           })
         if (!boundary) return yield* new ForkEmptyError({ sessionID: input.sessionID })
+        const messages = input.filter
+          ? input.filter(
+              yield* db
+                .select()
+                .from(SessionMessageTable)
+                .where(
+                  and(
+                    eq(SessionMessageTable.session_id, parent.id),
+                    input.boundary.type === "before"
+                      ? lt(SessionMessageTable.seq, boundary.seq)
+                      : lte(SessionMessageTable.seq, boundary.seq),
+                    sql`${SessionMessageTable.type} != 'assistant' or json_extract(${SessionMessageTable.data}, '$.time.completed') is not null`,
+                    sql`${SessionMessageTable.type} != 'shell' or json_extract(${SessionMessageTable.data}, '$.status') != 'running'`,
+                    sql`${SessionMessageTable.type} != 'compaction' or json_extract(${SessionMessageTable.data}, '$.status') != 'running'`,
+                  ),
+                )
+                .orderBy(asc(SessionMessageTable.seq))
+                .all()
+                .pipe(
+                  Effect.orDie,
+                  Effect.flatMap((rows) => Effect.forEach(rows, decodeMessageRow)),
+                  Effect.orDie,
+                ),
+            )
+          : undefined
         const sessionID = SessionSchema.ID.create()
         const inherited = yield* db
           .transaction(() =>
@@ -337,6 +364,7 @@ const layer = Layer.effect(
           sessionID,
           parentID: parent.id,
           boundary: { ...input.boundary, messageID: boundary.id },
+          messages: messages === undefined ? undefined : Schema.encodeSync(Schema.Array(SessionMessage.Info))(messages),
           ...inherited,
         })
         return yield* result.get(sessionID).pipe(Effect.orDie)
