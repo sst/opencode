@@ -1,4 +1,5 @@
-import { createMemo, createSignal, onMount, Show } from "solid-js"
+import { createMemo, createResource, createSignal, onCleanup, onMount, Show } from "solid-js"
+import type { SessionMessageUser } from "@opencode/client"
 import { useData } from "../../context/data"
 import { useRoute } from "../../context/route"
 import { useClient } from "../../context/client"
@@ -10,28 +11,41 @@ import { errorMessage } from "../../util/error"
 import { Locale } from "../../util/locale"
 import { projectedPromptInput } from "../../prompt/codec"
 
-export function DialogFork(props: { sessionID: string; messageID?: string; onMove?: (messageID?: string) => void }) {
+export function DialogFork(props: {
+  sessionID: string
+  message?: SessionMessageUser
+  onMove?: (messageID?: string) => void
+}) {
   const data = useData()
   const dialog = useDialog()
   const client = useClient()
   const route = useRoute()
   const toast = useToast()
-  const [pending, setPending] = createSignal(!!props.messageID)
+  const [pending, setPending] = createSignal(!!props.message)
+  const request = new AbortController()
+  onCleanup(() => request.abort())
+  const [messages] = createResource(
+    () => !props.message,
+    () =>
+      data.session.message.users(props.sessionID, { signal: request.signal }).catch((error) => {
+        if (!request.signal.aborted) toast.error(error)
+        return []
+      }),
+  )
 
-  const fork = async (messageID?: string) => {
+  const fork = async (message?: SessionMessageUser) => {
     setPending(true)
     const result = await client.api.session
       .fork({
         sessionID: props.sessionID,
-        boundary: messageID ? { type: "before", messageID } : { type: "through" },
+        boundary: message ? { type: "before", messageID: message.id } : { type: "through" },
       })
       .catch((error) => {
         toast.show({ message: errorMessage(error), variant: "error", duration: 5000 })
         return undefined
       })
     if (!result) return dialog.clear()
-    const message = messageID ? data.session.message.get(props.sessionID, messageID) : undefined
-    const prompt = message?.type === "user" ? projectedPromptInput(message) : undefined
+    const prompt = message ? projectedPromptInput(message) : undefined
     route.navigate({
       sessionID: result.id,
       type: "session",
@@ -49,7 +63,7 @@ export function DialogFork(props: { sessionID: string; messageID?: string; onMov
 
   onMount(() => {
     dialog.setSize("large")
-    if (props.messageID) void fork(props.messageID)
+    if (props.message) void fork(props.message)
   })
 
   const options = createMemo((): DialogSelectOption<string | undefined>[] => [
@@ -58,16 +72,12 @@ export function DialogFork(props: { sessionID: string; messageID?: string; onMov
       value: undefined,
       onSelect: () => fork(),
     },
-    ...data.session.message
-      .list(props.sessionID)
-      .filter((message) => message.type === "user")
-      .toReversed()
-      .map((message) => ({
-        title: message.text.replace(/\n/g, " "),
-        value: message.id,
-        footer: Locale.time(message.time.created),
-        onSelect: () => fork(message.id),
-      })),
+    ...(messages() ?? []).toReversed().map((message) => ({
+      title: message.text.replace(/\n/g, " "),
+      value: message.id,
+      footer: Locale.time(message.time.created),
+      onSelect: () => fork(message),
+    })),
   ])
 
   return (
@@ -79,7 +89,18 @@ export function DialogFork(props: { sessionID: string; messageID?: string; onMov
         </box>
       }
     >
-      <DialogSelect onMove={(option) => props.onMove?.(option.value)} title="Fork session" options={options()} />
+      <DialogSelect
+        onMove={(option) => {
+          if (!option.value || data.session.message.get(props.sessionID, option.value)) props.onMove?.(option.value)
+        }}
+        title="Fork session"
+        options={options()}
+        footer={
+          <Show when={messages.loading}>
+            <Spinner>Loading session history…</Spinner>
+          </Show>
+        }
+      />
     </Show>
   )
 }

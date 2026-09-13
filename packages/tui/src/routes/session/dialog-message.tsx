@@ -8,17 +8,20 @@ import { errorMessage } from "../../util/error"
 import { DialogFork } from "./dialog-fork"
 import type { PromptInfo } from "../../prompt/history"
 import { projectedPromptInput } from "../../prompt/codec"
+import type { SessionMessageInfo } from "@opencode/client"
 
 export function DialogMessage(props: {
   messageID: string
+  message?: SessionMessageInfo
   sessionID: string
   setPrompt?: (prompt: PromptInfo) => void
+  onMove?: (messageID: string) => void
 }) {
   const data = useData()
   const clipboard = useClipboard()
   const toast = useToast()
   const client = useClient()
-  const message = createMemo(() => data.session.message.get(props.sessionID, props.messageID))
+  const message = createMemo(() => props.message ?? data.session.message.get(props.sessionID, props.messageID))
 
   return (
     <DialogSelect
@@ -28,7 +31,10 @@ export function DialogMessage(props: {
           title: "Jump to",
           value: "message.jump",
           description: "view message in session",
-          onSelect: (dialog) => dialog.clear(),
+          onSelect: (dialog) => {
+            props.onMove?.(props.messageID)
+            dialog.clear()
+          },
         },
         {
           title: "Revert",
@@ -42,8 +48,9 @@ export function DialogMessage(props: {
                 pasted: [],
               })
             }
-            void client.api.session.revert
-              .stage({ sessionID: props.sessionID, messageID: props.messageID })
+            void data.session.message
+              .loadMore(props.sessionID, { until: props.messageID })
+              .then(() => client.api.session.revert.stage({ sessionID: props.sessionID, messageID: props.messageID }))
               .catch((error) => toast.show({ message: errorMessage(error), variant: "error", duration: 5000 }))
             dialog.clear()
           },
@@ -81,7 +88,7 @@ export function DialogMessage(props: {
           onSelect: (dialog) => {
             const value = message()
             if (!value || value.type !== "user") return
-            dialog.replace(() => <DialogFork sessionID={props.sessionID} messageID={props.messageID} />)
+            dialog.replace(() => <DialogFork sessionID={props.sessionID} message={value} />)
           },
         },
       ]}

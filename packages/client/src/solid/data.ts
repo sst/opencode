@@ -24,6 +24,7 @@ import type {
   ProviderInfo,
   ReferenceInfo,
   SessionMessageInfo,
+  SessionMessageUser,
   SessionMessageAssistant,
   SessionMessageAssistantReasoning,
   SessionMessageAssistantText,
@@ -1580,6 +1581,43 @@ export function createData(config: CreateDataInput) {
         list(sessionID: string) {
           return store.session.message[sessionID] ?? []
         },
+        // Filtered reads are sparse history and must not replace or prepend the contiguous transcript window.
+        async users(
+          sessionID: string,
+          options?: {
+            boundary?: { messageID: string; direction: "before" | "after" }
+            limit?: number
+            signal?: AbortSignal
+          },
+        ) {
+          const client = api()
+          const order = options?.boundary?.direction === "after" ? "asc" : "desc"
+          const messages: SessionMessageUser[] = []
+          let boundary = options?.boundary?.messageID
+          let cursor: string | undefined
+          do {
+            options?.signal?.throwIfAborted()
+            const page = await client.message.list(
+              {
+                sessionID,
+                type: "user",
+                limit: boundary ? 200 : Math.min(options?.limit ?? 200, 200),
+                ...(cursor ? { cursor } : { order }),
+              },
+              { signal: options?.signal },
+            )
+            options?.signal?.throwIfAborted()
+            const users = page.data.filter((message): message is SessionMessageUser => message.type === "user")
+            const index = boundary ? users.findIndex((message) => message.id === boundary) : -1
+            if (!boundary || index !== -1) {
+              messages.push(...(boundary ? users.slice(index + 1) : users))
+              boundary = undefined
+            }
+            cursor = page.cursor.next ?? undefined
+          } while (cursor && (options?.limit === undefined || messages.length < options.limit))
+          const selected = messages.slice(0, options?.limit)
+          return order === "desc" ? selected.reverse() : selected
+        },
         get(sessionID: string, messageID: string) {
           const messages = store.session.message[sessionID]
           const position = messageIndex.get(sessionID)?.get(messageID)
@@ -1622,6 +1660,8 @@ export function createData(config: CreateDataInput) {
           sessionID: string,
           options?: {
             all?: boolean
+            /** Load a contiguous history window through this message, publishing once. */
+            until?: string
             signal?: AbortSignal
             /** Runs synchronously inside the store-publication batch. */
             beforePublish?: () => void
@@ -1629,6 +1669,7 @@ export function createData(config: CreateDataInput) {
         ) {
           const signal = options?.signal
           if (signal?.aborted) return
+          if (options?.until && messageIndex.get(sessionID)?.has(options.until)) return
           while (messageLoads.has(sessionID)) {
             const published = await (() => {
               const pending = messageLoads.get(sessionID)
@@ -1642,7 +1683,8 @@ export function createData(config: CreateDataInput) {
                 })
                 .finally(() => signal.removeEventListener("abort", cancel))
             })()
-            if ((!options?.all && published) || signal?.aborted) return
+            if ((!options?.all && !options?.until && published) || signal?.aborted) return
+            if (options?.until && messageIndex.get(sessionID)?.has(options.until)) return
           }
           const cursor = store.session.messageCursor[sessionID]
           if (!cursor || signal?.aborted) return
@@ -1654,7 +1696,7 @@ export function createData(config: CreateDataInput) {
               const response = await api().message.list(
                 {
                   sessionID,
-                  limit: options?.all ? 200 : messagePageLimit,
+                  limit: options?.all || options?.until ? 200 : messagePageLimit,
                   cursor: next,
                 },
                 { signal },
@@ -1662,7 +1704,8 @@ export function createData(config: CreateDataInput) {
               if (signal?.aborted) return
               fetched.push(...response.data)
               next = response.cursor.next ?? undefined
-              if (!options?.all) break
+              if (options?.until && response.data.some((message) => message.id === options.until)) break
+              if (!options?.all && !options?.until) break
             } while (next)
             // A jump through history publishes once, not once per page of offscreen messages.
             const existing = store.session.message[sessionID] ?? []

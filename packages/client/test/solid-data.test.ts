@@ -636,7 +636,7 @@ test("reports optimistic sessions as creating until the request settles", async 
   }
 })
 
-test("loads bounded message pages", async () => {
+test("loads bounded message pages and keeps filtered history separate", async () => {
   const requests: URL[] = []
   const api = OpenCode.make({
     baseUrl: "http://opencode.local",
@@ -644,6 +644,13 @@ test("loads bounded message pages", async () => {
       const request = input instanceof Request ? input : new Request(input, init)
       const url = new URL(request.url)
       requests.push(url)
+      if (url.searchParams.get("type") === "user") {
+        const older = url.searchParams.has("cursor")
+        return Response.json({
+          data: [{ id: older ? "msg_old" : "msg_new", type: "user", text: "History", time: { created: 1 } }],
+          cursor: older ? {} : { next: "users-older" },
+        })
+      }
       return Response.json({ data: [], cursor: requests.length === 1 ? { next: "next" } : {} })
     },
   })
@@ -658,11 +665,18 @@ test("loads bounded message pages", async () => {
 
   try {
     await setup.data.session.message.sync("ses_refresh")
+    expect((await setup.data.session.message.users("ses_refresh")).map((message) => message.id)).toEqual([
+      "msg_old",
+      "msg_new",
+    ])
+    expect(setup.data.session.message.list("ses_refresh")).toEqual([])
     await setup.data.session.message.loadMore("ses_refresh")
 
-    expect(requests).toHaveLength(2)
+    expect(requests).toHaveLength(4)
     expect(Object.fromEntries(requests[0].searchParams)).toEqual({ limit: "20", order: "desc" })
-    expect(Object.fromEntries(requests[1].searchParams)).toEqual({ cursor: "next", limit: "20" })
+    expect(Object.fromEntries(requests[1].searchParams)).toEqual({ type: "user", limit: "200", order: "desc" })
+    expect(Object.fromEntries(requests[2].searchParams)).toEqual({ type: "user", limit: "200", cursor: "users-older" })
+    expect(Object.fromEntries(requests[3].searchParams)).toEqual({ cursor: "next", limit: "20" })
   } finally {
     setup.dispose()
   }

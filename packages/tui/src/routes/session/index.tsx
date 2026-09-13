@@ -157,7 +157,7 @@ export function Session(props: {
     const messageID = session()?.revert?.messageID
     if (!messageID) return messages()
     const index = messages().findIndex((message) => message.id === messageID)
-    return index === -1 ? messages() : messages().slice(0, index)
+    return index === -1 ? [] : messages().slice(0, index)
   }
   const messagesFromRevert = () => {
     const messageID = session()?.revert?.messageID
@@ -634,14 +634,21 @@ export function Session(props: {
       dialog.clear()
     })
 
-  const jumpToMessage = (messageID: string) =>
-    ensureAllRows(() => {
-      const child = scroll.getRenderable(messageID)
-      if (!child) return
-      const y = scroll.scrollTop + child.y - scroll.viewport.y
-      const message = data.session.message.get(route.sessionID, messageID)
-      alignMessage(messageID, Math.max(0, y - (message?.type === "assistant" ? 1 : 0)))
-    })
+  const jumpToMessage = (messageID: string) => {
+    void data.session.message
+      .loadMore(route.sessionID, { until: messageID })
+      .then(() => {
+        if (!scroll || scroll.isDestroyed) return
+        ensureAllRows(() => {
+          const child = scroll.getRenderable(messageID)
+          if (!child) return
+          const y = scroll.scrollTop + child.y - scroll.viewport.y
+          const message = data.session.message.get(route.sessionID, messageID)
+          alignMessage(messageID, Math.max(0, y - (message?.type === "assistant" ? 1 : 0)))
+        })
+      })
+      .catch(toast.error)
+  }
 
   function toBottom() {
     clearMessageNavigation()
@@ -894,22 +901,30 @@ export function Session(props: {
       group: "Session",
       slash: { name: "undo" },
       run: () => {
-        const message = messagesBeforeRevert().findLast(
-          (message): message is SessionMessageUser => message.type === "user" && !!message.text.trim(),
-        )
-        if (!message) {
-          toast.show({ message: "Nothing to undo", variant: "error", duration: 3000 })
-          dialog.clear()
-          return
-        }
         const sessionID = route.sessionID
         const target = prompt()
+        const boundary = session()?.revert?.messageID
+        const pending = messagesBeforeRevert().findLast(
+          (message): message is SessionMessageUser => message.type === "user" && pendingDeliveries().has(message.id),
+        )
         void (async () => {
-          if (pendingDeliveries().has(message.id)) {
+          const history = pending
+            ? []
+            : await data.session.message.users(sessionID, {
+                limit: 2,
+                boundary: boundary ? { messageID: boundary, direction: "before" } : undefined,
+              })
+          const message = pending ?? history.at(-1)
+          if (!message) {
+            toast.show({ message: "Nothing to undo", variant: "error", duration: 3000 })
+            return
+          }
+          if (pending) {
             if (!(await mutatePending("cancel", message.id))) return
           } else {
             await client.api.session.interrupt({ sessionID })
             await client.api.session.wait({ sessionID })
+            await data.session.message.loadMore(sessionID, { until: history.at(-2)?.id ?? message.id })
             await client.api.session.revert.stage({ sessionID, messageID: message.id })
           }
           target?.set({

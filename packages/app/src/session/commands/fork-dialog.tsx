@@ -1,4 +1,5 @@
-import { Component, createMemo } from "solid-js"
+import { Component, onCleanup } from "solid-js"
+import type { SessionMessageUser } from "@opencode/client/promise"
 import { useNavigate, useParams } from "@solidjs/router"
 import { useData } from "@/runtime/server/current"
 import { useComposerState } from "@/composer/persistence"
@@ -18,6 +19,7 @@ interface ForkableMessage {
   id: string
   text: string
   time: string
+  message: SessionMessageUser
 }
 
 function formatTime(date: Date): string {
@@ -35,33 +37,38 @@ export const DialogFork: Component = () => {
   const language = useLanguage()
   const server = useServer()
 
-  const messages = createMemo((): ForkableMessage[] => {
-    const sessionID = params.id
-    if (!sessionID) return []
-
-    const msgs = data.session.message.list(sessionID)
-    const result: ForkableMessage[] = []
-
-    for (const message of msgs) {
-      if (message.type !== "user" || !message.text) continue
-
-      result.push({
-        id: message.id,
-        text: message.text.replace(/\n/g, " ").slice(0, 200),
-        time: formatTime(new Date(message.time.created)),
-      })
-    }
-
-    return result.reverse()
-  })
+  const sessionID = params.id
+  const request = new AbortController()
+  onCleanup(() => request.abort())
+  const messages = sessionID
+    ? data.session.message
+        .users(sessionID, { signal: request.signal })
+        .then((messages): ForkableMessage[] =>
+          messages
+            .filter((message) => !!message.text)
+            .toReversed()
+            .map((message) => ({
+              id: message.id,
+              text: message.text.replace(/\n/g, " ").slice(0, 200),
+              time: formatTime(new Date(message.time.created)),
+              message,
+            })),
+        )
+        .catch((error) => {
+          if (!request.signal.aborted)
+            showToast({
+              title: language.t("common.requestFailed"),
+              description: error instanceof Error ? error.message : String(error),
+            })
+          return []
+        })
+    : Promise.resolve([])
 
   const handleSelect = (item: ForkableMessage | undefined) => {
     if (!item) return
 
-    const sessionID = params.id
     if (!sessionID) return
-    const message = data.session.message.get(sessionID, item.id)
-    if (message?.type !== "user") return
+    const message = item.message
     const restored = extractPromptFromMessage(message, {
       directory: location().directory,
       attachmentName: language.t("common.attachment"),
@@ -104,7 +111,7 @@ export const DialogFork: Component = () => {
           search={{ placeholder: language.t("common.search.placeholder"), autofocus: true }}
           emptyMessage={language.t("dialog.fork.empty")}
           key={(x) => x.id}
-          items={messages}
+          items={() => messages}
           filterKeys={["text"]}
           onSelect={handleSelect}
         >

@@ -13,6 +13,7 @@ import { fetchSessionExport, saveSessionExport, sessionExportFilename } from "@/
 import { usePlatform } from "@/runtime/platform/platform"
 import type { SessionModel } from "@/session/model"
 import type { SessionRevert } from "@/session/revert"
+import { useData } from "@/runtime/server/current"
 
 type SessionCommandSource = {
   identity: SessionModel["identity"]
@@ -52,6 +53,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const terminal = useTerminal()
   const platform = usePlatform()
   const layout = useLayout()
+  const data = useData()
   const openDialog = async <T,>(load: () => Promise<T>, show: (value: T) => void) => {
     const owner = actions.session.ownership.capture()
     const value = await load()
@@ -228,6 +230,10 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
 
   const undo = actions.revert.undo
   const redo = actions.revert.redo
+  const hasUserHistory = () => {
+    const id = actions.session.identity.params.id
+    return !!id && (actions.session.history.visibleUserMessages().length > 0 || data.session.message.more(id))
+  }
 
   const compact = async () => {
     const sessionID = actions.session.identity.params.id
@@ -258,7 +264,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       title: language.t("command.session.undo"),
       description: language.t("command.session.undo.description"),
       slash: "undo",
-      disabled: !actions.session.identity.params.id || actions.session.history.visibleUserMessages().length === 0,
+      disabled: !hasUserHistory(),
       onSelect: undo,
     }),
     sessionCommand({
@@ -274,7 +280,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       title: language.t("command.session.compact"),
       description: language.t("command.session.compact.description"),
       slash: "compact",
-      disabled: !actions.session.identity.params.id || actions.session.history.visibleUserMessages().length === 0,
+      disabled: !hasUserHistory(),
       onSelect: compact,
     }),
     sessionCommand({
@@ -289,7 +295,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
       title: language.t("command.session.fork"),
       description: language.t("command.session.fork.description"),
       slash: "fork",
-      disabled: !actions.session.identity.params.id || actions.session.history.visibleUserMessages().length === 0,
+      disabled: !hasUserHistory(),
       onSelect: fork,
     }),
     sessionCommand({

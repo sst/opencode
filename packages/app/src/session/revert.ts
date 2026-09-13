@@ -54,6 +54,7 @@ export function createSessionRevert(input: {
     if (data.session.status(sessionID) === "running") {
       await server.api.session.interrupt({ sessionID }).catch(() => undefined)
     }
+    if (!(await request(() => data.session.message.loadMore(sessionID, { until: previous?.id ?? message.id })))) return
     if (!(await request(() => server.api.session.revert.stage({ sessionID, messageID: message.id })))) return
     // Reverting to a previous prompt discards the pending queue (and pending
     // steers): they were written against the history being rewound. Cancel
@@ -82,40 +83,63 @@ export function createSessionRevert(input: {
   }
 
   const to = async (messageID: string) => {
-    const messages = input.session.history.userMessages()
-    const index = messages.findIndex((message) => message.id === messageID)
-    const message = messages[index]
-    if (!message) return
-    await stage(message, messages[index - 1])
+    const sessionID = input.session.identity.params.id
+    if (!sessionID) return
+    const owner = input.session.ownership.capture()
+    await request(async () => {
+      const message =
+        data.session.message.get(sessionID, messageID) ?? (await server.api.session.message({ sessionID, messageID }))
+      if (message.type !== "user") return
+      const previous = await data.session.message.users(sessionID, {
+        boundary: { messageID, direction: "before" },
+        limit: 1,
+      })
+      if (!owner.current()) return
+      await stage(message, previous[0])
+    })
   }
 
   const undo = async () => {
-    const messages = input.session.history.userMessages()
+    const sessionID = input.session.identity.params.id
+    if (!sessionID) return
+    const owner = input.session.ownership.capture()
     const reverted = input.session.data.revertMessageID()
-    const boundary = reverted ? messages.findIndex((message) => message.id === reverted) : messages.length
-    if (boundary <= 0) return
-    const message = messages[boundary - 1]
-    if (message) await stage(message, messages[boundary - 2])
+    await request(async () => {
+      const messages = await data.session.message.users(sessionID, {
+        boundary: reverted ? { messageID: reverted, direction: "before" } : undefined,
+        limit: 2,
+      })
+      const message = messages.at(-1)
+      if (!message || !owner.current()) return
+      await stage(message, messages.at(-2))
+    })
   }
 
   const redo = async () => {
     const sessionID = input.session.identity.params.id
     const reverted = input.session.data.revertMessageID()
     if (!sessionID || !reverted) return
-    const messages = input.session.history.userMessages()
-    const boundary = messages.findIndex((message) => message.id === reverted)
-    if (boundary < 0) return
-    const next = messages[boundary + 1]
-    if (next) {
-      await stage(next, messages[boundary])
-      return
-    }
     const owner = input.session.ownership.capture()
     const target = prompt.capture()
-    if (!(await request(() => server.api.session.revert.clear({ sessionID })))) return
-    target.reset()
-    target.context.replaceComments([])
-    owner.run(() => input.setActiveMessage(messages.at(-1)))
+    await request(async () => {
+      const messages = await data.session.message.users(sessionID, {
+        boundary: { messageID: reverted, direction: "after" },
+        limit: 1,
+      })
+      const message =
+        data.session.message.get(sessionID, reverted) ??
+        (await server.api.session.message({ sessionID, messageID: reverted }))
+      if (message.type !== "user" || !owner.current()) return
+      const next = messages[0]
+      if (next) {
+        await stage(next, message)
+        return
+      }
+      await server.api.session.revert.clear({ sessionID })
+      target.reset()
+      target.context.replaceComments([])
+      owner.run(() => input.setActiveMessage(message))
+    })
   }
 
   return { to, undo, redo }
