@@ -171,7 +171,7 @@
     "solid-js@1.9.15": "patches/solid-js@1.9.15.patch",
     "@ai-sdk/mistral@3.0.51": "patches/@ai-sdk%2Fmistral@3.0.51.patch",
     "gcp-metadata@8.1.2": "patches/gcp-metadata@8.1.2.patch",
-    "pacote@21.5.0": "patches/pacote@21.5.0.patch",
+    "pacote@21.5.1": "patches/pacote@21.5.1.patch",
     "@ai-sdk/google@3.0.73": "patches/@ai-sdk%2Fgoogle@3.0.73.patch",
     "@pierre/trees@1.0.0-beta.4": "patches/@pierre%2Ftrees@1.0.0-beta.4.patch",
     "@modelcontextprotocol/sdk@1.29.0": "patches/@modelcontextprotocol%2Fsdk@1.29.0.patch",
