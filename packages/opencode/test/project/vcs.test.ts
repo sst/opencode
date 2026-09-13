@@ -332,4 +332,50 @@ describe("Vcs diff", () => {
       }),
     { git: true },
   )
+
+  it.instance(
+    "status() reports untracked files with correct line counts",
+    () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        yield* write(path.join(test.directory, "untracked.txt"), "one\ntwo\nthree")
+
+        const vcs = yield* init()
+        const status = yield* vcs.status()
+
+        expect(status).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ file: "untracked.txt", status: "added", additions: 3, deletions: 0 }),
+          ]),
+        )
+      }),
+    { git: true },
+  )
+
+  it.instance(
+    "status() cache refreshes after a commit",
+    () =>
+      Effect.gen(function* () {
+        const test = yield* TestInstance
+        yield* write(path.join(test.directory, "cached.txt"), "hello\n")
+
+        const vcs = yield* init()
+        const before = yield* vcs.status()
+        expect(before.some((item) => item.file === "cached.txt")).toBe(true)
+
+        yield* git(test.directory, ["add", "."])
+        yield* git(test.directory, ["commit", "--no-gpg-sign", "-m", "x"])
+
+        // watcher events for .git refs/index drop the cache; TTL is a bounded fallback,
+        // so poll briefly until the committed state is visible
+        let clean = false
+        for (let attempt = 0; attempt < 50 && !clean; attempt++) {
+          yield* Effect.sleep("200 millis")
+          clean = (yield* vcs.status()).length === 0
+        }
+        expect(clean).toBe(true)
+      }),
+    { git: true },
+    20_000,
+  )
 })

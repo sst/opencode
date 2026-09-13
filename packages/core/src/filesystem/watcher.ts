@@ -116,8 +116,15 @@ const layer = Layer.effect(
       const resolved = (yield* git.repo.discover(location.directory))?.gitDirectory
       const vcs = resolved ? yield* fs.realPath(resolved).pipe(Effect.catch(() => Effect.succeed(resolved))) : undefined
       if (vcs && !config.includes(".git") && !config.includes(vcs) && (!resolved || !config.includes(resolved))) {
+        // PERF: watch HEAD (checkout/branch switch), refs + packed-refs
+        // (commit/fetch move branch refs, not HEAD) and index (staging) so the
+        // Vcs status cache can invalidate precisely. git queries run with
+        // --no-optional-locks so reads never rewrite the index (no event noise).
         const ignore = (yield* fs.readDirectoryEntries(vcs).pipe(Effect.catch(() => Effect.succeed([])))).flatMap(
-          (entry) => (entry.name === "HEAD" ? [] : [entry.name]),
+          (entry) =>
+            entry.name === "HEAD" || entry.name === "refs" || entry.name === "packed-refs" || entry.name === "index"
+              ? []
+              : [entry.name],
         )
         yield* Effect.forkScoped(subscribe(vcs, ignore))
       }

@@ -181,7 +181,41 @@ const layer = Layer.effect(
     const locked = <A, E, R>(repository: Repository, effect: Effect.Effect<A, E, R>) =>
       locks.withLock(repository.gitDirectory)(effect)
 
+    // PERF: repo discovery spawns 3 git processes per call and runs 2-3x per
+    // instance boot (project resolution + watcher init). Repository topology is
+    // stable, so memoize positive results (negative results stay uncached so a
+    // later `git init` is picked up).
+    const discovered = new Map<string, { at: number; value: Repository }>()
+    const DISCOVER_TTL_MS = 600_000
+
+    // A cached Repository can go stale before the TTL when its .git dir is
+    // deleted, a worktree is removed, or GIT_DIR relocates. Runs that fail
+    // against a dead repository (spawn failure -> empty stderr, or git's own
+    // "not a git repository") evict the memo instead of waiting out the TTL.
+    const forget = (repository: Repository) => {
+      for (const [key, entry] of discovered) {
+        if (entry.value.gitDirectory === repository.gitDirectory || entry.value.worktree === repository.worktree) {
+          discovered.delete(key)
+        }
+      }
+    }
+    const repoRun = (repository: Repository, args: string[]) =>
+      run(repository.worktree, proc)(args).pipe(
+        Effect.tap((result) => {
+          if (
+            result.exitCode !== 0 &&
+            (result.stderr === "" || result.stderr.includes("not a git repository"))
+          ) {
+            forget(repository)
+          }
+          return Effect.void
+        }),
+      )
+
     const discover = Effect.fn("Git.repo.discover")(function* (input: AbsolutePath) {
+      const hit = discovered.get(input)
+      if (hit && Date.now() - hit.at < DISCOVER_TTL_MS) return hit.value
+
       const dotgit = yield* fs.up({ targets: [".git"], start: input }).pipe(
         Effect.map((matches) => matches[0]),
         Effect.catch(() => Effect.succeed(undefined)),
@@ -195,21 +229,24 @@ const layer = Layer.effect(
       const commonDir = yield* git(["rev-parse", "--git-common-dir"])
       if (gitDir.exitCode !== 0 || commonDir.exitCode !== 0) return undefined
 
-      return new Repository({
+      const value = new Repository({
         worktree: AbsolutePath.make(topLevel.exitCode === 0 ? resolvePath(cwd, topLevel.text) : cwd),
         gitDirectory: AbsolutePath.make(resolvePath(cwd, gitDir.text)),
         commonDirectory: AbsolutePath.make(resolvePath(cwd, commonDir.text)),
       })
+      if (discovered.size > 1024) discovered.clear()
+      discovered.set(input, { at: Date.now(), value })
+      return value
     })
 
     const remote = Effect.fn("Git.remote.get")(function* (repository: Repository, name = "origin") {
-      const result = yield* run(repository.worktree, proc)(["remote", "get-url", name])
+      const result = yield* repoRun(repository, ["remote", "get-url", name])
       if (result.exitCode !== 0) return undefined
       return result.text.trim() || undefined
     })
 
     const roots = Effect.fn("Git.history.rootCommits")(function* (repository: Repository) {
-      const result = yield* run(repository.worktree, proc)(["rev-list", "--max-parents=0", "HEAD"])
+      const result = yield* repoRun(repository, ["rev-list", "--max-parents=0", "HEAD"])
       if (result.exitCode !== 0) return []
       return result.text
         .split("\n")
@@ -219,13 +256,13 @@ const layer = Layer.effect(
     })
 
     const head = Effect.fn("Git.history.head")(function* (repository: Repository) {
-      const result = yield* run(repository.worktree, proc)(["rev-parse", "HEAD"])
+      const result = yield* repoRun(repository, ["rev-parse", "HEAD"])
       if (result.exitCode !== 0) return undefined
       return result.text.trim() || undefined
     })
 
     const branch = Effect.fn("Git.history.branch")(function* (repository: Repository) {
-      const result = yield* run(repository.worktree, proc)(["symbolic-ref", "--quiet", "--short", "HEAD"])
+      const result = yield* repoRun(repository, ["symbolic-ref", "--quiet", "--short", "HEAD"])
       if (result.exitCode !== 0) return undefined
       return result.text.trim() || undefined
     })
@@ -234,7 +271,7 @@ const layer = Layer.effect(
       repository: Repository,
       remoteName = "origin",
     ) {
-      const result = yield* run(repository.worktree, proc)(["symbolic-ref", `refs/remotes/${remoteName}/HEAD`])
+      const result = yield* repoRun(repository, ["symbolic-ref", `refs/remotes/${remoteName}/HEAD`])
       if (result.exitCode !== 0) return undefined
       return result.text.trim().replace(new RegExp(`^refs/remotes/${remoteName}/`), "") || undefined
     })

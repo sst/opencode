@@ -1,7 +1,9 @@
 import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { AppProcess } from "@opencode-ai/core/process"
-import { Effect, Layer, Context, Stream } from "effect"
+import { Effect, Layer, Context, Stream, Deferred, Exit } from "effect"
 import { ChildProcess } from "effect/unstable/process"
+import Path from "node:path"
+import { promises as Fsp } from "node:fs"
 
 const cfg = [
   "--no-optional-locks",
@@ -80,7 +82,7 @@ export interface Interface {
   readonly hasHead: (cwd: string) => Effect.Effect<boolean>
   readonly mergeBase: (cwd: string, base: string, head?: string) => Effect.Effect<string | undefined>
   readonly show: (cwd: string, ref: string, file: string, prefix?: string) => Effect.Effect<string>
-  readonly status: (cwd: string) => Effect.Effect<Item[]>
+  readonly status: (cwd: string, opts?: { untracked?: "all" | "normal" }) => Effect.Effect<Item[]>
   readonly diff: (cwd: string, ref: string) => Effect.Effect<Item[]>
   readonly stats: (cwd: string, ref: string) => Effect.Effect<Stat[]>
   readonly patch: (cwd: string, ref: string, file: string, options?: PatchOptions) => Effect.Effect<Patch>
@@ -107,28 +109,59 @@ const layer = Layer.effect(
     const encoder = new TextEncoder()
     const stdin = (text: string) => Stream.make(encoder.encode(text))
 
+    // PERF: single-flight — concurrent identical git spawns (web-UI bursts
+    // fire the same status/branch queries simultaneously) coalesce into one
+    // process. Each git.exe spawn costs 100-500ms on Windows and blocks the
+    // single-threaded scheduler, so bursts amplify badly without this.
+    const inflight = new Map<string, Deferred.Deferred<Result, never>>()
+
     const run = Effect.fn("Git.run")(
       function* (args: string[], opts: Options) {
-        const result = yield* appProcess.run(
-          ChildProcess.make("git", [...cfg, ...args], {
-            cwd: opts.cwd,
-            env: opts.env,
-            extendEnv: true,
-            stdin: opts.stdin ?? "ignore",
-            stdout: "pipe",
-            stderr: "pipe",
-          }),
-          { maxOutputBytes: opts.maxOutputBytes },
+        const exec = appProcess
+          .run(
+            ChildProcess.make("git", [...cfg, ...args], {
+              cwd: opts.cwd,
+              env: opts.env,
+              extendEnv: true,
+              stdin: opts.stdin ?? "ignore",
+              stdout: "pipe",
+              stderr: "pipe",
+            }),
+            { maxOutputBytes: opts.maxOutputBytes },
+          )
+          .pipe(
+            Effect.map(
+              (result) =>
+                ({
+                  exitCode: result.exitCode,
+                  text: () => result.stdout.toString("utf8"),
+                  stdout: result.stdout,
+                  stderr: result.stderr,
+                  truncated: result.stdoutTruncated || result.stderrTruncated,
+                }) satisfies Result,
+            ),
+            Effect.catch((err) => Effect.succeed(fail(err))),
+          )
+
+        // stdin is a single-consumption stream; never share those runs
+        if (opts.stdin !== undefined) return yield* exec
+        // env-varying runs are not shared: identical args could resolve to a
+        // different repository (e.g. GIT_DIR) and hand callers wrong output
+        if (opts.env !== undefined) return yield* exec
+
+        // JSON.stringify keeps arg boundaries unambiguous (a literal "a b"
+        // argument must not collide with ["a", "b"] on a space-joined key)
+        const key = `${opts.cwd}\0${JSON.stringify(args)}`
+        const existing = inflight.get(key)
+        if (existing) return yield* Deferred.await(existing)
+
+        const deferred = Deferred.makeUnsafe<Result>()
+        inflight.set(key, deferred)
+        return yield* exec.pipe(
+          Effect.onExit((exit) => Deferred.done(deferred, exit as Exit.Exit<Result, never>)),
+          Effect.ensuring(Effect.sync(() => inflight.delete(key))),
         )
-        return {
-          exitCode: result.exitCode,
-          text: () => result.stdout.toString("utf8"),
-          stdout: result.stdout,
-          stderr: result.stderr,
-          truncated: result.stdoutTruncated || result.stderrTruncated,
-        } satisfies Result
       },
-      Effect.catch((err) => Effect.succeed(fail(err))),
     )
 
     const text = Effect.fn("Git.text")(function* (args: string[], opts: Options) {
@@ -212,11 +245,14 @@ const layer = Layer.effect(
       return result.text()
     })
 
-    const status = Effect.fn("Git.status")(function* (cwd: string) {
+    const status = Effect.fn("Git.status")(function* (cwd: string, opts?: { untracked?: "all" | "normal" }) {
       return nuls(
-        yield* text(["status", "--porcelain=v1", "--untracked-files=all", "--no-renames", "-z", "--", "."], {
-          cwd,
-        }),
+        yield* text(
+          ["status", "--porcelain=v1", `--untracked-files=${opts?.untracked ?? "all"}`, "--no-renames", "-z", "--", "."],
+          {
+            cwd,
+          },
+        ),
       ).flatMap((item) => {
         const file = item.slice(3)
         if (!file) return []
@@ -299,24 +335,21 @@ const layer = Layer.effect(
     })
 
     const statUntracked = Effect.fn("Git.statUntracked")(function* (cwd: string, file: string) {
-      const result = yield* run(["diff", "--no-index", "--numstat", "--", "/dev/null", file], {
-        cwd,
-        maxOutputBytes: 4096,
-      })
-
-      if (result.truncated) return
-      const text = result.text()
-
-      const parts = text.split("\t")
-      if (parts.length < 2) return
-
-      const additions = parts[0] === "-" ? 0 : Number.parseInt(parts[0] || "0", 10)
-      const deletions = parts[1] === "-" ? 0 : Number.parseInt(parts[1] || "0", 10)
-      return {
-        file,
-        additions: Number.isFinite(additions) ? additions : 0,
-        deletions: Number.isFinite(deletions) ? deletions : 0,
-      } satisfies Stat
+      // PERF: the old implementation spawned `git diff --no-index --numstat
+      // /dev/null <file>` per call. During real sessions Vcs.status/diff run per
+      // recompute and repos carry hundreds of untracked files, producing
+      // 100k+ git.exe spawns per session (100-500ms spawn cost each on Windows).
+      // For a brand-new file numstat is purely a line count: additions = number
+      // of lines, deletions = 0, binary (NUL in first 8000 bytes) -> 0/0. That
+      // is computable in-process with a single file read (~0.05ms).
+      const target = Path.resolve(cwd, file)
+      const buf = yield* Effect.promise(() => Fsp.readFile(target).catch(() => undefined))
+      if (!buf) return undefined
+      if (buf.subarray(0, 8000).includes(0)) return { file, additions: 0, deletions: 0 } satisfies Stat
+      let lines = 0
+      for (let i = 0; i < buf.length; i++) if (buf[i] === 10) lines++
+      if (buf.length > 0 && buf[buf.length - 1] !== 10) lines++
+      return { file, additions: lines, deletions: 0 } satisfies Stat
     })
 
     const applyPatch = Effect.fn("Git.applyPatch")(function* (cwd: string, patch: string) {

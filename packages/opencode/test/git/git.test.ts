@@ -164,6 +164,49 @@ describe("Git", () => {
     }),
   )
 
+  it.live("statUntracked() matches git numstat on edge cases", () =>
+    Effect.gen(function* () {
+      const tmp = yield* scopedTmpdir({ git: true })
+      const cases: Array<[string, string | Uint8Array, number]> = [
+        ["lf.txt", "a\nb\nc\n", 3],
+        ["no-trailing-newline.txt", "a\nb\nc", 3],
+        ["crlf.txt", "x\r\ny\r\n", 2],
+        ["trailing-blank.txt", "a\nb\n\n\n", 4],
+        ["empty.txt", "", 0],
+        ["utf8.txt", "h\u00e9llo\nw\u00f6rld\n", 2],
+        ["binary.bin", new Uint8Array([0x68, 0x00, 0x69]), 0], // NUL -> binary -> 0/0
+      ]
+      for (const [file, content] of cases) {
+        yield* Effect.promise(() => fs.writeFile(path.join(tmp.path, file), content))
+      }
+
+      const git = yield* Git.Service
+      for (const [file, , expected] of cases) {
+        const stat = yield* git.statUntracked(tmp.path, file)
+        // ground truth: real git numstat
+        const truth = yield* Effect.promise(async () => {
+          const proc = $`git diff --no-index --numstat -- /dev/null ${file}`.cwd(tmp.path).quiet().nothrow()
+          const stdout = await proc.text().catch(() => "")
+          // git diff --no-index exits 1 when files differ; numstat is on stdout
+          const [adds] = stdout.trim().split("\t")
+          return adds === "-" ? 0 : Number.parseInt(adds ?? "0", 10)
+        })
+        expect(stat?.additions).toBe(expected)
+        expect(stat?.additions).toBe(Number.isFinite(truth) ? truth : 0)
+        expect(stat?.deletions).toBe(0)
+      }
+    }),
+  )
+
+  it.live("statUntracked() returns undefined for missing files", () =>
+    Effect.gen(function* () {
+      const tmp = yield* scopedTmpdir({ git: true })
+      const git = yield* Git.Service
+      const stat = yield* git.statUntracked(tmp.path, "does-not-exist.txt")
+      expect(stat).toBeUndefined()
+    }),
+  )
+
   it.live("show() returns empty text for binary blobs", () =>
     Effect.gen(function* () {
       const tmp = yield* scopedTmpdir({ git: true })
