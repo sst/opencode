@@ -5,6 +5,7 @@ import { Effect, Layer } from "effect"
 import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
 import { LayerNode } from "@opencode/util/effect/layer-node"
 import { Permission } from "@opencode/core/permission"
+import { Agent } from "@opencode/core/agent"
 import { AbsolutePath } from "@opencode/core/schema"
 import { Session } from "@opencode/core/session"
 import { Skill } from "@opencode/core/skill"
@@ -22,7 +23,21 @@ import { toolIdentity, executeTool, registerToolPlugin, toolDefinitions } from "
 const skillToolNode = makeLocationNode({
   name: "test/skill-tool-plugin",
   layer: Layer.effectDiscard(registerToolPlugin(SkillTool.Plugin)),
-  deps: [Tool.node, FSUtil.node, Skill.node, Permission.node],
+  deps: [Tool.node, FSUtil.node, Skill.node, Permission.node, Agent.node],
+})
+
+const agentInfo = Agent.Info.make({
+  id: Agent.ID.make("my-agent"),
+  name: Agent.Name.make("My Agent"),
+  request: { settings: {}, headers: {}, body: {} },
+  mode: "subagent",
+  hidden: false,
+  permissions: [],
+})
+
+const agentsMock = Layer.mock(Agent.Service, {
+  resolve: (id: string | undefined) => Effect.succeed(id === "my-agent" ? agentInfo : undefined),
+  list: () => Effect.succeed([agentInfo]),
 })
 
 const sessionID = Session.ID.make("ses_skill_tool_test")
@@ -76,6 +91,7 @@ describe("SkillTool", () => {
           const skillToolLayer = AppNodeBuilder.build(LayerNode.group([Tool.node, skillToolNode]), [
             Permission.node.replace(permission),
             Skill.node.replace(skills),
+            Agent.node.replace(agentsMock),
             Image.node.replace(imagePassthrough),
           ])
 
@@ -121,6 +137,19 @@ describe("SkillTool", () => {
             ).toEqual({
               status: "error",
               error: { type: "tool.execution", message: "Unable to load skill missing" },
+            })
+            expect(
+              yield* executeTool(registry, {
+                sessionID,
+                ...toolIdentity,
+                call: { type: "tool-call", id: "call-agent-as-skill", name: "skill", input: { id: "my-agent" } },
+              }),
+            ).toEqual({
+              status: "error",
+              error: {
+                type: "tool.execution",
+                message: "`my-agent` is an agent, not a skill. Prompt the agent as a subagent instead of loading it as a skill.",
+              },
             })
             deny = true
             expect(

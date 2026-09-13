@@ -4,6 +4,7 @@ import type { Context } from "@opencode/plugin/effect/plugin"
 import { ToolFailure } from "@opencode/ai"
 import { Effect, Schema } from "effect"
 import { FSUtil } from "@opencode/util/fs-util"
+import { Agent } from "../../agent.js"
 import { Skill } from "../../skill.js"
 import { Permission } from "../../permission.js"
 
@@ -34,6 +35,7 @@ export const Plugin = {
   effect: Effect.fn("SkillTool.Plugin")(function* (ctx: Context) {
     const fs = yield* FSUtil.Service
     const skills = yield* Skill.Service
+    const agents = yield* Agent.Service
     const permission = yield* Permission.Service
     yield* ctx.tool
       .transform((editor) =>
@@ -46,7 +48,13 @@ export const Plugin = {
           execute: (input, context) =>
             Effect.gen(function* () {
               const skill = yield* skills.get(input.id)
-              if (!skill) return yield* unableToLoad(input.id)
+              if (!skill) {
+                if ((yield* agents.resolve(input.id)) !== undefined)
+                  return yield* new ToolFailure({
+                    message: `\`${input.id}\` is an agent, not a skill. Prompt the agent as a subagent instead of loading it as a skill.`,
+                  })
+                return yield* unableToLoad(input.id)
+              }
               return yield* Effect.gen(function* () {
                 yield* permission.assert({
                   action: name,
