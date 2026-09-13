@@ -495,7 +495,7 @@ function App(props: { onSnapshot?: () => Promise<string[]>; pluginHost: TuiPlugi
           sessionID: args.sessionID,
         })
       }
-      if (args.sessionList && !args.sessionID && !args.fork) {
+      if (args.sessionID === "") {
         dialog.replace(() => <DialogSessionList />)
       }
     })

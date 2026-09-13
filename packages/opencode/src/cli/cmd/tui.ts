@@ -287,7 +287,6 @@ export const TuiThreadCommand = cmd({
             args: {
               continue: args.continue,
               sessionID: args.session,
-              sessionList: (hasArg("--session") || hasArg("-s")) && !args.session,
               agent: args.agent,
               model: args.model,
               prompt,
