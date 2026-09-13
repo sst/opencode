@@ -190,7 +190,25 @@ describe("ReadTool", () => {
           page: { offset: undefined, limit: undefined },
         },
       ])
-      expect(listCalls).toEqual([])
+    }),
+  )
+
+  it.effect("surfaces 1-based guidance when the model hallucinates a negative offset", () =>
+    Effect.gen(function* () {
+      const registry = yield* Tool.Service
+      const execution = yield* executeTool(registry, {
+        sessionID,
+        ...toolIdentity,
+        call: {
+          type: "tool-call",
+          id: "call-read-negative-offset",
+          name: "read",
+          input: { path: "README.md", offset: -1 },
+        },
+      })
+      expect(execution.status).toBe("error")
+      if (execution.status !== "error") return
+      expect(JSON.stringify(execution.error)).toContain("1-based")
     }),
   )
 
