@@ -317,6 +317,14 @@ const layer = Layer.effect(
           }
           if (settled._tag === "Failure" && !Cause.hasInterrupts(settled.cause)) {
             const failure = Cause.squash(settled.cause)
+            // An "encode" failure only means this one tool's own output could not be
+            // serialized; it says nothing about sibling tool calls' storage, so give
+            // them a chance to finish and self-report before sweeping whatever is
+            // still unsettled below (which converges to just the one that actually
+            // failed). A "write" failure is more likely a shared storage problem, so
+            // it keeps the immediate sweep.
+            if (failure instanceof ToolOutputStore.StorageError && failure.operation === "encode")
+              yield* restore(FiberSet.awaitEmpty(toolFibers)).pipe(Effect.exit)
             const message = failure instanceof Error ? failure.message : String(failure)
             yield* withPublication(publisher.failUnsettledTools(`Tool execution failed: ${message}`))
           }
