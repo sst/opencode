@@ -4,6 +4,7 @@ import { LayerNodePlatform } from "@opencode-ai/core/effect/app-node-platform"
 import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { FSUtil } from "@opencode-ai/core/fs-util"
 import { testEffect } from "../lib/effect"
+import nodeFs from "fs/promises"
 import path from "path"
 
 const live = LayerNode.compile(LayerNode.group([FSUtil.node, LayerNodePlatform.filesystem]))
@@ -95,6 +96,23 @@ describe("FSUtil", () => {
   })
 
   describe("readJson / writeJson", () => {
+    it(
+      "writes JSON atomically with the requested mode and cleans up its temporary file",
+      Effect.gen(function* () {
+        const fs = yield* FSUtil.Service
+        const filesys = yield* FileSystem.FileSystem
+        const tmp = yield* filesys.makeTempDirectoryScoped()
+        const file = path.join(tmp, "data.json")
+
+        yield* fs.writeJsonAtomic(file, { atomic: true }, 0o600)
+
+        const info = yield* Effect.promise(() => nodeFs.stat(file))
+        const entries = yield* Effect.promise(() => nodeFs.readdir(tmp))
+        expect(info.mode & 0o777).toBe(0o600)
+        expect(entries.filter((entry) => /^data\.json\.\d+\..+\.tmp$/.test(entry))).toEqual([])
+      }),
+    )
+
     it(
       "round-trips JSON data",
       Effect.gen(function* () {
