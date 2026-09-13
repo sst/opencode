@@ -38,6 +38,7 @@ export const dict: Record<string, string> = {
 
   "ui.fileMedia.kind.image": "image",
   "ui.fileMedia.kind.audio": "audio",
+  "ui.fileMedia.kind.diff": "diff",
   "ui.fileMedia.state.removed": "Removed {{kind}} file.",
   "ui.fileMedia.state.loading": "Loading {{kind}}...",
   "ui.fileMedia.state.error": "Unable to load {{kind}}.",
@@ -182,6 +183,7 @@ export const dict: Record<string, string> = {
   "ui.common.back": "Back",
   "ui.common.cancel": "Cancel",
   "ui.common.confirm": "Confirm",
+  "ui.common.retry": "Retry",
   "ui.common.dismiss": "Dismiss",
   "ui.common.close": "Close",
   "ui.common.next": "Next",

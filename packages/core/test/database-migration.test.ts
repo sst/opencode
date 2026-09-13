@@ -162,6 +162,32 @@ describe("DatabaseMigration", () => {
     )
   })
 
+  test("creates the message diff side table on a fresh database", async () => {
+    await run(
+      Effect.gen(function* () {
+        const db = yield* makeDb
+        yield* DatabaseMigration.apply(db)
+
+        const columns = yield* db.all<{ name: string; pk: number }>(sql`PRAGMA table_info(message_diff)`)
+        expect(columns.map((column) => [column.name, column.pk])).toEqual([
+          ["message_id", 1],
+          ["data", 0],
+        ])
+
+        const foreignKeys = yield* db.all<{ table: string; from: string; on_delete: string }>(
+          sql`SELECT "table", "from", "on_delete" FROM pragma_foreign_key_list('message_diff')`,
+        )
+        expect(foreignKeys).toEqual([
+          {
+            table: "message",
+            from: "message_id",
+            on_delete: "CASCADE",
+          },
+        ])
+      }),
+    )
+  })
+
   test("rejects a non-empty database without a session table", async () => {
     await expect(
       run(

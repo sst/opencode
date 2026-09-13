@@ -66,6 +66,7 @@ export function DirectoryDataProvider(
           sessionID={params.id}
           onNavigateToSession={(sessionID: string) => navigate(href(sessionID))}
           onSessionHref={href}
+          fetchMessageDiff={sync().session.fetchMessageDiff}
         >
           <LocalProvider>{props.children}</LocalProvider>
         </DataProvider>

@@ -28,6 +28,12 @@ type Data = {
   session_diff: {
     [sessionID: string]: (SnapshotFileDiff | FileDiffInfo)[]
   }
+  message_diff: {
+    [messageID: string]: FileDiffInfo[] | undefined
+  }
+  message_diff_status?: {
+    [messageID: string]: "pending" | "failed" | "absent" | undefined
+  }
   session_diff_preload?: {
     [sessionID: string]: PreloadMultiFileDiffResult<any>[]
   }
@@ -54,6 +60,7 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
     sessionID?: string
     onNavigateToSession?: NavigateToSessionFn
     onSessionHref?: SessionHrefFn
+    fetchMessageDiff?: (sessionID: string, messageID: string) => Promise<void>
   }) => {
     return {
       get store() {
@@ -67,6 +74,7 @@ export const { use: useData, provider: DataProvider } = createSimpleContext({
       },
       navigateToSession: props.onNavigateToSession,
       sessionHref: props.onSessionHref,
+      fetchMessageDiff: props.fetchMessageDiff,
     }
   },
 })

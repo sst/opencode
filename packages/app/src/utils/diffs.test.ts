@@ -12,6 +12,13 @@ const item = {
   status: "modified",
 } satisfies FileDiffInfo & SnapshotFileDiff
 
+const summary = {
+  file: "src/summary.ts",
+  additions: 1,
+  deletions: 1,
+  status: "modified",
+} satisfies SnapshotFileDiff
+
 describe("diffs", () => {
   test("keeps valid arrays", () => {
     expect(diffs([item])).toEqual([item])
@@ -25,11 +32,15 @@ describe("diffs", () => {
     expect(diffs({ a: item })).toEqual([item])
   })
 
+  test("keeps patch-less summary entries", () => {
+    expect(diffs([summary])).toEqual([summary])
+  })
+
   test("drops invalid entries", () => {
     expect(
       diffs([
         item,
-        { file: "src/bad.ts", additions: 1, deletions: 1 },
+        { file: "src/bad.ts", additions: 1, deletions: 1, status: "invalid" },
         { patch: item.patch, additions: 1, deletions: 1 },
       ]),
     ).toEqual([item])

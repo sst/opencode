@@ -26,7 +26,10 @@ const layer = Layer.effect(
 
     yield* db.run("PRAGMA journal_mode = WAL")
     yield* db.run("PRAGMA synchronous = NORMAL")
-    yield* db.run("PRAGMA busy_timeout = 5000")
+    // Multiple opencode processes share one DB file, so every lock wait is
+    // cross-process. 5s was tuned for a single writer and is exceeded by a
+    // large event write holding the WAL lock, which surfaces as a dead turn.
+    yield* db.run("PRAGMA busy_timeout = 30000")
     yield* db.run("PRAGMA cache_size = -64000")
     yield* db.run("PRAGMA foreign_keys = ON")
     yield* db.run("PRAGMA wal_checkpoint(PASSIVE)")

@@ -42,6 +42,7 @@ export const dict = {
 
   "ui.fileMedia.kind.image": "görsel",
   "ui.fileMedia.kind.audio": "ses",
+  "ui.fileMedia.kind.diff": "fark",
   "ui.fileMedia.state.removed": "{{kind}} dosyası kaldırıldı.",
   "ui.fileMedia.state.loading": "{{kind}} yükleniyor...",
   "ui.fileMedia.state.error": "{{kind}} yüklenemedi.",
@@ -175,6 +176,7 @@ export const dict = {
   "ui.common.back": "Geri",
   "ui.common.cancel": "İptal",
   "ui.common.confirm": "Onayla",
+  "ui.common.retry": "Yeniden dene",
   "ui.common.dismiss": "Kapat",
   "ui.common.close": "Kapat",
   "ui.common.next": "İleri",

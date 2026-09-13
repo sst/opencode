@@ -38,6 +38,7 @@ export const dict: Record<string, string> = {
 
   "ui.fileMedia.kind.image": "зображення",
   "ui.fileMedia.kind.audio": "аудіо",
+  "ui.fileMedia.kind.diff": "різниця",
   "ui.fileMedia.state.removed": "{{kind}} видалено",
   "ui.fileMedia.state.loading": "Завантаження {{kind}}...",
   "ui.fileMedia.state.error": "Не вдалося завантажити {{kind}}",
@@ -190,6 +191,7 @@ export const dict: Record<string, string> = {
   "ui.common.back": "Назад",
   "ui.common.cancel": "Скасувати",
   "ui.common.confirm": "Підтвердити",
+  "ui.common.retry": "Повторити",
   "ui.common.dismiss": "Відхилити",
   "ui.common.close": "Закрити",
   "ui.common.next": "Далі",

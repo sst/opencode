@@ -24,6 +24,13 @@ export default {
         );
       `)
       yield* tx.run(`
+        CREATE TABLE \`message_diff\` (
+          \`message_id\` text PRIMARY KEY,
+          \`data\` text NOT NULL,
+          CONSTRAINT \`fk_message_diff_message_id_message_id_fk\` FOREIGN KEY (\`message_id\`) REFERENCES \`message\`(\`id\`) ON DELETE CASCADE
+        );
+      `)
+      yield* tx.run(`
         CREATE TABLE \`account_state\` (
           \`id\` integer PRIMARY KEY,
           \`active_account_id\` text,

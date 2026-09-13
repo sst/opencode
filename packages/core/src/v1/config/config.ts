@@ -166,6 +166,13 @@ export const Info = Schema.Struct({
       }),
     }),
   ),
+  retention: Schema.optional(
+    Schema.Struct({
+      event_idle_days: Schema.optional(Schema.Number).annotate({
+        description: "Delete durable event history and make event replay unavailable for sessions idle longer than this many days",
+      }),
+    }),
+  ).annotate({ description: "Settings that delete durable event history and disable replay for swept sessions" }),
   experimental: Schema.optional(
     Schema.Struct({
       disable_paste_summary: Schema.optional(Schema.Boolean),

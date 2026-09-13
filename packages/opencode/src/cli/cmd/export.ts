@@ -1,4 +1,5 @@
 import { Session } from "@/session/session"
+import { SessionSummary } from "@/session/summary"
 import { SessionV1 } from "@opencode-ai/core/v1/session"
 import { MessageV2 } from "../../session/message-v2"
 import { SessionID } from "../../session/schema"
@@ -239,6 +240,7 @@ export const ExportCommand = effectCmd({
 
 const run = Effect.fn("Cli.export.body")(function* (args: { sessionID?: string; sanitize?: boolean }) {
   const svc = yield* Session.Service
+  const summary = yield* SessionSummary.Service
   let sessionID = args.sessionID ? SessionID.make(args.sessionID) : undefined
   process.stderr.write(`Exporting session: ${sessionID ?? "latest"}\n`)
 
@@ -283,8 +285,24 @@ const run = Effect.fn("Cli.export.body")(function* (args: { sessionID?: string; 
   return yield* Effect.gen(function* () {
     const sessionInfo = yield* svc.get(sessionID!)
     const messages = yield* svc.messages({ sessionID: sessionInfo.id })
+    const hydrated = yield* Effect.forEach(messages, (message) => {
+      const info = message.info
+      if (info.role !== "user" || !info.summary) return Effect.succeed(message)
+      return summary.diff({ sessionID: sessionInfo.id, messageID: info.id }).pipe(
+        Effect.map((diffs) => ({
+          ...message,
+          info: {
+            ...info,
+            summary: {
+              ...info.summary,
+              diffs,
+            },
+          },
+        })),
+      )
+    })
 
-    const exportData = { info: sessionInfo, messages }
+    const exportData = { info: sessionInfo, messages: hydrated }
 
     process.stdout.write(JSON.stringify(args.sanitize ? sanitize(exportData) : exportData, null, 2))
     process.stdout.write(EOL)

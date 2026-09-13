@@ -51,6 +51,12 @@ export type State = {
   session_diff: {
     [sessionID: string]: FileDiffInfo[]
   }
+  message_diff: {
+    [messageID: string]: FileDiffInfo[] | undefined
+  }
+  message_diff_status: {
+    [messageID: string]: "pending" | "failed" | "absent" | undefined
+  }
   todo: {
     [sessionID: string]: Todo[]
   }

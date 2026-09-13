@@ -17,6 +17,8 @@ type SnapshotDiff = SnapshotFileDiff & { file: string }
 type ReviewDiff = SnapshotDiff | FileDiffInfo | VcsFileDiff | LegacyDiff
 export type DiffSource = Pick<LegacyDiff, "file" | "patch" | "before" | "after">
 
+type MessageDiffSource = Pick<LegacyDiff, "file" | "patch">
+
 export type ViewDiff = {
   file: string
   additions: number
@@ -35,6 +37,25 @@ export function resolveFileDiff(diff: DiffSource) {
     typeof diff.before === "string" ? diff.before : "",
     typeof diff.after === "string" ? diff.after : "",
   )
+}
+
+export function resolveMessageDiff<T extends DiffSource>(diff: T, cache?: readonly MessageDiffSource[]) {
+  const patch = cache?.find((item) => item.file === diff.file)?.patch
+  if (typeof patch !== "string") return diff
+  return { ...diff, patch }
+}
+
+export function expandMessageDiff<T extends DiffSource>(input: {
+  diff: T
+  cache?: readonly MessageDiffSource[]
+  sessionID: string
+  messageID: string
+  fetch?: (sessionID: string, messageID: string) => Promise<void>
+}) {
+  const diff = resolveMessageDiff(input.diff, input.cache)
+  if (typeof diff.patch === "string") return diff
+  void input.fetch?.(input.sessionID, input.messageID)
+  return diff
 }
 
 export function normalize(diff: ReviewDiff): ViewDiff {

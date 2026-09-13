@@ -337,11 +337,14 @@ export const User = Schema.Struct({
   }),
   format: Schema.optional(Format),
   summary: Schema.optional(
-    Schema.Struct({
-      title: Schema.optional(Schema.String),
-      body: Schema.optional(Schema.String),
-      diffs: Schema.Array(FileDiff.Info),
-    }),
+      Schema.Struct({
+        title: Schema.optional(Schema.String),
+        body: Schema.optional(Schema.String),
+        additions: optional(Schema.Finite),
+        deletions: optional(Schema.Finite),
+        files: optional(Schema.Finite),
+        diffs: Schema.Array(FileDiff.Info),
+      }),
   ),
   agent: Schema.String,
   model: Schema.Struct({
@@ -609,6 +612,17 @@ const events = {
       messageID: MessageID,
     },
   }),
+  // Ephemeral: the message_diff side table holds the state, so a missed
+  // notification costs a stale row until the next fetch. Durable would make
+  // readAfter's decode throw InvalidDurableEventError on any reader whose
+  // manifest predates this event.
+  DiffUpdated: define({
+    type: "message.diff.updated",
+    schema: {
+      sessionID: SessionID,
+      messageID: MessageID,
+    },
+  }),
   PartUpdated: define({
     type: "message.part.updated",
     ...options,
@@ -667,6 +681,7 @@ export const Event = {
     events.Deleted,
     events.MessageUpdated,
     events.MessageRemoved,
+    events.DiffUpdated,
     events.PartUpdated,
     events.PartRemoved,
     PartDelta,

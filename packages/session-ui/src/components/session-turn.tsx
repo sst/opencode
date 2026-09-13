@@ -16,6 +16,7 @@ import { createStore } from "solid-js/store"
 import { Dynamic } from "solid-js/web"
 import { AssistantParts, Message, MessageDivider, PART_MAPPING, type UserActions } from "./message-part"
 import { Card } from "@opencode-ai/ui/card"
+import { Button } from "@opencode-ai/ui/button"
 import { Accordion } from "@opencode-ai/ui/accordion"
 import { StickyAccordionHeader } from "@opencode-ai/ui/sticky-accordion-header"
 import { DiffChanges } from "@opencode-ai/ui/diff-changes"
@@ -23,9 +24,10 @@ import { Icon } from "@opencode-ai/ui/icon"
 import { TextShimmer } from "@opencode-ai/ui/text-shimmer"
 import { SessionRetry } from "./session-retry"
 import { TextReveal } from "@opencode-ai/ui/text-reveal"
+import { Spinner } from "@opencode-ai/ui/spinner"
 import { createAutoScroll } from "@opencode-ai/ui/hooks"
 import { useI18n } from "@opencode-ai/ui/context/i18n"
-import { normalize } from "./session-diff"
+import { expandMessageDiff, normalize, resolveMessageDiff } from "./session-diff"
 
 function record(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value)
@@ -455,11 +457,31 @@ export function SessionTurn(
                       multiple
                       style={{ "--sticky-accordion-offset": "44px" }}
                       value={expanded()}
-                      onChange={(value) => setState("expanded", Array.isArray(value) ? value : value ? [value] : [])}
+                      onChange={(value) => {
+                        const next = Array.isArray(value) ? value : value ? [value] : []
+                        setState("expanded", next)
+                        for (const diff of visible()) {
+                          if (!next.includes(diff.file)) continue
+                          void expandMessageDiff({
+                            diff,
+                            cache: data.store.message_diff[props.messageID],
+                            sessionID: props.sessionID,
+                            messageID: props.messageID,
+                            fetch: data.fetchMessageDiff,
+                          })
+                        }
+                      }}
                     >
                       <For each={visible()}>
                         {(diff) => {
-                          const view = normalize(diff)
+                          const source = createMemo(() =>
+                            resolveMessageDiff(diff, data.store.message_diff[props.messageID]),
+                          )
+                          const view = createMemo(() => normalize(source()))
+                          const loaded = createMemo(() => typeof source().patch === "string")
+                          const diffState = createMemo(
+                            () => data.store.message_diff_status?.[props.messageID] ?? "absent",
+                          )
                           const active = createMemo(() => expanded().includes(diff.file))
                           const [shown, setShown] = createSignal(false)
 
@@ -506,9 +528,43 @@ export function SessionTurn(
                                 </Accordion.Trigger>
                               </StickyAccordionHeader>
                               <Accordion.Content>
-                                <Show when={shown()}>
+                                <Show when={shown() && loaded()}>
                                   <div data-slot="session-turn-diff-view" data-scrollable>
-                                    <Dynamic component={fileComponent} mode="diff" fileDiff={view.fileDiff} />
+                                    <Dynamic component={fileComponent} mode="diff" fileDiff={view().fileDiff} />
+                                  </div>
+                                </Show>
+                                <Show when={shown() && !loaded() && diffState() === "pending"}>
+                                  <div data-slot="session-turn-diff-loading" class="flex items-center gap-2">
+                                    <Spinner class="size-4" />
+                                    <span>
+                                      {i18n.t("ui.fileMedia.state.loading", {
+                                        kind: i18n.t("ui.fileMedia.kind.diff"),
+                                      })}
+                                    </span>
+                                  </div>
+                                </Show>
+                                <Show when={shown() && !loaded() && diffState() === "failed"}>
+                                  <Card variant="error" class="error-card" data-slot="session-turn-diff-error">
+                                    <div class="flex items-center gap-2">
+                                      <span>
+                                        {i18n.t("ui.fileMedia.state.error", {
+                                          kind: i18n.t("ui.fileMedia.kind.diff"),
+                                        })}
+                                      </span>
+                                      <Button
+                                        size="small"
+                                        onClick={() => void data.fetchMessageDiff?.(props.sessionID, props.messageID)}
+                                      >
+                                        {i18n.t("ui.common.retry")}
+                                      </Button>
+                                    </div>
+                                  </Card>
+                                </Show>
+                                <Show when={shown() && !loaded() && diffState() === "absent"}>
+                                  <div data-slot="session-turn-diff-unavailable">
+                                    {i18n.t("ui.fileMedia.state.unavailable", {
+                                      kind: i18n.t("ui.fileMedia.kind.diff"),
+                                    })}
                                   </div>
                                 </Show>
                               </Accordion.Content>
