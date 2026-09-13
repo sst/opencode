@@ -1,0 +1,22 @@
+Control a Chromium browser (Chrome, Chromium, or Edge). Use it to open pages (including local dev servers), see what they look like, and interact with them the way a user would be able to. Screenshots are returned as image attachments so you can actually look at the page.
+
+Typical loop while building or reviewing a UI:
+1. Start the dev server with bash.
+2. `open` the URL.
+3. Inspect the attached screenshot, then `click`, `type`, `press`, or `scroll`.
+4. Look at the fresh screenshot after each action and keep iterating.
+
+Actions:
+- `open`: navigate to `url`. This is the only action that needs a `url`.
+- `screenshot`: capture the current page. Set `fullPage` to capture beyond the viewport.
+- `click`: click `selector` (CSS) or the viewport coordinates `x`/`y`.
+- `type`: focus `selector` and type `text`; set `submit` to press Enter afterwards.
+- `press`: press a key or key combination, e.g. `Enter`, `Escape`, `Tab`, `Meta+A`, `Control+Shift+K`.
+- `scroll`: scroll the page. Use `deltaX`/`deltaY` (defaults to 500 down) or `selector` to scroll an element into view.
+- `read`: return the visible text of the page, or of `selector` if given. Prefer this over `screenshot` when you need text content.
+- `back` / `forward` / `reload`: navigate the current page.
+- `close`: close the browser. It also shuts down automatically after 10 minutes of inactivity.
+
+Every action that changes the page returns a new screenshot. The browser runs in its own temporary profile, so it does not touch the profile of any browser you have open.
+
+By default the browser opens with a visible window when a display is available, so the user can watch it work. Pass `headless: true` to run without a window, or set `OPENCODE_BROWSER_HEADLESS=1` to always run headless. Chrome, Chromium, or Edge must be installed; set `OPENCODE_BROWSER_PATH` to use a specific binary.

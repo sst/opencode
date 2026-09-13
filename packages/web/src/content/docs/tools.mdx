@@ -288,6 +288,25 @@ Use `websearch` when you need to find information (discovery), and `webfetch` wh
 
 ---
 
+### browser
+
+Control a headless browser to see and interact with web pages.
+
+```json title="opencode.json" {4}
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "browser": "allow"
+  }
+}
+```
+
+Opens pages in a headless Chrome, Chromium, or Edge instance and returns screenshots as image attachments, so the LLM can visually verify the UI it is building. Supports clicking, typing, pressing keys, scrolling, and reading page text. Useful for testing local dev servers and reviewing front-end changes end to end.
+
+The browser runs in its own temporary profile. Set `OPENCODE_BROWSER_PATH` to point at a specific browser binary.
+
+---
+
 ### question
 
 Ask the user questions during execution.
