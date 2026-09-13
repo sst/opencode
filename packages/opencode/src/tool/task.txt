@@ -17,3 +17,4 @@ Usage notes:
 5. The agent's outputs should generally be trusted
 6. Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user's intent. Tell it how to verify its work if possible (e.g., relevant test commands).
 7. If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.
+8. You can override the subagent's model for a specific invocation by passing a model parameter in "provider/model-id" format (e.g. "anthropic/claude-sonnet-4"). This lets you pick a different model than the subagent's default — useful for cost optimization or capability matching. The override requires model_override permission.

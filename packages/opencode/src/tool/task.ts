@@ -10,6 +10,7 @@ import { Agent } from "../agent/agent"
 import { deriveSubagentSessionPermission } from "../agent/subagent-permissions"
 import type { SessionPrompt } from "../session/prompt"
 import { Config } from "@/config/config"
+import { Provider } from "@/provider/provider"
 import { Effect, Exit, Schema, Scope } from "effect"
 import { EffectBridge } from "@/effect/bridge"
 import { RuntimeFlags } from "@/effect/runtime-flags"
@@ -49,6 +50,10 @@ const BaseParameterFields = {
       "This should only be set if you mean to resume a previous task (you can pass a prior task_id and the task will continue the same subagent session as before instead of creating a fresh one)",
   }),
   command: Schema.optional(Schema.String).annotate({ description: "The command that triggered this task" }),
+  model: Schema.optional(Schema.String).annotate({
+    description:
+      'Override the subagent model for this invocation (format: "provider/model-id"). Takes priority over the subagent\'s configured model. Requires model_override permission.',
+  }),
 }
 
 const BaseParameters = Schema.Struct(BaseParameterFields)
@@ -133,6 +138,28 @@ export const TaskTool = Tool.define(
         return yield* Effect.fail(new Error(`Unknown agent type: ${params.subagent_type} is not a valid agent type`))
       }
 
+      let overrideModel: ReturnType<typeof Provider.parseModel> | undefined
+      if (params.model) {
+        const trimmed = params.model.trim()
+        const slashIndex = trimmed.indexOf("/")
+        if (slashIndex <= 0 || slashIndex === trimmed.length - 1) {
+          return yield* Effect.fail(
+            new Error(`Invalid model format: "${params.model}". Expected "provider/model-id".`),
+          )
+        }
+        yield* ctx.ask({
+          permission: "model_override",
+          patterns: [trimmed],
+          always: [],
+          metadata: {
+            description: params.description,
+            subagent_type: params.subagent_type,
+            model: trimmed,
+          },
+        })
+        overrideModel = Provider.parseModel(trimmed)
+      }
+
       const session = params.task_id
         ? yield* sessions.get(SessionID.make(params.task_id)).pipe(Effect.catchCause(() => Effect.succeed(undefined)))
         : undefined
@@ -178,7 +205,7 @@ export const TaskTool = Tool.define(
       if (msg.info.role !== "assistant") return yield* Effect.fail(new Error("Not an assistant message"))
       const variant = msg.info.variant
 
-      const model = next.model ?? {
+      const model = overrideModel ?? next.model ?? {
         modelID: msg.info.modelID,
         providerID: msg.info.providerID,
       }
@@ -206,7 +233,7 @@ export const TaskTool = Tool.define(
             modelID: model.modelID,
             providerID: model.providerID,
           },
-          variant: next.model ? undefined : variant,
+          variant: overrideModel || next.model ? undefined : variant,
           agent: next.name,
           parts,
         })

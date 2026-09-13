@@ -652,6 +652,309 @@ describe("tool.task", () => {
     },
   )
 
+  it.instance(
+    "uses the subagent's configured model instead of the parent's",
+    () =>
+      Effect.gen(function* () {
+        const { chat, assistant } = yield* seed()
+        const tool = yield* TaskTool
+        const def = yield* tool.init()
+        let seen: SessionPrompt.PromptInput | undefined
+        const promptOps = stubOps({ onPrompt: (input) => (seen = input) })
+
+        const result = yield* def.execute(
+          {
+            description: "run custom model agent",
+            prompt: "do something",
+            subagent_type: "custom-model-agent",
+          },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+
+        expect(seen?.model).toEqual({
+          providerID: ProviderV2.ID.make("test"),
+          modelID: ModelV2.ID.make("different-model"),
+        })
+        expect(seen?.variant).toBeUndefined()
+        expect(result.metadata.model).toEqual({
+          providerID: ProviderV2.ID.make("test"),
+          modelID: ModelV2.ID.make("different-model"),
+        })
+      }),
+    {
+      config: {
+        agent: {
+          "custom-model-agent": {
+            description: "Agent with a custom model",
+            mode: "subagent",
+            model: "test/different-model",
+          },
+        },
+      },
+    },
+  )
+
+  it.instance(
+    "uses a subagent model from a different provider than the parent",
+    () =>
+      Effect.gen(function* () {
+        const { chat, assistant } = yield* seed()
+        const tool = yield* TaskTool
+        const def = yield* tool.init()
+        let seen: SessionPrompt.PromptInput | undefined
+        const promptOps = stubOps({ onPrompt: (input) => (seen = input) })
+
+        yield* def.execute(
+          {
+            description: "run cross-provider agent",
+            prompt: "do something",
+            subagent_type: "cross-provider-agent",
+          },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+
+        expect(seen?.model).toEqual({
+          providerID: ProviderV2.ID.make("other-provider"),
+          modelID: ModelV2.ID.make("other-model"),
+        })
+        expect(seen?.variant).toBeUndefined()
+      }),
+    {
+      config: {
+        agent: {
+          "cross-provider-agent": {
+            description: "Agent using a different provider",
+            mode: "subagent",
+            model: "other-provider/other-model",
+          },
+        },
+      },
+    },
+  )
+
+  it.instance("falls back to the parent model when the subagent has no model configured", () =>
+    Effect.gen(function* () {
+      const { chat, assistant } = yield* seed()
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      let seen: SessionPrompt.PromptInput | undefined
+      const promptOps = stubOps({ onPrompt: (input) => (seen = input) })
+
+      const result = yield* def.execute(
+        {
+          description: "run general agent",
+          prompt: "do something",
+          subagent_type: "general",
+        },
+        {
+          sessionID: chat.id,
+          messageID: assistant.id,
+          agent: "build",
+          abort: new AbortController().signal,
+          extra: { promptOps },
+          messages: [],
+          metadata: () => Effect.void,
+          ask: () => Effect.void,
+        },
+      )
+
+      expect(seen?.model).toEqual({
+        providerID: ref.providerID,
+        modelID: ref.modelID,
+      })
+      expect(seen?.variant).toBe("xhigh")
+      expect(result.metadata.model).toEqual({
+        providerID: ref.providerID,
+        modelID: ref.modelID,
+      })
+    }),
+  )
+
+  it.instance(
+    "uses the runtime model override when provided",
+    () =>
+      Effect.gen(function* () {
+        const { chat, assistant } = yield* seed()
+        const tool = yield* TaskTool
+        const def = yield* tool.init()
+        let seen: SessionPrompt.PromptInput | undefined
+        const promptOps = stubOps({ onPrompt: (input) => (seen = input) })
+
+        const result = yield* def.execute(
+          {
+            description: "run with override",
+            prompt: "do something",
+            subagent_type: "general",
+            model: "test/override-model",
+          },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+
+        expect(seen?.model).toEqual({
+          providerID: ProviderV2.ID.make("test"),
+          modelID: ModelV2.ID.make("override-model"),
+        })
+        expect(seen?.variant).toBeUndefined()
+        expect(result.metadata.model).toEqual({
+          providerID: ProviderV2.ID.make("test"),
+          modelID: ModelV2.ID.make("override-model"),
+        })
+      }),
+    {
+      config: {
+        permission: {
+          model_override: "allow",
+        },
+      },
+    },
+  )
+
+  it.instance(
+    "runtime model override takes priority over the subagent's configured model",
+    () =>
+      Effect.gen(function* () {
+        const { chat, assistant } = yield* seed()
+        const tool = yield* TaskTool
+        const def = yield* tool.init()
+        let seen: SessionPrompt.PromptInput | undefined
+        const promptOps = stubOps({ onPrompt: (input) => (seen = input) })
+
+        yield* def.execute(
+          {
+            description: "run with override",
+            prompt: "do something",
+            subagent_type: "custom-model-agent",
+            model: "test/override-model",
+          },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+
+        expect(seen?.model).toEqual({
+          providerID: ProviderV2.ID.make("test"),
+          modelID: ModelV2.ID.make("override-model"),
+        })
+        expect(seen?.variant).toBeUndefined()
+      }),
+    {
+      config: {
+        permission: {
+          model_override: "allow",
+        },
+        agent: {
+          "custom-model-agent": {
+            description: "Agent with a custom model",
+            mode: "subagent",
+            model: "test/different-model",
+          },
+        },
+      },
+    },
+  )
+
+  it.instance("rejects an invalid model override format", () =>
+    Effect.gen(function* () {
+      const { chat, assistant } = yield* seed()
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      const promptOps = stubOps()
+
+      const exit = yield* def
+        .execute(
+          {
+            description: "run with bad model",
+            prompt: "do something",
+            subagent_type: "general",
+            model: "no-slash-here",
+          },
+          {
+            sessionID: chat.id,
+            messageID: assistant.id,
+            agent: "build",
+            abort: new AbortController().signal,
+            extra: { promptOps },
+            messages: [],
+            metadata: () => Effect.void,
+            ask: () => Effect.void,
+          },
+        )
+        .pipe(Effect.exit)
+
+      expect(Exit.isFailure(exit)).toBe(true)
+    }),
+  )
+
+  it.instance("asks for model_override permission when a model is specified", () =>
+    Effect.gen(function* () {
+      const { chat, assistant } = yield* seed()
+      const tool = yield* TaskTool
+      const def = yield* tool.init()
+      const calls: Array<{ permission: string; patterns: readonly string[] }> = []
+      const promptOps = stubOps()
+
+      yield* def.execute(
+        {
+          description: "run with override",
+          prompt: "do something",
+          subagent_type: "general",
+          model: "test/override-model",
+        },
+        {
+          sessionID: chat.id,
+          messageID: assistant.id,
+          agent: "build",
+          abort: new AbortController().signal,
+          extra: { promptOps },
+          messages: [],
+          metadata: () => Effect.void,
+          ask: (input) =>
+            Effect.sync(() => {
+              calls.push({ permission: input.permission, patterns: input.patterns })
+            }),
+        },
+      )
+
+      const override = calls.find((c) => c.permission === "model_override")
+      expect(override).toBeDefined()
+      expect(override?.patterns).toEqual(["test/override-model"])
+    }),
+  )
+
   it.instance("rejects background execution when the experiment is disabled", () =>
     Effect.gen(function* () {
       const { chat, assistant } = yield* seed()
