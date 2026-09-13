@@ -1,4 +1,4 @@
-import { type AstNode, type Binding, InterpreterRuntimeError, referenceError } from "./model.js"
+import { type AstNode, type Binding, referenceError, typeError } from "./model.js"
 
 export class ScopeStack {
   private readonly scopes: Array<Map<string, Binding>>
@@ -10,7 +10,7 @@ export class ScopeStack {
   reserve(name: string, mutable: boolean, node: AstNode): void {
     const scope = this.current()
     if (scope.has(name)) {
-      throw new InterpreterRuntimeError(`Identifier '${name}' has already been declared.`, node)
+      throw typeError(`Identifier '${name}' has already been declared.`, node)
     }
     scope.set(name, { mutable, value: undefined, initialized: false })
   }
@@ -18,7 +18,7 @@ export class ScopeStack {
   initialize(name: string, value: unknown, node: AstNode): void {
     const binding = this.current().get(name)
     if (!binding || binding.initialized !== false) {
-      throw new InterpreterRuntimeError(`Identifier '${name}' has not been reserved for initialization.`, node)
+      throw typeError(`Identifier '${name}' has not been reserved for initialization.`, node)
     }
     binding.value = value
     binding.initialized = true
@@ -27,7 +27,7 @@ export class ScopeStack {
   declare(name: string, value: unknown, mutable: boolean, node: AstNode): void {
     const scope = this.current()
     if (scope.has(name)) {
-      throw new InterpreterRuntimeError(`Identifier '${name}' has already been declared.`, node)
+      throw typeError(`Identifier '${name}' has already been declared.`, node)
     }
     scope.set(name, { mutable, value, initialized: true })
   }
@@ -58,7 +58,7 @@ export class ScopeStack {
     }
 
     if (!binding.mutable) {
-      throw new InterpreterRuntimeError(`Cannot assign to constant '${name}'.`, node)
+      throw typeError(`Cannot assign to constant '${name}'.`, node)
     }
 
     binding.value = value
@@ -82,7 +82,7 @@ export class ScopeStack {
     const scope = this.scopes[this.scopes.length - 1]
 
     if (!scope) {
-      throw new InterpreterRuntimeError("Interpreter scope stack is empty.")
+      throw typeError("Interpreter scope stack is empty.")
     }
 
     return scope

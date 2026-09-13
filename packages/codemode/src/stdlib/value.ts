@@ -1,6 +1,6 @@
 import { toProgram } from "../data.js"
 import { fn } from "../interpreter/native.js"
-import { type AstNode, InterpreterRuntimeError } from "../interpreter/model.js"
+import { typeError } from "../interpreter/model.js"
 import {
   get,
   isWrapper,
@@ -55,7 +55,7 @@ export const coerceToNumber = (value: unknown): number => {
 
 export type Coercion = "Number" | "String" | "Boolean" | "parseInt" | "parseFloat" | "isFinite" | "isNaN"
 
-const coerce = <R>(runner: Runner<R>, name: Coercion, args: Array<unknown>, node: AstNode): unknown => {
+const coerce = <R>(runner: Runner<R>, name: Coercion, args: Array<unknown>): unknown => {
   // Native: Number() is 0 and String() is "", unlike their undefined-argument forms; the
   // other coercers match native through the undefined-argument path below.
   if (args.length === 0) {
@@ -80,7 +80,7 @@ const coerce = <R>(runner: Runner<R>, name: Coercion, args: Array<unknown>, node
   if (name === "parseInt") {
     const radix = args[1]
     if (radix !== undefined && typeof radix !== "number") {
-      throw new InterpreterRuntimeError("parseInt expects a numeric radix.", node)
+      throw typeError("parseInt expects a numeric radix.")
     }
     return parseInt(coerceToString(value), radix)
   }
@@ -90,6 +90,6 @@ const coerce = <R>(runner: Runner<R>, name: Coercion, args: Array<unknown>, node
 
 /** A global coercion function such as `Number` or `parseInt`. */
 export const coercion = <R>(runner: Runner<R>, name: Coercion, length = 1): NativeFunction<R> =>
-  fn(runner.prototypes, name, length, (_, args, node) =>
-    toProgram(runner.prototypes, coerce(runner, name, args, node), `${name} result`),
+  fn(runner.prototypes, name, length, (_, args) =>
+    toProgram(runner.prototypes, coerce(runner, name, args), `${name} result`),
   )

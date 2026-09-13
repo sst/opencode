@@ -1,5 +1,5 @@
 import { fn, methods } from "../interpreter/native.js"
-import { InterpreterRuntimeError } from "../interpreter/model.js"
+import { typeError } from "../interpreter/model.js"
 import { ProgramObject } from "../interpreter/objects.js"
 import type { Runner } from "../interpreter/runner.js"
 import { coerceToString } from "./value.js"
@@ -7,13 +7,13 @@ import { coerceToString } from "./value.js"
 // WebIDL DOMString conversion: a missing argument is a TypeError, anything else stringifies. Invalid input is a
 // TypeError as well; browsers throw a DOMException named InvalidCharacterError, which CodeMode does not have.
 export const base64Global = <R>(runner: Runner<R>, name: "atob" | "btoa") =>
-  fn<R>(runner.prototypes, name, 1, (_, args, node) => {
-    if (args.length === 0) throw new InterpreterRuntimeError(`${name} requires 1 argument (a string)`, node)
+  fn<R>(runner.prototypes, name, 1, (_, args) => {
+    if (args.length === 0) throw typeError(`${name} requires 1 argument (a string)`)
     const input = coerceToString(args[0])
     try {
       return name === "atob" ? atob(input) : btoa(input)
     } catch {
-      throw new InterpreterRuntimeError("The string contains invalid characters.", node)
+      throw typeError("The string contains invalid characters.")
     }
   })
 

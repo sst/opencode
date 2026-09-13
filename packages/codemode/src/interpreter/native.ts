@@ -1,17 +1,17 @@
 import { Effect } from "effect"
 import type { Prototypes } from "./intrinsics.js"
-import { type AstNode, InterpreterRuntimeError } from "./model.js"
+import { typeError } from "./model.js"
 import { type Callable, define, frozen, hidden, NativeFunction, type NativeOptions, ProgramObject } from "./objects.js"
 import { describeValue } from "./references.js"
 
-/** A native function body: a plain value, a thrown `InterpreterRuntimeError`, or an Effect. */
-export type Impl = (thisValue: unknown, args: Array<unknown>, node: AstNode) => unknown
+/** A native function body: a plain value, a thrown `PendingThrow`, or an Effect. */
+export type Impl = (thisValue: unknown, args: Array<unknown>) => unknown
 
 const lift =
   <R>(impl: Impl) =>
-  (thisValue: unknown, args: Array<unknown>, node: AstNode): Effect.Effect<unknown, unknown, R> =>
+  (thisValue: unknown, args: Array<unknown>): Effect.Effect<unknown, unknown, R> =>
     Effect.suspend(() => {
-      const result = impl(thisValue, args, node)
+      const result = impl(thisValue, args)
       return Effect.isEffect(result) ? (result as Effect.Effect<unknown, unknown, R>) : Effect.succeed(result)
     })
 
@@ -44,12 +44,10 @@ export const constructor = <R>(
 }
 
 /** The `call` of a constructor that JS requires to be invoked with `new`. */
-export const requiresNew =
-  (name: string) =>
-  (_: unknown, __: Array<unknown>, node: AstNode): Effect.Effect<never, unknown, never> =>
-    Effect.sync(() => {
-      throw new InterpreterRuntimeError(`Constructor ${name} requires 'new'.`, node)
-    })
+export const requiresNew = (name: string) => (): Effect.Effect<never, unknown, never> =>
+  Effect.sync(() => {
+    throw typeError(`Constructor ${name} requires 'new'.`)
+  })
 
 /** The instance prototype for `new` via `newTarget.prototype`, falling back to the built-in's own. */
 export const prototypeFrom = (newTarget: Callable, fallback: ProgramObject): ProgramObject => {
@@ -62,8 +60,7 @@ export const receiver = <T extends ProgramObject>(
   cls: abstract new (...args: never) => T,
   thisValue: unknown,
   method: string,
-  node?: AstNode,
 ): T => {
   if (thisValue instanceof cls) return thisValue
-  throw new InterpreterRuntimeError(`${method} called on incompatible receiver ${describeValue(thisValue)}.`, node)
+  throw typeError(`${method} called on incompatible receiver ${describeValue(thisValue)}.`)
 }

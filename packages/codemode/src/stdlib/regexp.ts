@@ -1,7 +1,7 @@
 import { Effect } from "effect"
 import type { Prototypes } from "../interpreter/intrinsics.js"
 import { constructor, type Method, methods, prototypeFrom, receiver } from "../interpreter/native.js"
-import { type AstNode, InterpreterRuntimeError, syntaxError } from "../interpreter/model.js"
+import { syntaxError, typeError } from "../interpreter/model.js"
 import {
   define,
   defineAccessor,
@@ -32,7 +32,7 @@ const regexFailureReason = (error: unknown): string =>
 const escapeRegexHint =
   'To match special characters like ( ) [ ] { } + * ? . literally, escape them with a backslash (e.g. "\\\\(") or test for them with String.includes instead.'
 
-export const toHostRegex = (arg: unknown, method: string, node: AstNode, extraFlags = ""): RegExp => {
+export const toHostRegex = (arg: unknown, method: string, extraFlags = ""): RegExp => {
   // Native parity: an undefined pattern behaves as an empty pattern.
   if (arg === undefined) return new RegExp("", extraFlags)
   if (arg instanceof ProgramRegExp) return arg.regex
@@ -42,13 +42,11 @@ export const toHostRegex = (arg: unknown, method: string, node: AstNode, extraFl
     } catch (error) {
       throw syntaxError(
         `String.${method} received the string ${JSON.stringify(arg)}, which is not a valid regular expression pattern (${regexFailureReason(error)}). ${escapeRegexHint}`,
-        node,
       )
     }
   }
-  throw new InterpreterRuntimeError(
+  throw typeError(
     `String.${method} expects a regular expression (a /pattern/flags literal or new RegExp(...)) or a string pattern, not ${arg === null ? "null" : typeof arg}.`,
-    node,
   )
 }
 
@@ -67,7 +65,6 @@ export const matchToValue = (protos: Prototypes, match: RegExpMatchArray): Progr
 export const constructRegExp = (
   protos: Prototypes,
   args: Array<unknown>,
-  node: AstNode,
   proto: ProgramObject = protos.RegExp,
 ): ProgramRegExp => {
   const first = args[0]
@@ -76,7 +73,6 @@ export const constructRegExp = (
   if (flagsArg !== undefined && typeof flagsArg !== "string") {
     throw syntaxError(
       `RegExp flags must be a string of flag characters (e.g. "g", "gi"), not ${flagsArg === null ? "null" : typeof flagsArg}.`,
-      node,
     )
   }
   const flags = flagsArg ?? (first instanceof ProgramRegExp ? first.regex.flags : "")
@@ -88,7 +84,6 @@ export const constructRegExp = (
       /flag/i.test(reason)
         ? `new RegExp(...) received invalid flags ${JSON.stringify(flags)} (${reason}). Valid flags are d, g, i, m, s, u, v, and y.`
         : `new RegExp(...) received ${JSON.stringify(pattern)}, which is not a valid regular expression pattern (${reason}). ${escapeRegexHint}`,
-      node,
     )
   }
 }
@@ -106,23 +101,21 @@ export const regexpGlobal = <R>(runner: Runner<R>) => {
   const regexp = constructor<R>(protos, proto, {
     name: "RegExp",
     length: 2,
-    call: (_, args, node) => Effect.sync(() => constructRegExp(protos, args, node)),
-    construct: (args, newTarget, node) =>
-      Effect.sync(() => constructRegExp(protos, args, node, prototypeFrom(newTarget, proto))),
+    call: (_, args) => Effect.sync(() => constructRegExp(protos, args)),
+    construct: (args, newTarget) => Effect.sync(() => constructRegExp(protos, args, prototypeFrom(newTarget, proto))),
   })
   methods(protos, regexp, [
     [
       "escape",
       1,
-      (_, args, node) => {
-        if (typeof args[0] !== "string") throw new InterpreterRuntimeError("RegExp.escape expects a string.", node)
+      (_, args) => {
+        if (typeof args[0] !== "string") throw typeError("RegExp.escape expects a string.")
         return RegExp.escape(args[0])
       },
     ],
   ])
 
-  const self = (thisValue: unknown, name: string, node?: AstNode) =>
-    receiver(ProgramRegExp, thisValue, `RegExp.prototype.${name}`, node)
+  const self = (thisValue: unknown, name: string) => receiver(ProgramRegExp, thisValue, `RegExp.prototype.${name}`)
   defineAccessor(proto, "source", (thisValue) => self(thisValue, "source").regex.source)
   defineAccessor(proto, "flags", (thisValue) => self(thisValue, "flags").regex.flags)
   for (const name of flagProperties) defineAccessor(proto, name, (thisValue) => self(thisValue, name).regex[name])
@@ -130,8 +123,8 @@ export const regexpGlobal = <R>(runner: Runner<R>) => {
   const run = (name: "exec" | "test"): Method => [
     name,
     1,
-    (thisValue, args, node) => {
-      const value = self(thisValue, name, node)
+    (thisValue, args) => {
+      const value = self(thisValue, name)
       const input = coerceToString(args[0])
       const stateful = value.regex.global || value.regex.sticky
       value.regex.lastIndex = toLength(getOwn(value, "lastIndex"))
@@ -144,7 +137,7 @@ export const regexpGlobal = <R>(runner: Runner<R>) => {
   methods(protos, proto, [
     run("exec"),
     run("test"),
-    ["toString", 0, (thisValue, _, node) => coerceToString(self(thisValue, "toString", node))],
+    ["toString", 0, (thisValue) => coerceToString(self(thisValue, "toString"))],
   ])
   return regexp
 }

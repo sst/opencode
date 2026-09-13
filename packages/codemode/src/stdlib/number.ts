@@ -1,5 +1,5 @@
 import { constructor, constants, methods } from "../interpreter/native.js"
-import { type AstNode, InterpreterRuntimeError, rangeError } from "../interpreter/model.js"
+import { rangeError, typeError } from "../interpreter/model.js"
 import type { Runner } from "../interpreter/runner.js"
 import { coercion, coerceToString } from "./value.js"
 
@@ -28,10 +28,10 @@ export const numberGlobal = <R>(runner: Runner<R>) => {
     [
       "parseInt",
       2,
-      (_, args, node) => {
+      (_, args) => {
         const radix = args[1]
         if (radix !== undefined && typeof radix !== "number") {
-          throw new InterpreterRuntimeError("Number.parseInt expects a numeric radix.", node)
+          throw typeError("Number.parseInt expects a numeric radix.")
         }
         return parseInt(coerceToString(args[0]), radix)
       },
@@ -39,49 +39,44 @@ export const numberGlobal = <R>(runner: Runner<R>) => {
     ["parseFloat", 1, (_, args) => parseFloat(coerceToString(args[0]))],
   ])
 
-  const self = (thisValue: unknown, name: string, node: AstNode): number => {
+  const self = (thisValue: unknown, name: string): number => {
     if (typeof thisValue === "number") return thisValue
-    throw new InterpreterRuntimeError(`Number.prototype.${name} requires that 'this' be a Number.`, node)
+    throw typeError(`Number.prototype.${name} requires that 'this' be a Number.`)
   }
-  const optNum = (name: string, arg: unknown, node: AstNode): number | undefined => {
+  const optNum = (name: string, arg: unknown): number | undefined => {
     if (arg === undefined) return undefined
-    if (typeof arg !== "number") throw new InterpreterRuntimeError(`Number.${name} expects a number argument.`, node)
+    if (typeof arg !== "number") throw typeError(`Number.${name} expects a number argument.`)
     return arg
   }
   methods(protos, protos.Number, [
-    [
-      "toFixed",
-      1,
-      (thisValue, args, node) => self(thisValue, "toFixed", node).toFixed(optNum("toFixed", args[0], node)),
-    ],
+    ["toFixed", 1, (thisValue, args) => self(thisValue, "toFixed").toFixed(optNum("toFixed", args[0]))],
     [
       "toExponential",
       1,
-      (thisValue, args, node) =>
-        self(thisValue, "toExponential", node).toExponential(optNum("toExponential", args[0], node)),
+      (thisValue, args) => self(thisValue, "toExponential").toExponential(optNum("toExponential", args[0])),
     ],
     [
       "toPrecision",
       1,
-      (thisValue, args, node) => {
-        const value = self(thisValue, "toPrecision", node)
-        const digits = optNum("toPrecision", args[0], node)
+      (thisValue, args) => {
+        const value = self(thisValue, "toPrecision")
+        const digits = optNum("toPrecision", args[0])
         return digits === undefined ? value.toString() : value.toPrecision(digits)
       },
     ],
     [
       "toString",
       1,
-      (thisValue, args, node) => {
-        const value = self(thisValue, "toString", node)
-        const radix = optNum("toString", args[0], node)
+      (thisValue, args) => {
+        const value = self(thisValue, "toString")
+        const radix = optNum("toString", args[0])
         if (radix !== undefined && (radix < 2 || radix > 36)) {
-          throw rangeError("Number.toString radix must be between 2 and 36.", node)
+          throw rangeError("Number.toString radix must be between 2 and 36.")
         }
         return value.toString(radix)
       },
     ],
-    ["valueOf", 0, (thisValue, _, node) => self(thisValue, "valueOf", node)],
+    ["valueOf", 0, (thisValue) => self(thisValue, "valueOf")],
   ])
   return number
 }
@@ -93,13 +88,13 @@ export const booleanGlobal = <R>(runner: Runner<R>) => {
     length: 1,
     call: coercion(runner, "Boolean").call,
   })
-  const self = (thisValue: unknown, name: string, node: AstNode): boolean => {
+  const self = (thisValue: unknown, name: string): boolean => {
     if (typeof thisValue === "boolean") return thisValue
-    throw new InterpreterRuntimeError(`Boolean.prototype.${name} requires that 'this' be a Boolean.`, node)
+    throw typeError(`Boolean.prototype.${name} requires that 'this' be a Boolean.`)
   }
   methods(protos, protos.Boolean, [
-    ["toString", 0, (thisValue, _, node) => String(self(thisValue, "toString", node))],
-    ["valueOf", 0, (thisValue, _, node) => self(thisValue, "valueOf", node)],
+    ["toString", 0, (thisValue) => String(self(thisValue, "toString"))],
+    ["valueOf", 0, (thisValue) => self(thisValue, "valueOf")],
   ])
   return boolean
 }

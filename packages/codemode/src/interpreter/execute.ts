@@ -9,7 +9,7 @@ import { ToolRuntime } from "../tool-runtime.js"
 import { normalizeError } from "./errors.js"
 import { createPrototypes } from "./intrinsics.js"
 import type { Host } from "./globals.js"
-import { InterpreterRuntimeError } from "./model.js"
+import { PendingThrow } from "./model.js"
 import { PromiseRuntime } from "./promises.js"
 import { Runtime } from "./runtime.js"
 
@@ -122,7 +122,7 @@ const parseProgram = (code: string): Program => {
   const transpiled = transpile(`async function __codemode__() {\n${code}\n}`)
 
   if (transpiled.error !== undefined) {
-    throw new InterpreterRuntimeError(`Failed to parse TypeScript: ${transpiled.error}`, undefined, "ParseError")
+    throw new PendingThrow("SyntaxError", `Failed to parse TypeScript: ${transpiled.error}`, undefined, "ParseError")
   }
 
   const bodyStart = transpiled.outputText.indexOf("{") + 1

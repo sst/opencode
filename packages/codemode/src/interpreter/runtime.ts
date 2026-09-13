@@ -50,16 +50,16 @@ import {
   type Binding,
   type GeneratorRequestKind,
   GeneratorReturn,
-  InterpreterRuntimeError,
   IteratorSymbol,
-  locate,
   OptionalShortCircuit,
+  invalidData,
   ProgramThrow,
   rangeError,
   type StatementResult,
+  typeError,
   unsupportedSyntax,
 } from "./model.js"
-import { caughtErrorValue } from "./errors.js"
+import { locate, materialize } from "./errors.js"
 import type { Prototypes } from "./intrinsics.js"
 import { globals, type Host } from "./globals.js"
 import {
@@ -124,11 +124,11 @@ const calleeDescription = (callee: Expression | Super | undefined): string => {
 // OrdinaryHasInstance: walk the left operand's chain looking for the constructor's `prototype`.
 const instanceofValue = (lhs: unknown, rhs: unknown, node: AstNode): boolean => {
   if (!(rhs instanceof Callable)) {
-    throw new InterpreterRuntimeError("The right-hand side of 'instanceof' is not callable.", node)
+    throw typeError("The right-hand side of 'instanceof' is not callable.", node)
   }
   const prototype = get(rhs, "prototype")
   if (!(prototype instanceof ProgramObject)) {
-    throw new InterpreterRuntimeError("The right-hand side of 'instanceof' has no 'prototype' object.", node)
+    throw typeError("The right-hand side of 'instanceof' has no 'prototype' object.", node)
   }
   return hasPrototype(lhs, prototype)
 }
@@ -207,7 +207,7 @@ const loopDeclaration = (left: VariableDeclaration | Pattern, statement: "for...
   if (left.type !== "VariableDeclaration") return undefined
   const declaration = left.declarations.length === 1 ? left.declarations[0] : undefined
   if (declaration === undefined) {
-    throw new InterpreterRuntimeError(`${statement} supports one declared binding.`, left)
+    throw typeError(`${statement} supports one declared binding.`, left)
   }
   const kind = left.kind
   return {
@@ -246,8 +246,6 @@ type GeneratorState = {
   available?: Deferred.Deferred<void>
 }
 
-const promiseResolutionNode: AstNode = { type: "PromiseResolution", start: 0, end: 0 }
-
 /** One program execution: the tool bridge, promise scheduler, captured logs, and the global scope built once. */
 export class Runtime<R> {
   readonly runner: Runner<R>
@@ -266,9 +264,9 @@ export class Runtime<R> {
     // Calling back into the program never reads frame state, so any frame serves; the root is always alive.
     this.root = new Frame(this, new ScopeStack([globalScope]))
     this.runner = {
-      invokeCallable: (callable, thisValue, args, node) => this.root.invokeCallable(callable, thisValue, args, node),
+      invokeCallable: (callable, thisValue, args) => this.root.invokeCallable(callable, thisValue, args),
       settlePromise: (promise) => this.root.settlePromise(promise),
-      syncIterator: (value, node) => this.root.syncIterator(value, node),
+      syncIterator: (value) => this.root.syncIterator(value),
       prototypes,
     }
     for (const [name, value] of [...globals(this), ...extraGlobals(this)]) {
@@ -313,12 +311,12 @@ class Frame<R> {
         }
 
         if (result.kind === "break" || result.kind === "continue") {
-          throw new InterpreterRuntimeError(`Unexpected '${result.kind}' outside of a loop.`, statement)
+          throw typeError(`Unexpected '${result.kind}' outside of a loop.`, statement)
         }
       }
 
       // The implicit async body adopts returned promises before copy-out.
-      value = yield* resolvePromiseValue(self.runtime.runner, value, program)
+      value = yield* resolvePromiseValue(self.runtime.runner, value)
       return value
     }).pipe(Effect.ensuring(Effect.sync(() => self.scopes.pop())))
   }
@@ -483,7 +481,7 @@ class Frame<R> {
     return Effect.gen(function* () {
       const discriminant = yield* self.evaluateExpression(node.discriminant)
       if (containsOpaqueReference(discriminant)) {
-        throw new InterpreterRuntimeError("Switch discriminants must be data values.", node, "InvalidDataValue")
+        throw invalidData("Switch discriminants must be data values.", node)
       }
       self.scopes.push()
       return yield* Effect.gen(function* () {
@@ -501,7 +499,7 @@ class Frame<R> {
           }
           const candidate = yield* self.evaluateExpression(test)
           if (containsOpaqueReference(candidate)) {
-            throw new InterpreterRuntimeError("Switch case values must be data values.", test, "InvalidDataValue")
+            throw invalidData("Switch case values must be data values.", test)
           }
           if (candidate === discriminant) {
             selected = index
@@ -624,7 +622,7 @@ class Frame<R> {
       const iterator = yield* self.customIterator(right, node, awaiting)
       const cursor = iterator === undefined ? yield* self.syncIterator(right, node) : undefined
       if (iterator === undefined && cursor === undefined) {
-        throw new InterpreterRuntimeError(
+        throw invalidData(
           `${awaiting ? "for await...of" : "for...of"} requires an array, string, Map, Set, or URLSearchParams, or custom iterator value.`,
           node,
         )
@@ -637,7 +635,7 @@ class Frame<R> {
             : (cursor?.close ?? Effect.void)
 
       if (left.type === "RestElement" || left.type === "AssignmentPattern") {
-        throw new InterpreterRuntimeError("Unsupported for...of binding.", left)
+        throw typeError("Unsupported for...of binding.", left)
       }
       const assignment = left.type === "VariableDeclaration" ? undefined : left
 
@@ -664,7 +662,7 @@ class Frame<R> {
       while (true) {
         const current = iterator
           ? yield* self.nextIteratorResult(iterator, node, awaiting)
-          : yield* cursor?.next ?? Effect.fail(new InterpreterRuntimeError("Iterator is unavailable.", node))
+          : yield* cursor?.next ?? Effect.die(typeError("Iterator is unavailable.", node))
         const step = cursor && awaiting ? { done: current.done, value: yield* self.awaitValue(current.value) } : current
         if (step.done) return { kind: "none" } satisfies StatementResult
         const bodyExit = yield* Effect.exit(evaluateBody(step.value))
@@ -690,8 +688,8 @@ class Frame<R> {
     )
   }
 
-  private awaitValue(value: unknown, node: AstNode = promiseResolutionNode): Effect.Effect<unknown, unknown, R> {
-    return Effect.flatMap(resolvePromise(this.runtime.runner, this.runtime.promises, value, node), (promise) =>
+  private awaitValue(value: unknown): Effect.Effect<unknown, unknown, R> {
+    return Effect.flatMap(resolvePromise(this.runtime.runner, this.runtime.promises, value), (promise) =>
       this.settlePromise(promise),
     )
   }
@@ -699,7 +697,7 @@ class Frame<R> {
   private awaitAsyncFromSyncValue(
     iterator: CustomIterator,
     value: unknown,
-    node: AstNode,
+    node: AstNode | undefined,
     closeOnRejection: boolean,
   ): Effect.Effect<unknown, unknown, R> {
     const self = this
@@ -713,7 +711,7 @@ class Frame<R> {
     })
   }
 
-  syncIterator(value: unknown, node: AstNode) {
+  syncIterator(value: unknown, node?: AstNode) {
     const iterator =
       value instanceof ProgramArray
         ? value.items[Symbol.iterator]()
@@ -750,7 +748,7 @@ class Frame<R> {
     )
   }
 
-  private customIterator(value: unknown, node: AstNode, allowAsync = true) {
+  private customIterator(value: unknown, node: AstNode | undefined, allowAsync = true) {
     if (!(value instanceof ProgramObject)) return Effect.undefined
     const asyncMethod = allowAsync ? get(value, AsyncIteratorSymbol) : undefined
     const method = asyncMethod ?? get(value, IteratorSymbol)
@@ -769,7 +767,7 @@ class Frame<R> {
     )
   }
 
-  private nextIteratorResult(iterator: CustomIterator, node: AstNode, awaiting: boolean) {
+  private nextIteratorResult(iterator: CustomIterator, node: AstNode | undefined, awaiting: boolean) {
     const self = this
     return Effect.gen(function* () {
       if (iterator.asynchronous) {
@@ -805,7 +803,11 @@ class Frame<R> {
     })
   }
 
-  private closeIterator(iterator: CustomIterator, node: AstNode, awaiting = true): Effect.Effect<void, unknown, R> {
+  private closeIterator(
+    iterator: CustomIterator,
+    node: AstNode | undefined,
+    awaiting = true,
+  ): Effect.Effect<void, unknown, R> {
     const close = get(iterator.iterator, "return")
     if (close === undefined || close === null) return iterator.asynchronous || !awaiting ? Effect.void : Effect.yieldNow
     const self = this
@@ -836,14 +838,14 @@ class Frame<R> {
     })
   }
 
-  private requireIteratorObject(value: unknown, context: string, node: AstNode): ProgramObject {
+  private requireIteratorObject(value: unknown, context: string, node?: AstNode): ProgramObject {
     if (value instanceof ProgramObject) return value
-    throw new InterpreterRuntimeError(`${context} must be an object.`, node)
+    throw typeError(`${context} must be an object.`, node)
   }
 
-  private requireIteratorMethod(value: unknown, context: string, node: AstNode): unknown {
+  private requireIteratorMethod(value: unknown, context: string, node?: AstNode): unknown {
     if (typeofValue(value) === "function") return value
-    throw new InterpreterRuntimeError(`${context} must be a function.`, node)
+    throw typeError(`${context} must be a function.`, node)
   }
 
   // for...in over null/undefined iterates nothing, like JS.
@@ -869,7 +871,7 @@ class Frame<R> {
       const keys = self.enumerableKeys(right, node.right)
 
       if (left.type !== "Identifier" && left.type !== "VariableDeclaration") {
-        throw new InterpreterRuntimeError("Unsupported for...in binding.", left)
+        throw typeError("Unsupported for...in binding.", left)
       }
       const assignmentName = left.type === "Identifier" ? left.name : undefined
 
@@ -955,7 +957,7 @@ class Frame<R> {
           return Effect.failCause(cause)
         }
 
-        const caught = caughtErrorValue(self.runtime.runner, Cause.squash(cause))
+        const caught = materialize(self.runtime.runner, Cause.squash(cause))
         const parameter = handler.param
         self.scopes.push()
         return Effect.gen(function* () {
@@ -991,7 +993,7 @@ class Frame<R> {
     return Effect.gen(function* () {
       for (const declaration of node.declarations) {
         if (declaration.type !== "VariableDeclarator") {
-          throw new InterpreterRuntimeError("Unsupported variable declaration shape.", declaration)
+          throw typeError("Unsupported variable declaration shape.", declaration)
         }
 
         const init = declaration.init
@@ -1033,10 +1035,9 @@ class Frame<R> {
 
       if (pattern.type === "ObjectPattern") {
         if (!(value instanceof ProgramObject)) {
-          throw new InterpreterRuntimeError(
+          throw typeError(
             `Object destructuring requires a data object or array value, received ${describeValue(value)}.`,
             pattern,
-            "InvalidDataValue",
           )
         }
 
@@ -1051,7 +1052,13 @@ class Frame<R> {
 
           const key = yield* self.destructuringPropertyKey(property)
           consumed.add(typeof key === "symbol" ? key : String(key))
-          yield* self.declarePattern(property.value, get(value, key), mutable, property, initialize)
+          yield* self.declarePattern(
+            property.value,
+            self.readProperty(value, key, property),
+            mutable,
+            property,
+            initialize,
+          )
         }
         return
       }
@@ -1062,7 +1069,7 @@ class Frame<R> {
         )
       }
 
-      throw new InterpreterRuntimeError(`Unsupported binding pattern '${pattern.type}'.`, pattern)
+      throw typeError(`Unsupported binding pattern '${pattern.type}'.`, pattern)
     })
   }
 
@@ -1087,10 +1094,9 @@ class Frame<R> {
 
       if (pattern.type === "ObjectPattern") {
         if (!(value instanceof ProgramObject)) {
-          throw new InterpreterRuntimeError(
+          throw invalidData(
             `Object destructuring requires a data object or array value, received ${describeValue(value)}.`,
             pattern,
-            "InvalidDataValue",
           )
         }
 
@@ -1104,7 +1110,7 @@ class Frame<R> {
           }
           const key = yield* self.destructuringPropertyKey(property)
           consumed.add(typeof key === "symbol" ? key : String(key))
-          yield* self.assignPattern(property.value, get(value, key), property)
+          yield* self.assignPattern(property.value, self.readProperty(value, key, property), property)
         }
         return
       }
@@ -1115,7 +1121,7 @@ class Frame<R> {
         )
       }
 
-      throw new InterpreterRuntimeError(`Unsupported assignment pattern '${pattern.type}'.`, node)
+      throw typeError(`Unsupported assignment pattern '${pattern.type}'.`, node)
     })
   }
 
@@ -1134,7 +1140,7 @@ class Frame<R> {
     return Effect.gen(function* () {
       const cursor = yield* self.syncIterator(value, pattern)
       if (cursor === undefined) {
-        throw new InterpreterRuntimeError("Array destructuring requires a supported iterable value.", pattern)
+        throw typeError("Array destructuring requires a supported iterable value.", pattern)
       }
       let done = false
       for (const element of pattern.elements) {
@@ -1171,7 +1177,7 @@ class Frame<R> {
 
   private destructuringPropertyKey(property: Property | AssignmentProperty): Effect.Effect<PropertyKey, unknown, R> {
     if (property.type !== "Property" || property.kind !== "init") {
-      throw new InterpreterRuntimeError("Unsupported object destructuring property.", property)
+      throw typeError("Unsupported object destructuring property.", property)
     }
     const keyNode = property.key
     if (property.computed) {
@@ -1186,8 +1192,7 @@ class Frame<R> {
     switch (node.type) {
       case "Literal": {
         const regex = node.regex
-        if (regex)
-          return Effect.sync(() => constructRegExp(this.runtime.prototypes, [regex.pattern, regex.flags], node))
+        if (regex) return Effect.sync(() => constructRegExp(this.runtime.prototypes, [regex.pattern, regex.flags]))
         return Effect.sync(() => toProgram(this.runtime.prototypes, node.value, "Literal"))
       }
       case "Identifier":
@@ -1233,7 +1238,7 @@ class Frame<R> {
         return this.evaluateUpdateExpression(node)
       case "AwaitExpression": {
         // Await always suspends, including for plain values.
-        return Effect.flatMap(this.evaluateExpression(node.argument), (value) => this.awaitValue(value, node))
+        return Effect.flatMap(this.evaluateExpression(node.argument), (value) => this.awaitValue(value))
       }
       case "YieldExpression":
         return this.evaluateYieldExpression(node)
@@ -1261,10 +1266,12 @@ class Frame<R> {
             : callee instanceof NativeFunction
               ? `new ${name}(...) is not supported; call ${name}(...) without new instead.`
               : `${name} is not a constructor.`
-        throw new InterpreterRuntimeError(message, node)
+        throw typeError(message, node)
       }
       const args = yield* self.evaluateCallArguments(node.arguments)
-      return yield* construct(args, callee as NativeFunction<R>, node)
+      return yield* Effect.catchDefect(construct(args, callee as NativeFunction<R>), (defect) =>
+        Effect.die(locate(defect, node)),
+      )
     })
   }
 
@@ -1292,7 +1299,7 @@ class Frame<R> {
       return has(rhs, lhs !== null && typeof lhs === "object" ? coerceToString(lhs) : (lhs as PropertyKey))
     }
     if (containsOpaqueReference(lhs) || containsOpaqueReference(rhs)) {
-      throw new InterpreterRuntimeError("Binary operators require data values.", node, "InvalidDataValue")
+      throw invalidData("Binary operators require data values.", node)
     }
     // Null-prototype data needs explicit primitive coercion; identity and `in` retain raw objects.
     // Dates use their default string hint for addition and loose equality, and epoch time elsewhere.
@@ -1344,11 +1351,11 @@ class Frame<R> {
         return (l as number) >>> (r as number)
       case "in":
         if (!(rhs instanceof ProgramObject)) {
-          throw new InterpreterRuntimeError("The 'in' operator requires a data object on the right-hand side.", node)
+          throw typeError("The 'in' operator requires a data object on the right-hand side.", node)
         }
         return has(rhs, coerceOperand(lhs) as PropertyKey)
       default:
-        throw new InterpreterRuntimeError(`Unsupported binary operator '${operator}'.`, node)
+        throw typeError(`Unsupported binary operator '${operator}'.`, node)
     }
   }
 
@@ -1359,7 +1366,7 @@ class Frame<R> {
       if (operator === "||") return left ? Effect.succeed(left) : this.evaluateExpression(node.right)
       if (operator === "??")
         return left !== null && left !== undefined ? Effect.succeed(left) : this.evaluateExpression(node.right)
-      throw new InterpreterRuntimeError(`Unsupported logical operator '${operator}'.`, node)
+      throw typeError(`Unsupported logical operator '${operator}'.`, node)
     })
   }
 
@@ -1376,7 +1383,7 @@ class Frame<R> {
       if (operator === "!") return !value
       if (operator === "void") return undefined
       if (containsOpaqueReference(value)) {
-        throw new InterpreterRuntimeError("Unary operators require data values.", node, "InvalidDataValue")
+        throw invalidData("Unary operators require data values.", node)
       }
       const operand =
         value instanceof ProgramDate
@@ -1396,7 +1403,7 @@ class Frame<R> {
           result = ~(operand as number)
           break
         default:
-          throw new InterpreterRuntimeError(`Unsupported unary operator '${operator}'.`, node)
+          throw typeError(`Unsupported unary operator '${operator}'.`, node)
       }
       return toProgram(this.runtime.prototypes, result, "Unary expression result")
     })
@@ -1443,7 +1450,7 @@ class Frame<R> {
           }),
         )
       }
-      throw new InterpreterRuntimeError("Assignment target must be an Identifier or MemberExpression.", left)
+      throw typeError("Assignment target must be an Identifier or MemberExpression.", left)
     })
   }
 
@@ -1475,7 +1482,7 @@ class Frame<R> {
           : Effect.succeed({ write: false, next: current, result: current }),
       )
     }
-    throw new InterpreterRuntimeError("Assignment target must be an Identifier or MemberExpression.", left)
+    throw typeError("Assignment target must be an Identifier or MemberExpression.", left)
   }
 
   private evaluateUpdateExpression(node: UpdateExpression): Effect.Effect<unknown, unknown, R> {
@@ -1486,14 +1493,14 @@ class Frame<R> {
     const increment = operator === "++" ? 1 : operator === "--" ? -1 : undefined
 
     if (increment === undefined) {
-      throw new InterpreterRuntimeError(`Unsupported update operator '${operator}'.`, node)
+      throw typeError(`Unsupported update operator '${operator}'.`, node)
     }
 
     // CodeMode numeric coercion, not host Number(): null-prototype data objects would make
     // the host throw during ToPrimitive, and opaque runtime references must reject clearly.
     const operand = (current: unknown): number => {
       if (containsOpaqueReference(current)) {
-        throw new InterpreterRuntimeError(`'${operator}' requires a data value.`, argument, "InvalidDataValue")
+        throw invalidData(`'${operator}' requires a data value.`, argument)
       }
       return coerceToNumber(current)
     }
@@ -1516,7 +1523,7 @@ class Frame<R> {
       })
     }
 
-    throw new InterpreterRuntimeError("Update target must be an Identifier or MemberExpression.", argument)
+    throw typeError("Update target must be an Identifier or MemberExpression.", argument)
   }
 
   // EvaluateCall: a member callee supplies its base object as `this`; anything else calls with undefined.
@@ -1552,20 +1559,24 @@ class Frame<R> {
     callable: unknown,
     thisValue: unknown,
     args: Array<unknown>,
-    node: AstNode,
+    node?: AstNode,
     callee?: Expression,
   ): Effect.Effect<unknown, unknown, R> {
     const self = this
     return Effect.gen(function* () {
       if (callable instanceof ToolReference) {
         if (callable.path.length === 0) {
-          throw new InterpreterRuntimeError("The tools root is not callable.", callee ?? node)
+          throw typeError("The tools root is not callable.", callee ?? node)
         }
         return yield* self.createToolCallPromise(callable.path, args)
       }
       if (callable instanceof ProgramFunction) return yield* self.invokeFunction(callable, args)
-      if (callable instanceof NativeFunction) return yield* (callable as NativeFunction<R>).call(thisValue, args, node)
-      throw new InterpreterRuntimeError(`${calleeDescription(callee)} is not a function.`, callee ?? node)
+      if (callable instanceof NativeFunction) {
+        return yield* Effect.catchDefect((callable as NativeFunction<R>).call(thisValue, args), (defect) =>
+          Effect.die(locate(defect, node)),
+        )
+      }
+      throw typeError(`${calleeDescription(callee)} is not a function.`, callee ?? node)
     })
   }
 
@@ -1579,8 +1590,7 @@ class Frame<R> {
         if (argNode.type === "SpreadElement") {
           const spread = yield* self.evaluateExpression(argNode.argument)
           const cursor = yield* self.syncIterator(spread, argNode)
-          if (cursor === undefined)
-            throw new InterpreterRuntimeError("Spread arguments require a synchronous iterable.", argNode)
+          if (cursor === undefined) throw typeError("Spread arguments require a synchronous iterable.", argNode)
           while (true) {
             const step = yield* cursor.next
             if (step.done) break
@@ -1631,7 +1641,7 @@ class Frame<R> {
     if (fn.generator) return Effect.succeed(this.createGenerator(invocation, run, fn.async))
     if (!fn.async) return run
     return this.runtime.promises.createWithSelf((self) =>
-      Effect.flatMap(run, (value) => resolvePromiseValue(invocation.runtime.runner, value, fn.body, self)),
+      Effect.flatMap(run, (value) => resolvePromiseValue(invocation.runtime.runner, value, self)),
     )
   }
 
@@ -1645,11 +1655,9 @@ class Frame<R> {
     invocation.generatorAsync = asynchronous
     const protos = this.runtime.prototypes
     const result = (value: unknown, done: boolean) => record(protos.Object, { value, done })
-    const request = (kind: GeneratorRequestKind, value: unknown, node: AstNode) => {
+    const request = (kind: GeneratorRequestKind, value: unknown) => {
       const request = { kind, value, response: Deferred.makeUnsafe<unknown, unknown>() }
-      if (!asynchronous && state.active) {
-        return Effect.fail(new InterpreterRuntimeError("Generator is already running.", node))
-      }
+      if (!asynchronous && state.active) return Effect.die(typeError("Generator is already running."))
       if (asynchronous && (state.completed || (!state.started && kind !== "next"))) {
         state.started = true
         state.completed = true
@@ -1769,7 +1777,7 @@ class Frame<R> {
     const argument = node.argument
     const self = this
     return Effect.gen(function* () {
-      if (!self.generatorState) throw new InterpreterRuntimeError("yield is only valid inside a generator.", node)
+      if (!self.generatorState) throw typeError("yield is only valid inside a generator.", node)
       if (node.delegate) {
         const value = argument ? yield* self.evaluateExpression(argument) : undefined
         return yield* self.delegateYield(value, node)
@@ -1782,7 +1790,7 @@ class Frame<R> {
 
   private suspendGenerator(value: unknown, node: AstNode): Effect.Effect<unknown, unknown, R> {
     const state = this.generatorState
-    if (!state?.active) throw new InterpreterRuntimeError("Generator has no active request.", node)
+    if (!state?.active) throw typeError("Generator has no active request.", node)
     Deferred.doneUnsafe(
       state.active.response,
       Exit.succeed(record(this.runtime.prototypes.Object, { value, done: false })),
@@ -1809,7 +1817,7 @@ class Frame<R> {
         value instanceof ProgramURLSearchParams
       ) {
         const cursor = yield* self.syncIterator(value, node)
-        if (!cursor) throw new InterpreterRuntimeError("Built-in iterator is unavailable.", node)
+        if (!cursor) throw typeError("Built-in iterator is unavailable.", node)
         while (true) {
           const step = yield* cursor.next
           if (step.done) return undefined
@@ -1824,14 +1832,14 @@ class Frame<R> {
           }
           if (error instanceof ProgramThrow) {
             yield* cursor.close
-            throw new InterpreterRuntimeError("The delegated iterator does not provide a throw() method.", node)
+            throw typeError("The delegated iterator does not provide a throw() method.", node)
           }
           return yield* Effect.failCause(resumed.cause)
         }
       }
 
       const iterator = yield* self.customIterator(value, node, self.generatorAsync)
-      if (!iterator) throw new InterpreterRuntimeError("yield* requires a compatible iterable value.", node)
+      if (!iterator) throw typeError("yield* requires a compatible iterable value.", node)
       let kind: GeneratorRequestKind = "next"
       let input: unknown = undefined
       while (true) {
@@ -1839,7 +1847,7 @@ class Frame<R> {
         if (method === undefined || method === null) {
           if (kind === "return") return yield* Effect.fail(new GeneratorReturn(input))
           yield* self.closeIterator(iterator, node, self.generatorAsync)
-          throw new InterpreterRuntimeError("The delegated iterator does not provide a throw() method.", node)
+          throw typeError("The delegated iterator does not provide a throw() method.", node)
         }
         const called = yield* self.invokeCallable(
           self.requireIteratorMethod(method, `Iterator ${kind}`, node),
@@ -1891,7 +1899,7 @@ class Frame<R> {
         }
 
         if (property.kind !== "init") {
-          throw new InterpreterRuntimeError("Only init object properties are supported.", property)
+          throw typeError("Only init object properties are supported.", property)
         }
 
         const keyNode = property.key
@@ -1905,7 +1913,7 @@ class Frame<R> {
         } else if (keyNode.type === "Literal") {
           key = self.toPropertyKey(keyNode.value, keyNode)
         } else {
-          throw new InterpreterRuntimeError("Unsupported object property key shape.", keyNode)
+          throw typeError("Unsupported object property key shape.", keyNode)
         }
 
         const name =
@@ -1935,8 +1943,7 @@ class Frame<R> {
         if (element.type === "SpreadElement") {
           const spread = yield* self.evaluateExpression(element.argument)
           const cursor = yield* self.syncIterator(spread, element)
-          if (cursor === undefined)
-            throw new InterpreterRuntimeError("Array spread requires a synchronous iterable.", element)
+          if (cursor === undefined) throw typeError("Array spread requires a synchronous iterable.", element)
           while (true) {
             const step = yield* cursor.next
             if (step.done) break
@@ -1962,7 +1969,7 @@ class Frame<R> {
         const quasi = quasis[index]!
         // acorn only omits `cooked` for invalid escapes in tagged templates, which are unsupported.
         if (typeof quasi.value.cooked !== "string") {
-          throw new InterpreterRuntimeError("Invalid template literal quasi.", quasi)
+          throw typeError("Invalid template literal quasi.", quasi)
         }
         output += quasi.value.cooked
 
@@ -1984,7 +1991,7 @@ class Frame<R> {
 
   private applyCompoundAssignment(operator: string, current: unknown, incoming: unknown, node: AstNode): unknown {
     if (!compoundOperators.has(operator)) {
-      throw new InterpreterRuntimeError(`Unsupported assignment operator '${operator}'.`, node)
+      throw typeError(`Unsupported assignment operator '${operator}'.`, node)
     }
     return this.applyBinaryOperator(operator.slice(0, -1), current, incoming, node)
   }
@@ -2010,7 +2017,7 @@ class Frame<R> {
 
       if (objectValue instanceof ToolReference) {
         if (typeof key !== "string") {
-          throw new InterpreterRuntimeError("Tool paths must use string property names.", propertyNode)
+          throw typeError("Tool paths must use string property names.", propertyNode)
         }
         return new ToolReference([...objectValue.path, key])
       }
@@ -2029,26 +2036,27 @@ class Frame<R> {
       if (typeof objectValue === "boolean") return { target: protos.Boolean, key, receiver: objectValue }
 
       if (objectValue === null || objectValue === undefined) {
-        throw new InterpreterRuntimeError(
-          `Cannot read properties of ${objectValue} (reading '${String(key)}').`,
-          objectNode,
-        )
+        throw typeError(`Cannot read properties of ${objectValue} (reading '${String(key)}').`, objectNode)
       }
-      throw new InterpreterRuntimeError("Cannot access a property on a non-object value.", objectNode)
+      throw typeError("Cannot access a property on a non-object value.", objectNode)
     })
   }
 
   private readReference(reference: MemberReference, node: MemberExpression): unknown {
     // Reject unknown promise properties so a missing await cannot hide.
     if (reference.target instanceof ProgramPromise && !has(reference.target, reference.key)) {
-      throw new InterpreterRuntimeError(
+      throw invalidData(
         "This value is an un-awaited Promise; await it first - e.g. `const result = await tools.ns.tool(...)`.",
         node.object,
-        "InvalidDataValue",
       )
     }
+    return this.readProperty(reference.target, reference.key, node, reference.receiver)
+  }
+
+  // Accessors throw without a location; the member or pattern that read them supplies it.
+  private readProperty(target: ProgramObject, key: PropertyKey, node: AstNode, receiver: unknown = target): unknown {
     try {
-      return get(reference.target, reference.key, reference.receiver)
+      return get(target, key, receiver)
     } catch (error) {
       throw locate(error, node)
     }
@@ -2070,15 +2078,15 @@ class Frame<R> {
   private evaluateDeleteExpression(argument: Expression): Effect.Effect<boolean, unknown, R> {
     const target = argument.type === "ChainExpression" ? argument.expression : argument
     if (target.type !== "MemberExpression") {
-      throw new InterpreterRuntimeError("Only data fields may be deleted.", argument)
+      throw typeError("Only data fields may be deleted.", argument)
     }
     return Effect.map(this.getMemberReference(target), (reference) => {
       if (reference === OptionalShortCircuit) return true
       if (reference instanceof ToolReference || "value" in reference || reference.receiver !== reference.target) {
-        throw new InterpreterRuntimeError("Only data fields may be deleted.", target, "InvalidDataValue")
+        throw invalidData("Only data fields may be deleted.", target)
       }
       if (remove(reference.target, reference.key)) return true
-      throw new InterpreterRuntimeError(`Cannot delete property '${String(reference.key)}'.`, target)
+      throw typeError(`Cannot delete property '${String(reference.key)}'.`, target)
     })
   }
 
@@ -2091,10 +2099,10 @@ class Frame<R> {
     return Effect.gen(function* () {
       const reference = yield* self.getMemberReference(node)
       if (reference === OptionalShortCircuit || reference instanceof ToolReference || "value" in reference) {
-        throw new InterpreterRuntimeError("Only data fields may be assigned.", node)
+        throw typeError("Only data fields may be assigned.", node)
       }
       if (reference.receiver !== reference.target) {
-        throw new InterpreterRuntimeError(
+        throw typeError(
           `Cannot create property '${String(reference.key)}' on ${typeof reference.receiver} '${String(reference.receiver)}'.`,
           node,
         )
@@ -2107,14 +2115,13 @@ class Frame<R> {
   }
 
   private assignToReference(target: ProgramObject, key: PropertyKey, next: unknown, node: AstNode): void {
-    rejectCircularInsertion(
-      target,
-      next,
-      target instanceof ProgramArray ? "Array assignment result" : "Object assignment result",
-      node,
-    )
     const written = (() => {
       try {
+        rejectCircularInsertion(
+          target,
+          next,
+          target instanceof ProgramArray ? "Array assignment result" : "Object assignment result",
+        )
         return set(target, key, next)
       } catch (error) {
         throw locate(error, node)
@@ -2122,7 +2129,7 @@ class Frame<R> {
     })()
     if (written) return
     if (target instanceof ProgramArray && key === "length") throw rangeError("Invalid array length", node)
-    throw new InterpreterRuntimeError(`Cannot assign to read only property '${String(key)}'.`, node)
+    throw typeError(`Cannot assign to read only property '${String(key)}'.`, node)
   }
 
   private toPropertyKey(value: unknown, node: AstNode): PropertyKey {
@@ -2131,9 +2138,6 @@ class Frame<R> {
     }
     if (value === AsyncIteratorSymbol || value === IteratorSymbol) return value
 
-    throw new InterpreterRuntimeError(
-      "Property key must be a string or number, or Symbol.asyncIterator/Symbol.iterator.",
-      node,
-    )
+    throw typeError("Property key must be a string or number, or Symbol.asyncIterator/Symbol.iterator.", node)
   }
 }

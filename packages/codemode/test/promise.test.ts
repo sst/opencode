@@ -330,7 +330,7 @@ describe("first-class promise values", () => {
     if (!result.ok) return
     expect(result.value).toBe("done")
     expect(result.warnings).toStrictEqual([
-      { kind: "ExecutionFailure", message: "Unhandled rejection from an un-awaited promise: Uncaught: boom" },
+      { kind: "ExecutionFailure", message: "Unhandled rejection from an un-awaited promise: Error: boom" },
     ])
   })
 
@@ -363,7 +363,7 @@ describe("first-class promise values", () => {
     expect(result.truncated).toBe(true)
     expect(typeof result.value).toBe("string")
     expect(result.warnings).toStrictEqual([
-      { kind: "ExecutionFailure", message: "Unhandled rejection from an un-awaited promise: Uncaught: boom" },
+      { kind: "ExecutionFailure", message: "Unhandled rejection from an un-awaited promise: Error: boom" },
     ])
   })
 
@@ -399,9 +399,9 @@ describe("first-class promise values", () => {
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.warnings).toStrictEqual([
-      { kind: "ExecutionFailure", message: "Unhandled rejection from an un-awaited promise: Uncaught: first" },
+      { kind: "ExecutionFailure", message: "Unhandled rejection from an un-awaited promise: Error: first" },
       { kind: "ToolFailure", message: "Unhandled rejection from an un-awaited promise: Lookup refused" },
-      { kind: "ExecutionFailure", message: "Unhandled rejection from an un-awaited promise: Uncaught: third" },
+      { kind: "ExecutionFailure", message: "Unhandled rejection from an un-awaited promise: Error: third" },
     ])
   })
 
@@ -417,8 +417,8 @@ describe("first-class promise values", () => {
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.warnings).toStrictEqual([
-      { kind: "ExecutionFailure", message: "Unhandled rejection from an un-awaited promise: Uncaught: outer" },
-      { kind: "ExecutionFailure", message: "Unhandled rejection from an un-awaited promise: Uncaught: inner" },
+      { kind: "ExecutionFailure", message: "Unhandled rejection from an un-awaited promise: Error: outer" },
+      { kind: "ExecutionFailure", message: "Unhandled rejection from an un-awaited promise: Error: inner" },
     ])
   })
 
@@ -445,7 +445,7 @@ describe("first-class promise values", () => {
     )
     expect(result.ok).toBe(false)
     if (result.ok) return
-    expect(result.error.message).toBe("Uncaught: boom")
+    expect(result.error.message).toBe("Error: boom")
     expect("warnings" in result).toBe(false)
     expect(trace.completed).toBe(0)
     expect(trace.interrupted).toBe(1)
@@ -911,7 +911,7 @@ describe("Promise.resolve / Promise.reject", () => {
     if (!result.ok) return
     expect(result.value).toBe("done")
     expect(result.warnings).toStrictEqual([
-      { kind: "ExecutionFailure", message: "Unhandled rejection from an un-awaited promise: Uncaught: abandoned" },
+      { kind: "ExecutionFailure", message: "Unhandled rejection from an un-awaited promise: Error: abandoned" },
     ])
   })
 })
@@ -1068,7 +1068,7 @@ describe("promise chaining", () => {
     expect(result.value).toBe("done")
     // The source rejection belongs to the chain (no warning); only the derived tail warns.
     expect(result.warnings).toStrictEqual([
-      { kind: "ExecutionFailure", message: "Unhandled rejection from an un-awaited promise: Uncaught: boom" },
+      { kind: "ExecutionFailure", message: "Unhandled rejection from an un-awaited promise: Error: boom" },
     ])
   })
 

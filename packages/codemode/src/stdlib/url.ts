@@ -2,7 +2,7 @@ import { Effect } from "effect"
 import { toProgram, ToolRuntimeError } from "../data.js"
 import type { Prototypes } from "../interpreter/intrinsics.js"
 import { constructor, fn, type Method, methods, prototypeFrom, receiver, requiresNew } from "../interpreter/native.js"
-import { type AstNode, InterpreterRuntimeError, uriError } from "../interpreter/model.js"
+import { PendingThrow, typeError, uriError } from "../interpreter/model.js"
 import {
   defineAccessor,
   entries,
@@ -43,15 +43,12 @@ const uriFunctions: Record<UriFunction, (value: string) => string> = {
 }
 
 export const uriGlobal = <R>(runner: Runner<R>, name: UriFunction) =>
-  fn<R>(runner.prototypes, name, 1, (_, args, node) => {
+  fn<R>(runner.prototypes, name, 1, (_, args) => {
     const value = uriArgument(runner.prototypes, args[0], `${name} input`)
     try {
       return uriFunctions[name](value)
     } catch (error) {
-      throw uriError(
-        `${name} received malformed URI data: ${error instanceof Error ? error.message : String(error)}`,
-        node,
-      )
+      throw uriError(`${name} received malformed URI data: ${error instanceof Error ? error.message : String(error)}`)
     }
   })
 
@@ -61,32 +58,29 @@ const urlArgument = (protos: Prototypes, value: unknown, label: string): string 
 export const urlGlobal = <R>(runner: Runner<R>) => {
   const protos = runner.prototypes
   const proto = protos.URL
-  const construct = (args: Array<unknown>, into: ProgramObject, node: AstNode): ProgramURL => {
+  const construct = (args: Array<unknown>, into: ProgramObject): ProgramURL => {
     if (args.length === 0) {
-      throw new InterpreterRuntimeError("new URL(...) requires a URL string and an optional base URL.", node)
+      throw typeError("new URL(...) requires a URL string and an optional base URL.")
     }
     const input = urlArgument(protos, args[0], "new URL input")
     const base = args[1] === undefined ? undefined : urlArgument(protos, args[1], "new URL base")
     try {
       return new ProgramURL(into, protos.URLSearchParams, new URL(input, base))
     } catch {
-      throw new InterpreterRuntimeError(
-        `new URL(...) received an invalid URL${base === undefined ? "" : " or base URL"}.`,
-        node,
-      )
+      throw typeError(`new URL(...) received an invalid URL${base === undefined ? "" : " or base URL"}.`)
     }
   }
   const url = constructor<R>(protos, proto, {
     name: "URL",
     length: 1,
     call: requiresNew("URL"),
-    construct: (args, newTarget, node) => Effect.sync(() => construct(args, prototypeFrom(newTarget, proto), node)),
+    construct: (args, newTarget) => Effect.sync(() => construct(args, prototypeFrom(newTarget, proto))),
   })
   const parse = (name: "canParse" | "parse"): Method => [
     name,
     1,
-    (_, args, node) => {
-      if (args.length === 0) throw new InterpreterRuntimeError(`URL.${name} requires a URL argument.`, node)
+    (_, args) => {
+      if (args.length === 0) throw typeError(`URL.${name} requires a URL argument.`)
       const input = urlArgument(protos, args[0], `URL.${name} input`)
       const base = args[1] === undefined ? undefined : urlArgument(protos, args[1], `URL.${name} base`)
       try {
@@ -99,8 +93,7 @@ export const urlGlobal = <R>(runner: Runner<R>) => {
   ]
   methods(protos, url, [parse("canParse"), parse("parse")])
 
-  const self = (thisValue: unknown, name: string, node?: AstNode) =>
-    receiver(ProgramURL, thisValue, `URL.prototype.${name}`, node)
+  const self = (thisValue: unknown, name: string) => receiver(ProgramURL, thisValue, `URL.prototype.${name}`)
   for (const name of urlProperties) {
     defineAccessor(
       proto,
@@ -113,25 +106,25 @@ export const urlGlobal = <R>(runner: Runner<R>) => {
             try {
               ;(target.url as unknown as Record<string, string>)[name] = uriArgument(protos, value, `URL.${name} value`)
             } catch (error) {
-              if (error instanceof InterpreterRuntimeError || error instanceof ToolRuntimeError) throw error
-              throw new InterpreterRuntimeError(`URL.${name} received an invalid value.`)
+              if (error instanceof PendingThrow || error instanceof ToolRuntimeError) throw error
+              throw typeError(`URL.${name} received an invalid value.`)
             }
           },
     )
   }
   defineAccessor(proto, "searchParams", (thisValue) => self(thisValue, "searchParams").searchParams)
   methods(protos, proto, [
-    ["toString", 0, (thisValue, _, node) => self(thisValue, "toString", node).url.href],
-    ["toJSON", 0, (thisValue, _, node) => self(thisValue, "toJSON", node).url.href],
+    ["toString", 0, (thisValue) => self(thisValue, "toString").url.href],
+    ["toJSON", 0, (thisValue) => self(thisValue, "toJSON").url.href],
   ])
   return url
 }
 
-const readPair = <R>(runner: Runner<R>, value: unknown, node: AstNode): Effect.Effect<Array<string>, unknown, R> =>
+const readPair = <R>(runner: Runner<R>, value: unknown): Effect.Effect<Array<string>, unknown, R> =>
   Effect.gen(function* () {
-    const cursor = yield* runner.syncIterator(value, node)
+    const cursor = yield* runner.syncIterator(value)
     if (cursor === undefined) {
-      throw new InterpreterRuntimeError("new URLSearchParams(...) expects iterable [name, value] pairs.", node)
+      throw typeError("new URLSearchParams(...) expects iterable [name, value] pairs.")
     }
     const items: Array<string> = []
     while (true) {
@@ -150,7 +143,6 @@ const constructURLSearchParams = <R>(
   runner: Runner<R>,
   init: unknown,
   proto: ProgramObject,
-  node: AstNode,
 ): Effect.Effect<ProgramURLSearchParams, unknown, R> => {
   const wrap = (params: URLSearchParams) => new ProgramURLSearchParams(proto, params)
   if (init === undefined) return Effect.succeed(wrap(new URLSearchParams()))
@@ -160,31 +152,27 @@ const constructURLSearchParams = <R>(
     return Effect.succeed(wrap(new URLSearchParams(coerceToString(init))))
   }
   return Effect.gen(function* () {
-    const cursor = yield* runner.syncIterator(init, node)
+    const cursor = yield* runner.syncIterator(init)
     if (cursor !== undefined) {
       const pairs: Array<Array<string>> = []
       while (true) {
         const step = yield* cursor.next
         if (step.done) {
           if (pairs.some((entry) => entry.length !== 2)) {
-            throw new InterpreterRuntimeError("new URLSearchParams(...) expects iterable [name, value] pairs.", node)
+            throw typeError("new URLSearchParams(...) expects iterable [name, value] pairs.")
           }
           return wrap(new URLSearchParams(pairs.map((entry): [string, string] => [entry[0] ?? "", entry[1] ?? ""])))
         }
-        pairs.push(yield* preserveConsumerError(cursor, readPair(runner, step.value, node)))
+        pairs.push(yield* preserveConsumerError(cursor, readPair(runner, step.value)))
       }
     }
     if (isRuntimeReference(init)) {
-      throw new InterpreterRuntimeError(
-        "new URLSearchParams(...) expects a query string, data object, or synchronous iterable pairs.",
-        node,
-      )
+      throw typeError("new URLSearchParams(...) expects a query string, data object, or synchronous iterable pairs.")
     }
     if (isWrapper(init)) return wrap(new URLSearchParams())
     if (!(init instanceof ProgramObject)) {
-      throw new InterpreterRuntimeError(
+      throw typeError(
         "new URLSearchParams(...) expects a query string, data object, iterable pairs, or URLSearchParams.",
-        node,
       )
     }
     return wrap(
@@ -199,20 +187,16 @@ export const urlSearchParamsGlobal = <R>(runner: Runner<R>) => {
   const searchParams = constructor<R>(protos, proto, {
     name: "URLSearchParams",
     call: requiresNew("URLSearchParams"),
-    construct: (args, newTarget, node) =>
-      constructURLSearchParams(runner, args[0], prototypeFrom(newTarget, proto), node),
+    construct: (args, newTarget) => constructURLSearchParams(runner, args[0], prototypeFrom(newTarget, proto)),
   })
-  const self = (thisValue: unknown, name: string, node?: AstNode) =>
-    receiver(ProgramURLSearchParams, thisValue, `URLSearchParams.prototype.${name}`, node)
+  const self = (thisValue: unknown, name: string) =>
+    receiver(ProgramURLSearchParams, thisValue, `URLSearchParams.prototype.${name}`)
   const wrap = (items: Array<unknown>) => new ProgramArray(protos.Array, items)
   const arg = (name: string, args: Array<unknown>, index: number): string =>
     uriArgument(protos, args[index], `URLSearchParams.${name} argument ${index + 1}`)
-  const requireArgs = (name: string, args: Array<unknown>, count: number, node: AstNode): void => {
+  const requireArgs = (name: string, args: Array<unknown>, count: number): void => {
     if (args.length < count) {
-      throw new InterpreterRuntimeError(
-        `URLSearchParams.${name} requires ${count} argument${count === 1 ? "" : "s"}.`,
-        node,
-      )
+      throw typeError(`URLSearchParams.${name} requires ${count} argument${count === 1 ? "" : "s"}.`)
     }
   }
   defineAccessor(proto, "size", (thisValue) => self(thisValue, "size").params.size)
@@ -220,18 +204,18 @@ export const urlSearchParamsGlobal = <R>(runner: Runner<R>) => {
     [
       "append",
       2,
-      (thisValue, args, node) => {
-        requireArgs("append", args, 2, node)
-        self(thisValue, "append", node).params.append(arg("append", args, 0), arg("append", args, 1))
+      (thisValue, args) => {
+        requireArgs("append", args, 2)
+        self(thisValue, "append").params.append(arg("append", args, 0), arg("append", args, 1))
         return undefined
       },
     ],
     [
       "delete",
       1,
-      (thisValue, args, node) => {
-        requireArgs("delete", args, 1, node)
-        const params = self(thisValue, "delete", node).params
+      (thisValue, args) => {
+        requireArgs("delete", args, 1)
+        const params = self(thisValue, "delete").params
         if (args[1] !== undefined) params.delete(arg("delete", args, 0), arg("delete", args, 1))
         else params.delete(arg("delete", args, 0))
         return undefined
@@ -240,25 +224,25 @@ export const urlSearchParamsGlobal = <R>(runner: Runner<R>) => {
     [
       "get",
       1,
-      (thisValue, args, node) => {
-        requireArgs("get", args, 1, node)
-        return self(thisValue, "get", node).params.get(arg("get", args, 0))
+      (thisValue, args) => {
+        requireArgs("get", args, 1)
+        return self(thisValue, "get").params.get(arg("get", args, 0))
       },
     ],
     [
       "getAll",
       1,
-      (thisValue, args, node) => {
-        requireArgs("getAll", args, 1, node)
-        return wrap(self(thisValue, "getAll", node).params.getAll(arg("getAll", args, 0)))
+      (thisValue, args) => {
+        requireArgs("getAll", args, 1)
+        return wrap(self(thisValue, "getAll").params.getAll(arg("getAll", args, 0)))
       },
     ],
     [
       "has",
       1,
-      (thisValue, args, node) => {
-        requireArgs("has", args, 1, node)
-        const params = self(thisValue, "has", node).params
+      (thisValue, args) => {
+        requireArgs("has", args, 1)
+        const params = self(thisValue, "has").params
         return args[1] !== undefined
           ? params.has(arg("has", args, 0), arg("has", args, 1))
           : params.has(arg("has", args, 0))
@@ -267,36 +251,36 @@ export const urlSearchParamsGlobal = <R>(runner: Runner<R>) => {
     [
       "set",
       2,
-      (thisValue, args, node) => {
-        requireArgs("set", args, 2, node)
-        self(thisValue, "set", node).params.set(arg("set", args, 0), arg("set", args, 1))
+      (thisValue, args) => {
+        requireArgs("set", args, 2)
+        self(thisValue, "set").params.set(arg("set", args, 0), arg("set", args, 1))
         return undefined
       },
     ],
     [
       "sort",
       0,
-      (thisValue, _, node) => {
-        self(thisValue, "sort", node).params.sort()
+      (thisValue) => {
+        self(thisValue, "sort").params.sort()
         return undefined
       },
     ],
-    ["keys", 0, (thisValue, _, node) => wrap(Array.from(self(thisValue, "keys", node).params.keys()))],
-    ["values", 0, (thisValue, _, node) => wrap(Array.from(self(thisValue, "values", node).params.values()))],
+    ["keys", 0, (thisValue) => wrap(Array.from(self(thisValue, "keys").params.keys()))],
+    ["values", 0, (thisValue) => wrap(Array.from(self(thisValue, "values").params.values()))],
     [
       "entries",
       0,
-      (thisValue, _, node) =>
-        wrap(Array.from(self(thisValue, "entries", node).params.entries(), ([key, value]) => wrap([key, value]))),
+      (thisValue) =>
+        wrap(Array.from(self(thisValue, "entries").params.entries(), ([key, value]) => wrap([key, value]))),
     ],
-    ["toString", 0, (thisValue, _, node) => self(thisValue, "toString", node).params.toString()],
+    ["toString", 0, (thisValue) => self(thisValue, "toString").params.toString()],
     [
       "forEach",
       1,
-      (thisValue, args, node) => {
-        requireArgs("forEach", args, 1, node)
-        const target = self(thisValue, "forEach", node)
-        const apply = applyCollectionCallback(runner, args[0], "URLSearchParams.forEach", node)
+      (thisValue, args) => {
+        requireArgs("forEach", args, 1)
+        const target = self(thisValue, "forEach")
+        const apply = applyCollectionCallback(runner, args[0], "URLSearchParams.forEach")
         return Effect.gen(function* () {
           for (const [key, value] of Array.from(target.params.entries())) yield* apply([value, key, target])
           return undefined

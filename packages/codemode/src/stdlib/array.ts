@@ -1,6 +1,6 @@
 import { Effect } from "effect"
 import { constructor, type Method, methods, prototypeFrom, receiver } from "../interpreter/native.js"
-import { type AstNode, InterpreterRuntimeError, rangeError } from "../interpreter/model.js"
+import { invalidData, rangeError, typeError } from "../interpreter/model.js"
 import { get, ProgramArray, ProgramGenerator, ProgramObject } from "../interpreter/objects.js"
 import { describeValue, rejectCircularInsertion } from "../interpreter/references.js"
 import { applyCollectionCallback, preserveConsumerError, type Runner } from "../interpreter/runner.js"
@@ -9,35 +9,30 @@ import { coerceToNumber, coerceToString } from "./value.js"
 
 const MAX_LENGTH = 4_294_967_295
 
-const arrayLikeSource = (
-  source: unknown,
-  node: AstNode,
-): { readonly length: number; readonly source: ProgramObject } => {
+const arrayLikeSource = (source: unknown): { readonly length: number; readonly source: ProgramObject } => {
   if (source instanceof ProgramObject && typeof get(source, "length") === "number") {
     const length = get(source, "length") as number
     const normalized = Number.isNaN(length) || length <= 0 ? 0 : Math.trunc(length)
     if (normalized > MAX_LENGTH) throw new RangeError("Invalid array length")
     return { length: normalized, source }
   }
-  throw new InterpreterRuntimeError(
+  throw invalidData(
     `Array.from expects an array, string, Map, Set, or array-like value, received ${describeValue(source)}.`,
-    node,
-    "InvalidDataValue",
   )
 }
 
-const arrayFrom = <R>(runner: Runner<R>, args: Array<unknown>, node: AstNode): Effect.Effect<unknown, unknown, R> => {
+const arrayFrom = <R>(runner: Runner<R>, args: Array<unknown>): Effect.Effect<unknown, unknown, R> => {
   const source = args[0]
   const proto = runner.prototypes.Array
   const apply =
-    args.length < 2 || args[1] === undefined ? undefined : applyCollectionCallback(runner, args[1], "Array.from", node)
+    args.length < 2 || args[1] === undefined ? undefined : applyCollectionCallback(runner, args[1], "Array.from")
   return Effect.gen(function* () {
-    const cursor = yield* runner.syncIterator(source, node)
+    const cursor = yield* runner.syncIterator(source)
     if (cursor === undefined) {
       if (source instanceof ProgramGenerator) {
-        throw new InterpreterRuntimeError("Array.from expects a synchronous iterable or array-like value.", node)
+        throw typeError("Array.from expects a synchronous iterable or array-like value.")
       }
-      const arrayLike = arrayLikeSource(source, node)
+      const arrayLike = arrayLikeSource(source)
       const values: Array<unknown> = []
       for (let index = 0; index < arrayLike.length; index += 1) {
         const item = get(arrayLike.source, index)
@@ -61,12 +56,11 @@ export const sortArray = <R>(
   target: Array<unknown>,
   comparator: unknown,
   name: string,
-  node: AstNode,
 ): Effect.Effect<Array<unknown>, unknown, R> => {
   if (comparator === undefined) {
     return Effect.sync(() => [...target].sort((a, b) => compareText(coerceToString(a), coerceToString(b))))
   }
-  const apply = applyCollectionCallback(runner, comparator, name, node)
+  const apply = applyCollectionCallback(runner, comparator, name)
   const mergeSort = (items: Array<unknown>): Effect.Effect<Array<unknown>, unknown, R> => {
     if (items.length <= 1) return Effect.succeed(items)
     const midpoint = Math.floor(items.length / 2)
@@ -95,32 +89,31 @@ export const arrayGlobal = <R>(runner: Runner<R>) => {
   const protos = runner.prototypes
   const proto = protos.Array
   const wrap = (items: Array<unknown>) => new ProgramArray(proto, items)
-  const construct = (args: Array<unknown>, into: ProgramObject, node: AstNode): ProgramArray => {
+  const construct = (args: Array<unknown>, into: ProgramObject): ProgramArray => {
     if (args.length !== 1) return new ProgramArray(into, [...args])
     const first = args[0]
     if (typeof first !== "number") return new ProgramArray(into, [first])
-    if (!Number.isInteger(first) || first < 0 || first > MAX_LENGTH) throw rangeError("Invalid array length.", node)
+    if (!Number.isInteger(first) || first < 0 || first > MAX_LENGTH) throw rangeError("Invalid array length.")
     // Sparse like JS: Array(3) has holes, and combinator loops already skip them.
     return new ProgramArray(into, new Array(first))
   }
   const array = constructor<R>(protos, proto, {
     name: "Array",
     length: 1,
-    call: (_, args, node) => Effect.sync(() => construct(args, proto, node)),
-    construct: (args, newTarget, node) => Effect.sync(() => construct(args, prototypeFrom(newTarget, proto), node)),
+    call: (_, args) => Effect.sync(() => construct(args, proto)),
+    construct: (args, newTarget) => Effect.sync(() => construct(args, prototypeFrom(newTarget, proto))),
   })
   methods(protos, array, [
     ["isArray", 1, (_, args) => args[0] instanceof ProgramArray],
     ["of", 0, (_, args) => wrap([...args])],
-    ["from", 1, (_, args, node) => arrayFrom(runner, args, node)],
+    ["from", 1, (_, args) => arrayFrom(runner, args)],
   ])
 
-  const self = (thisValue: unknown, name: string, node: AstNode) =>
-    receiver(ProgramArray, thisValue, `Array.prototype.${name}`, node)
-  const optNumber = (name: string, value: unknown, label: string, node: AstNode): number | undefined => {
+  const self = (thisValue: unknown, name: string) => receiver(ProgramArray, thisValue, `Array.prototype.${name}`)
+  const optNumber = (name: string, value: unknown, label: string): number | undefined => {
     if (value === undefined) return undefined
     if (typeof value !== "number") {
-      throw new InterpreterRuntimeError(`Array.${name} expects ${label} to be a number.`, node)
+      throw typeError(`Array.${name} expects ${label} to be a number.`)
     }
     return value
   }
@@ -133,14 +126,13 @@ export const arrayGlobal = <R>(runner: Runner<R>) => {
       receiver: ProgramArray,
       apply: (args: Array<unknown>) => Effect.Effect<unknown, unknown, R>,
       args: Array<unknown>,
-      node: AstNode,
     ) => Effect.Effect<unknown, unknown, R>,
   ): Method => [
     name,
     length,
-    (thisValue, args, node) => {
-      const target = self(thisValue, name, node)
-      return body(target.items, target, applyCollectionCallback(runner, args[0], `Array.${name}`, node), args, node)
+    (thisValue, args) => {
+      const target = self(thisValue, name)
+      return body(target.items, target, applyCollectionCallback(runner, args[0], `Array.${name}`), args)
     },
   ]
 
@@ -148,10 +140,10 @@ export const arrayGlobal = <R>(runner: Runner<R>) => {
     [
       "join",
       1,
-      (thisValue, args, node) => {
-        const target = self(thisValue, "join", node).items
+      (thisValue, args) => {
+        const target = self(thisValue, "join").items
         if (args.length > 1 || (args.length === 1 && typeof args[0] !== "string")) {
-          throw new InterpreterRuntimeError("Array.join expects zero arguments or one string separator.", node)
+          throw typeError("Array.join expects zero arguments or one string separator.")
         }
         return target.map((item) => coerceToString(item ?? "")).join(args.length === 0 ? "," : (args[0] as string))
       },
@@ -159,60 +151,56 @@ export const arrayGlobal = <R>(runner: Runner<R>) => {
     [
       "toString",
       0,
-      (thisValue, _, node) =>
-        self(thisValue, "toString", node)
+      (thisValue) =>
+        self(thisValue, "toString")
           .items.map((item) => coerceToString(item ?? ""))
           .join(","),
     ],
     [
       "includes",
       1,
-      (thisValue, args, node) => {
-        const target = self(thisValue, "includes", node).items
+      (thisValue, args) => {
+        const target = self(thisValue, "includes").items
         if (args.length === 0 || args.length > 2) {
-          throw new InterpreterRuntimeError("Array.includes expects a value and optional start index.", node)
+          throw typeError("Array.includes expects a value and optional start index.")
         }
-        return target.includes(args[0], optNumber("includes", args[1], "start index", node))
+        return target.includes(args[0], optNumber("includes", args[1], "start index"))
       },
     ],
     [
       "indexOf",
       1,
-      (thisValue, args, node) =>
-        self(thisValue, "indexOf", node).items.indexOf(args[0], optNumber("indexOf", args[1], "start index", node)),
+      (thisValue, args) =>
+        self(thisValue, "indexOf").items.indexOf(args[0], optNumber("indexOf", args[1], "start index")),
     ],
     [
       "lastIndexOf",
       1,
-      (thisValue, args, node) => {
-        const target = self(thisValue, "lastIndexOf", node).items
+      (thisValue, args) => {
+        const target = self(thisValue, "lastIndexOf").items
         return args[1] === undefined
           ? target.lastIndexOf(args[0])
-          : target.lastIndexOf(args[0], optNumber("lastIndexOf", args[1], "start index", node))
+          : target.lastIndexOf(args[0], optNumber("lastIndexOf", args[1], "start index"))
       },
     ],
-    [
-      "at",
-      1,
-      (thisValue, args, node) => self(thisValue, "at", node).items.at(optNumber("at", args[0], "index", node) ?? 0),
-    ],
+    ["at", 1, (thisValue, args) => self(thisValue, "at").items.at(optNumber("at", args[0], "index") ?? 0)],
     [
       "slice",
       2,
-      (thisValue, args, node) =>
+      (thisValue, args) =>
         wrap(
-          self(thisValue, "slice", node).items.slice(
-            optNumber("slice", args[0], "start", node),
-            optNumber("slice", args[1], "end", node),
+          self(thisValue, "slice").items.slice(
+            optNumber("slice", args[0], "start"),
+            optNumber("slice", args[1], "end"),
           ),
         ),
     ],
     [
       "concat",
       1,
-      (thisValue, args, node) =>
+      (thisValue, args) =>
         wrap(
-          self(thisValue, "concat", node).items.concat(
+          self(thisValue, "concat").items.concat(
             ...args.map((item) => (item instanceof ProgramArray ? item.items : item)),
           ),
         ),
@@ -220,17 +208,17 @@ export const arrayGlobal = <R>(runner: Runner<R>) => {
     [
       "flat",
       0,
-      (thisValue, args, node) => {
+      (thisValue, args) => {
         const flatten = (items: Array<unknown>, depth: number): Array<unknown> =>
           items.flatMap((item) => (item instanceof ProgramArray && depth > 0 ? flatten(item.items, depth - 1) : [item]))
-        return wrap(flatten(self(thisValue, "flat", node).items, optNumber("flat", args[0], "depth", node) ?? 1))
+        return wrap(flatten(self(thisValue, "flat").items, optNumber("flat", args[0], "depth") ?? 1))
       },
     ],
     [
       "reverse",
       0,
-      (thisValue, _, node) => {
-        const target = self(thisValue, "reverse", node)
+      (thisValue) => {
+        const target = self(thisValue, "reverse")
         target.items.reverse()
         return target
       },
@@ -238,13 +226,13 @@ export const arrayGlobal = <R>(runner: Runner<R>) => {
     [
       "sort",
       1,
-      (thisValue, args, node) => {
-        const target = self(thisValue, "sort", node)
+      (thisValue, args) => {
+        const target = self(thisValue, "sort")
         const items = target.items
         const length = items.length
         const holeCount = Array.from({ length }, (_, index) => Object.hasOwn(items, index)).filter((o) => !o).length
         const itemCount = length - holeCount
-        return Effect.map(sortArray(runner, items, args[0], "Array.sort", node), (sorted) => {
+        return Effect.map(sortArray(runner, items, args[0], "Array.sort"), (sorted) => {
           sorted.slice(0, itemCount).forEach((item, index) => {
             items[index] = item
           })
@@ -258,18 +246,18 @@ export const arrayGlobal = <R>(runner: Runner<R>) => {
     [
       "toSorted",
       1,
-      (thisValue, args, node) =>
-        Effect.map(sortArray(runner, self(thisValue, "toSorted", node).items, args[0], "Array.toSorted", node), wrap),
+      (thisValue, args) =>
+        Effect.map(sortArray(runner, self(thisValue, "toSorted").items, args[0], "Array.toSorted"), wrap),
     ],
-    ["toReversed", 0, (thisValue, _, node) => wrap([...self(thisValue, "toReversed", node).items].reverse())],
+    ["toReversed", 0, (thisValue) => wrap([...self(thisValue, "toReversed").items].reverse())],
     [
       "with",
       2,
-      (thisValue, args, node) => {
-        const target = self(thisValue, "with", node).items
-        const index = optNumber("with", args[0], "index", node) ?? 0
+      (thisValue, args) => {
+        const target = self(thisValue, "with").items
+        const index = optNumber("with", args[0], "index") ?? 0
         const resolved = index < 0 ? target.length + index : index
-        if (resolved < 0 || resolved >= target.length) throw rangeError("Array.with index is out of range.", node)
+        if (resolved < 0 || resolved >= target.length) throw rangeError("Array.with index is out of range.")
         const copied = [...target]
         copied[resolved] = args[1]
         return wrap(copied)
@@ -278,80 +266,80 @@ export const arrayGlobal = <R>(runner: Runner<R>) => {
     [
       "push",
       1,
-      (thisValue, args, node) => {
-        const target = self(thisValue, "push", node)
+      (thisValue, args) => {
+        const target = self(thisValue, "push")
         // Validate all insertions before mutating to avoid partial cyclic updates.
-        for (const item of args) rejectCircularInsertion(target, item, "Array.push result", node)
+        for (const item of args) rejectCircularInsertion(target, item, "Array.push result")
         return target.items.push(...args)
       },
     ],
     [
       "unshift",
       1,
-      (thisValue, args, node) => {
-        const target = self(thisValue, "unshift", node)
-        for (const item of args) rejectCircularInsertion(target, item, "Array.unshift result", node)
+      (thisValue, args) => {
+        const target = self(thisValue, "unshift")
+        for (const item of args) rejectCircularInsertion(target, item, "Array.unshift result")
         return target.items.unshift(...args)
       },
     ],
-    ["pop", 0, (thisValue, _, node) => self(thisValue, "pop", node).items.pop()],
-    ["shift", 0, (thisValue, _, node) => self(thisValue, "shift", node).items.shift()],
+    ["pop", 0, (thisValue) => self(thisValue, "pop").items.pop()],
+    ["shift", 0, (thisValue) => self(thisValue, "shift").items.shift()],
     [
       "splice",
       2,
-      (thisValue, args, node) => {
-        const target = self(thisValue, "splice", node)
+      (thisValue, args) => {
+        const target = self(thisValue, "splice")
         if (args.length === 0) return wrap(target.items.splice(0, 0))
-        const start = optNumber("splice", args[0], "start", node) ?? 0
+        const start = optNumber("splice", args[0], "start") ?? 0
         if (args.length === 1) return wrap(target.items.splice(start))
-        const deleteCount = optNumber("splice", args[1], "delete count", node) ?? 0
+        const deleteCount = optNumber("splice", args[1], "delete count") ?? 0
         const inserted = args.slice(2)
-        for (const item of inserted) rejectCircularInsertion(target, item, "Array.splice result", node)
+        for (const item of inserted) rejectCircularInsertion(target, item, "Array.splice result")
         return wrap(target.items.splice(start, deleteCount, ...inserted))
       },
     ],
     [
       "toSpliced",
       2,
-      (thisValue, args, node) => {
-        const copied = [...self(thisValue, "toSpliced", node).items]
+      (thisValue, args) => {
+        const copied = [...self(thisValue, "toSpliced").items]
         if (args.length === 0) return wrap(copied)
-        const start = optNumber("toSpliced", args[0], "start", node) ?? 0
+        const start = optNumber("toSpliced", args[0], "start") ?? 0
         if (args.length === 1) copied.splice(start)
-        else copied.splice(start, optNumber("toSpliced", args[1], "delete count", node) ?? 0, ...args.slice(2))
+        else copied.splice(start, optNumber("toSpliced", args[1], "delete count") ?? 0, ...args.slice(2))
         return wrap(copied)
       },
     ],
     [
       "fill",
       1,
-      (thisValue, args, node) => {
-        const target = self(thisValue, "fill", node)
-        rejectCircularInsertion(target, args[0], "Array.fill result", node)
-        target.items.fill(args[0], optNumber("fill", args[1], "start", node), optNumber("fill", args[2], "end", node))
+      (thisValue, args) => {
+        const target = self(thisValue, "fill")
+        rejectCircularInsertion(target, args[0], "Array.fill result")
+        target.items.fill(args[0], optNumber("fill", args[1], "start"), optNumber("fill", args[2], "end"))
         return target
       },
     ],
     [
       "copyWithin",
       2,
-      (thisValue, args, node) => {
-        const target = self(thisValue, "copyWithin", node)
+      (thisValue, args) => {
+        const target = self(thisValue, "copyWithin")
         target.items.copyWithin(
-          optNumber("copyWithin", args[0], "target index", node) ?? 0,
-          optNumber("copyWithin", args[1], "start", node) ?? 0,
-          optNumber("copyWithin", args[2], "end", node),
+          optNumber("copyWithin", args[0], "target index") ?? 0,
+          optNumber("copyWithin", args[1], "start") ?? 0,
+          optNumber("copyWithin", args[2], "end"),
         )
         return target
       },
     ],
-    ["keys", 0, (thisValue, _, node) => wrap(Array.from(self(thisValue, "keys", node).items.keys()))],
-    ["values", 0, (thisValue, _, node) => wrap([...self(thisValue, "values", node).items])],
+    ["keys", 0, (thisValue) => wrap(Array.from(self(thisValue, "keys").items.keys()))],
+    ["values", 0, (thisValue) => wrap([...self(thisValue, "values").items])],
     [
       "entries",
       0,
-      (thisValue, _, node) =>
-        wrap(Array.from(self(thisValue, "entries", node).items.entries(), ([index, item]) => wrap([index, item]))),
+      (thisValue) =>
+        wrap(Array.from(self(thisValue, "entries").items.entries(), ([index, item]) => wrap([index, item]))),
     ],
     iterate("map", 1, (target, receiver, apply) =>
       Effect.gen(function* () {
@@ -455,7 +443,7 @@ export const arrayGlobal = <R>(runner: Runner<R>) => {
         return undefined
       }),
     ),
-    iterate("reduce", 1, (target, receiver, apply, args, node) =>
+    iterate("reduce", 1, (target, receiver, apply, args) =>
       Effect.gen(function* () {
         const length = target.length
         let start = 0
@@ -463,7 +451,7 @@ export const arrayGlobal = <R>(runner: Runner<R>) => {
         if (args.length < 2) {
           while (start < length && !(start in target)) start += 1
           if (start === length) {
-            throw new InterpreterRuntimeError("Array.reduce of an empty array with no initial value.", node)
+            throw typeError("Array.reduce of an empty array with no initial value.")
           }
           accumulator = target[start]
           start += 1
@@ -475,14 +463,14 @@ export const arrayGlobal = <R>(runner: Runner<R>) => {
         return accumulator
       }),
     ),
-    iterate("reduceRight", 1, (target, receiver, apply, args, node) =>
+    iterate("reduceRight", 1, (target, receiver, apply, args) =>
       Effect.gen(function* () {
         let start = target.length - 1
         let accumulator = args[1]
         if (args.length < 2) {
           while (start >= 0 && !(start in target)) start -= 1
           if (start < 0) {
-            throw new InterpreterRuntimeError("Array.reduceRight of an empty array with no initial value.", node)
+            throw typeError("Array.reduceRight of an empty array with no initial value.")
           }
           accumulator = target[start]
           start -= 1

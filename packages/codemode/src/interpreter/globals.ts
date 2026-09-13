@@ -16,7 +16,7 @@ import { ToolReference } from "../tool-runtime.js"
 import { errorGlobal } from "./errors.js"
 import { errorTypes } from "./intrinsics.js"
 import { constants, constructor, native } from "./native.js"
-import { type AstNode, AsyncIteratorSymbol, InterpreterRuntimeError, IteratorSymbol } from "./model.js"
+import { AsyncIteratorSymbol, IteratorSymbol, typeError } from "./model.js"
 import { generatorGlobals } from "./generators.js"
 import { promiseGlobal, type PromiseRuntime } from "./promises.js"
 import type { Runner } from "./runner.js"
@@ -32,27 +32,24 @@ export type Host<R> = {
 
 // Function.prototype.constructor exists so `fn.constructor === Function` holds; dynamic code is unsupported.
 const functionGlobal = <R>(runner: Runner<R>) => {
-  const reject = (_: unknown, __: Array<unknown>, node: AstNode) =>
+  const reject = () =>
     Effect.sync(() => {
-      throw new InterpreterRuntimeError("The Function constructor is not supported; write the function inline.", node)
+      throw typeError("The Function constructor is not supported; write the function inline.")
     })
   return constructor<R>(runner.prototypes, runner.prototypes.Function, {
     name: "Function",
     length: 1,
     call: reject,
-    construct: (args, _, node) => reject(undefined, args, node),
+    construct: reject,
   })
 }
 
 const symbolGlobal = <R>(runner: Runner<R>) => {
   const symbol = native<R>(runner.prototypes, {
     name: "Symbol",
-    call: (_, __, node) =>
+    call: () =>
       Effect.sync(() => {
-        throw new InterpreterRuntimeError(
-          "Symbol is not callable; only Symbol.asyncIterator and Symbol.iterator are available.",
-          node,
-        )
+        throw typeError("Symbol is not callable; only Symbol.asyncIterator and Symbol.iterator are available.")
       }),
     callback: false,
   })

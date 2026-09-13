@@ -2,7 +2,7 @@ import { Effect } from "effect"
 import type { Diagnostic } from "../codemode.js"
 import { ToolError } from "../tool-error.js"
 import { toData, ToolRuntimeError } from "../data.js"
-import { type AstNode, formatLocation, InterpreterRuntimeError, ProgramThrow, sourceLocation } from "./model.js"
+import { type AstNode, formatLocation, PendingThrow, ProgramThrow, sourceLocation, typeError } from "./model.js"
 import { containsRuntimeReference } from "./references.js"
 import { createErrorValue, type ErrorType, isErrorType } from "./intrinsics.js"
 import { constructor, methods, prototypeFrom, receiver } from "./native.js"
@@ -20,7 +20,7 @@ import { type Runner } from "./runner.js"
 import { coerceToString } from "../stdlib/value.js"
 
 export const normalizeError = (error: unknown): Diagnostic => {
-  if (error instanceof InterpreterRuntimeError) {
+  if (error instanceof PendingThrow) {
     return {
       kind: error.kind,
       message: `${error.message}${formatLocation(error.node)}`,
@@ -43,14 +43,15 @@ export const normalizeError = (error: unknown): Diagnostic => {
 
   if (error instanceof ProgramThrow) {
     const value = error.value
+    if (value instanceof ProgramError) {
+      return value.host ? normalizeError(value.host) : { kind: "ExecutionFailure", message: errorToString(value) }
+    }
     let message: string
     if (containsRuntimeReference(value)) {
       // Never expose runtime reference internals through thrown values.
       message = "a non-data value"
     } else if (typeof value === "string") {
       message = value
-    } else if (value instanceof ProgramObject && typeof get(value, "message") === "string") {
-      message = get(value, "message") as string
     } else {
       try {
         message = JSON.stringify(toData(value, "Thrown value")) ?? String(value)
@@ -81,12 +82,45 @@ export const normalizeError = (error: unknown): Diagnostic => {
   }
 }
 
-export const caughtErrorValue = <R>(runner: Runner<R>, thrown: unknown): unknown => {
+/**
+ * Gives a failure the source location of the expression that raised it, keeping the first one attached. Host errors
+ * that escape a built-in become the equivalent program error here.
+ */
+export const locate = (error: unknown, node?: AstNode): unknown => {
+  if (error instanceof PendingThrow) {
+    if (error.node === undefined && node) error.node = node
+    return error
+  }
+  if (error instanceof Error && !(error instanceof ToolError) && !(error instanceof ToolRuntimeError)) {
+    return new PendingThrow(isErrorType(error.name) ? error.name : "Error", error.message, node)
+  }
+  return error
+}
+
+/** The program value a handler receives for a failure; one failure always yields the same value. */
+export const materialize = <R>(runner: Runner<R>, thrown: unknown): unknown => {
   if (thrown instanceof ProgramThrow) return thrown.value
   const prototypes = runner.prototypes
-  if (thrown instanceof InterpreterRuntimeError) return createErrorValue(prototypes[thrown.type], thrown.message)
+  if (thrown instanceof PendingThrow) {
+    if (thrown.value === undefined) {
+      thrown.value = createErrorValue(prototypes[thrown.type], thrown.message)
+      thrown.value.host = thrown
+    }
+    return thrown.value
+  }
   const type = thrown instanceof Error && isErrorType(thrown.name) ? thrown.name : "Error"
   return createErrorValue(prototypes[type], normalizeError(thrown).message)
+}
+
+/** Error.prototype.toString: `name: message`, omitting whichever side is empty. */
+const errorToString = (self: ProgramObject): string => {
+  const name = get(self, "name")
+  const message = get(self, "message")
+  const shownName = name === undefined ? "Error" : coerceToString(name)
+  const shownMessage = message === undefined ? "" : coerceToString(message)
+  if (shownMessage === "") return shownName
+  if (shownName === "") return shownMessage
+  return `${shownName}: ${shownMessage}`
 }
 
 export const createAggregateErrorValue = <R>(
@@ -104,13 +138,10 @@ const constructAggregateErrorValue = <R>(
   runner: Runner<R>,
   args: Array<unknown>,
   proto: ProgramObject,
-  node: AstNode,
 ): Effect.Effect<ProgramError, unknown, R> =>
   Effect.gen(function* () {
-    const cursor = yield* runner.syncIterator(args[0], node)
-    if (cursor === undefined) {
-      throw new InterpreterRuntimeError("new AggregateError(...) expects a synchronous iterable of errors.", node)
-    }
+    const cursor = yield* runner.syncIterator(args[0])
+    if (cursor === undefined) throw typeError("new AggregateError(...) expects a synchronous iterable of errors.")
     const errors: Array<unknown> = []
     while (true) {
       const step = yield* cursor.next
@@ -125,34 +156,21 @@ const constructAggregateErrorValue = <R>(
 export const errorGlobal = <R>(type: ErrorType, runner: Runner<R>) => {
   const protos = runner.prototypes
   const prototype = protos[type]
-  const construct = (args: Array<unknown>, newTarget: Callable, node: AstNode) => {
+  const construct = (args: Array<unknown>, newTarget: Callable) => {
     const proto = prototypeFrom(newTarget, prototype)
     return type === "AggregateError"
-      ? constructAggregateErrorValue(runner, args, proto, node)
+      ? constructAggregateErrorValue(runner, args, proto)
       : Effect.sync(() => createErrorValue(proto, args[0] === undefined ? undefined : coerceToString(args[0])))
   }
   const ctor: NativeFunction<R> = constructor<R>(protos, prototype, {
     name: type,
     length: type === "AggregateError" ? 2 : 1,
-    call: (_, args, node) => construct(args, ctor, node),
+    call: (_, args) => construct(args, ctor),
     construct,
   })
   if (type === "Error") {
     methods(protos, prototype, [
-      [
-        "toString",
-        0,
-        (thisValue, _, node) => {
-          const self = receiver(ProgramObject, thisValue, "Error.prototype.toString", node)
-          const name = get(self, "name")
-          const message = get(self, "message")
-          const shownName = name === undefined ? "Error" : coerceToString(name)
-          const shownMessage = message === undefined ? "" : coerceToString(message)
-          if (shownMessage === "") return shownName
-          if (shownName === "") return shownMessage
-          return `${shownName}: ${shownMessage}`
-        },
-      ],
+      ["toString", 0, (thisValue) => errorToString(receiver(ProgramObject, thisValue, "Error.prototype.toString"))],
     ])
   }
   return ctor

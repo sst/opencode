@@ -1,6 +1,12 @@
 import type { BlockStatement, Expression, Pattern } from "acorn"
 import type { Effect, Fiber } from "effect"
-import { type AstNode, AsyncIteratorSymbol, type Binding, type GeneratorRequestKind, IteratorSymbol } from "./model.js"
+import {
+  AsyncIteratorSymbol,
+  type Binding,
+  type GeneratorRequestKind,
+  IteratorSymbol,
+  type PendingThrow,
+} from "./model.js"
 
 /** Property attributes, as in a JS property descriptor. */
 export type Attributes = {
@@ -42,7 +48,10 @@ export class ProgramArray extends ProgramObject {
 }
 
 /** An object with the [[ErrorData]] slot: what `Error.prototype.toString` and the host boundary recognize as an error. */
-export class ProgramError extends ProgramObject {}
+export class ProgramError extends ProgramObject {
+  /** The interpreter failure this error materialized from, so rethrowing it keeps the diagnostic kind and location. */
+  host?: PendingThrow
+}
 
 export abstract class Callable extends ProgramObject {
   constructor(proto: ProgramObject, name: string, length: number) {
@@ -67,16 +76,8 @@ export class ProgramFunction extends Callable {
   }
 }
 
-export type NativeCall<R> = (
-  thisValue: unknown,
-  args: Array<unknown>,
-  node: AstNode,
-) => Effect.Effect<unknown, unknown, R>
-export type NativeConstruct<R> = (
-  args: Array<unknown>,
-  newTarget: Callable,
-  node: AstNode,
-) => Effect.Effect<unknown, unknown, R>
+export type NativeCall<R> = (thisValue: unknown, args: Array<unknown>) => Effect.Effect<unknown, unknown, R>
+export type NativeConstruct<R> = (args: Array<unknown>, newTarget: Callable) => Effect.Effect<unknown, unknown, R>
 
 export type NativeOptions<R> = {
   readonly name: string
@@ -114,11 +115,7 @@ export class ProgramGenerator extends ProgramObject {
   constructor(
     proto: ProgramObject,
     readonly asynchronous: boolean,
-    readonly request: (
-      kind: GeneratorRequestKind,
-      value: unknown,
-      node: AstNode,
-    ) => Effect.Effect<unknown, unknown, unknown>,
+    readonly request: (kind: GeneratorRequestKind, value: unknown) => Effect.Effect<unknown, unknown, unknown>,
   ) {
     super(proto)
   }
