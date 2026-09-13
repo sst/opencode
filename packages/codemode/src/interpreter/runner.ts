@@ -1,7 +1,7 @@
 import { Effect, Exit } from "effect"
 import { coerceToNumber, coerceToString } from "../stdlib/value.js"
 import type { Prototypes } from "./intrinsics.js"
-import { type AstNode, InterpreterRuntimeError } from "./model.js"
+import { typeError } from "./model.js"
 import { Callable, get, NativeFunction, ProgramDate, ProgramObject, ProgramPromise } from "./objects.js"
 import { typeofValue } from "./references.js"
 
@@ -16,10 +16,9 @@ export type Runner<R> = {
     callable: unknown,
     thisValue: unknown,
     args: Array<unknown>,
-    node: AstNode,
   ) => Effect.Effect<unknown, unknown, R>
   readonly settlePromise: (promise: ProgramPromise) => Effect.Effect<unknown, unknown, never>
-  readonly syncIterator: (value: unknown, node: AstNode) => Effect.Effect<IteratorCursor<R> | undefined, unknown, R>
+  readonly syncIterator: (value: unknown) => Effect.Effect<IteratorCursor<R> | undefined, unknown, R>
   readonly prototypes: Prototypes
 }
 
@@ -41,7 +40,6 @@ export const toPrimitive = <R>(
   runner: Runner<R>,
   value: unknown,
   hint: "number" | "string" | "default",
-  node: AstNode,
 ): Effect.Effect<unknown, unknown, R> => {
   if (!(value instanceof ProgramObject)) return Effect.succeed(value)
   const asString = hint === "string" || (hint === "default" && value instanceof ProgramDate)
@@ -50,18 +48,18 @@ export const toPrimitive = <R>(
     for (const method of order) {
       const callable = get(value, method)
       if (!(callable instanceof Callable)) continue
-      const result = yield* runner.invokeCallable(callable, value, [], node)
+      const result = yield* runner.invokeCallable(callable, value, [])
       if (result === null || (typeof result !== "object" && typeof result !== "function")) return result
     }
-    throw new InterpreterRuntimeError("Cannot convert object to primitive value.", node)
+    throw typeError("Cannot convert object to primitive value.")
   })
 }
 
-export const toPrimitiveString = <R>(runner: Runner<R>, value: unknown, node: AstNode) =>
-  Effect.map(toPrimitive(runner, value, "string", node), coerceToString)
+export const toPrimitiveString = <R>(runner: Runner<R>, value: unknown) =>
+  Effect.map(toPrimitive(runner, value, "string"), coerceToString)
 
-export const toPrimitiveNumber = <R>(runner: Runner<R>, value: unknown, node: AstNode) =>
-  Effect.map(toPrimitive(runner, value, "number", node), coerceToNumber)
+export const toPrimitiveNumber = <R>(runner: Runner<R>, value: unknown) =>
+  Effect.map(toPrimitive(runner, value, "number"), coerceToNumber)
 
 // The single acceptance list for callbacks: collections, sort, string replacers,
 // Array.from mappers, and promise reactions all admit exactly these callables.
@@ -74,16 +72,14 @@ export const applyCollectionCallback = <R>(
   runner: Runner<R>,
   callback: unknown,
   name: string,
-  node: AstNode,
 ): ((args: Array<unknown>) => Effect.Effect<unknown, unknown, R>) => {
   if (!isSupportedCallback(callback)) {
     if (typeofValue(callback) === "function") {
-      throw new InterpreterRuntimeError(
+      throw typeError(
         `${name} cannot use this callable as a callback; wrap it in an arrow function, e.g. (value) => tools.ns.tool(value).`,
-        node,
       )
     }
-    throw new InterpreterRuntimeError(`${name} expects a function callback.`, node)
+    throw typeError(`${name} expects a function callback.`)
   }
-  return (callbackArgs) => runner.invokeCallable(callback, undefined, callbackArgs, node)
+  return (callbackArgs) => runner.invokeCallable(callback, undefined, callbackArgs)
 }

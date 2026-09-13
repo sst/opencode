@@ -3,7 +3,7 @@
 // test262's own assert.js relies on.
 import path from "node:path"
 import { Cause, Effect } from "effect"
-import { caughtErrorValue } from "../../src/interpreter/errors.js"
+import { materialize } from "../../src/interpreter/errors.js"
 import { executeProgram } from "../../src/interpreter/execute.js"
 import type { Host } from "../../src/interpreter/globals.js"
 import { ProgramThrow } from "../../src/interpreter/model.js"
@@ -128,13 +128,13 @@ const harness = <R>(host: Host<R>, onDone: (error: unknown) => void): ReadonlyAr
     [
       "throws",
       3,
-      (_, args, node) => {
+      (_, args) => {
         const expected = args[0] instanceof Callable ? String(get(args[0], "name")) : show(args[0])
-        return host.runner.invokeCallable(args[1], undefined, [], node).pipe(
+        return host.runner.invokeCallable(args[1], undefined, []).pipe(
           Effect.matchCauseEffect({
             onFailure: (cause) => {
               if (cause.reasons.some(Cause.isInterruptReason)) return Effect.failCause(cause)
-              const thrown = caughtErrorValue(host.runner, Cause.squash(cause))
+              const thrown = materialize(host.runner, Cause.squash(cause))
               if (!(thrown instanceof ProgramObject)) return fail(`${prefix(args[2])}Thrown value was not an object!`)
               const actual = get(thrown, "constructor")
               if (actual === args[0]) return Effect.void

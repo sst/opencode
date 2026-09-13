@@ -4,9 +4,10 @@ import { constructor, methods, receiver } from "../interpreter/native.js"
 import {
   type AstNode,
   AsyncIteratorSymbol,
-  InterpreterRuntimeError,
+  invalidData,
   IteratorSymbol,
   rangeError,
+  typeError,
 } from "../interpreter/model.js"
 import {
   Callable,
@@ -34,22 +35,22 @@ import { groupBy } from "./collections.js"
 import { coerceToString } from "./value.js"
 
 // ToObject for enumeration.
-export const enumerableSource = <R>(runner: Runner<R>, label: string, value: unknown, node: AstNode): ProgramObject => {
+export const enumerableSource = <R>(
+  runner: Runner<R>,
+  label: string,
+  value: unknown,
+  node?: AstNode,
+): ProgramObject => {
   if (value === null || value === undefined) {
-    throw new InterpreterRuntimeError(`${label} cannot convert ${describeValue(value)} to an object.`, node)
+    throw typeError(`${label} cannot convert ${describeValue(value)} to an object.`, node)
   }
   if (value instanceof ProgramPromise) {
-    throw new InterpreterRuntimeError(
-      `${label} received an un-awaited Promise; await it before inspecting the result.`,
-      node,
-      "InvalidDataValue",
-    )
+    throw invalidData(`${label} received an un-awaited Promise; await it before inspecting the result.`, node)
   }
   if (value instanceof ToolReference) {
-    throw new InterpreterRuntimeError(
+    throw invalidData(
       `${label} cannot read tool references: they are not plain data. Use Object.keys(tools) for names, or search({ query }) for signatures.`,
       node,
-      "InvalidDataValue",
     )
   }
   if (typeof value === "string") return new ProgramArray(runner.prototypes.Array, [...value])
@@ -57,40 +58,33 @@ export const enumerableSource = <R>(runner: Runner<R>, label: string, value: unk
   return new ProgramObject(runner.prototypes.Object)
 }
 
-export const objectAssign = <R>(runner: Runner<R>, args: Array<unknown>, node: AstNode): unknown => {
+export const objectAssign = <R>(runner: Runner<R>, args: Array<unknown>): unknown => {
   const target = args[0]
   // JS would box a primitive target; wrappers and primitives cannot hold fields here.
   if (!(target instanceof ProgramObject)) {
-    throw new InterpreterRuntimeError(
-      `Object.assign expects a data object or array target, received ${describeValue(target)}.`,
-      node,
-    )
+    throw typeError(`Object.assign expects a data object or array target, received ${describeValue(target)}.`)
   }
   const seen = new Set<object>()
   for (const source of args.slice(1)) {
     if (source === null || source === undefined) continue
-    const from = enumerableSource(runner, "Object.assign(...)", source, node)
+    const from = enumerableSource(runner, "Object.assign(...)", source)
     for (const key of enumerableKeys(from)) {
-      rejectCircularInsertion(target, getOwn(from, key), "Object.assign result", node, seen)
+      rejectCircularInsertion(target, getOwn(from, key), "Object.assign result", seen)
       if (!set(target, key, getOwn(from, key))) {
-        if (target instanceof ProgramArray && key === "length") throw rangeError("Invalid array length", node)
-        throw new InterpreterRuntimeError(`Cannot assign to read only property '${String(key)}'.`, node)
+        if (target instanceof ProgramArray && key === "length") throw rangeError("Invalid array length")
+        throw typeError(`Cannot assign to read only property '${String(key)}'.`)
       }
     }
   }
   return target
 }
 
-const objectFromEntries = <R>(
-  runner: Runner<R>,
-  source: unknown,
-  node: AstNode,
-): Effect.Effect<ProgramObject, unknown, R> => {
+const objectFromEntries = <R>(runner: Runner<R>, source: unknown): Effect.Effect<ProgramObject, unknown, R> => {
   const out = new ProgramObject(runner.prototypes.Object)
   return Effect.gen(function* () {
-    const cursor = yield* runner.syncIterator(source, node)
+    const cursor = yield* runner.syncIterator(source)
     if (cursor === undefined) {
-      throw new InterpreterRuntimeError("Object.fromEntries expects a synchronous iterable of entries.", node)
+      throw typeError("Object.fromEntries expects a synchronous iterable of entries.")
     }
     while (true) {
       const step = yield* cursor.next
@@ -99,7 +93,7 @@ const objectFromEntries = <R>(
         cursor,
         Effect.sync(() => {
           if (!(step.value instanceof ProgramObject) || containsOpaqueReference(step.value)) {
-            throw new InterpreterRuntimeError("Object.fromEntries expects [key, value] entry objects.", node)
+            throw typeError("Object.fromEntries expects [key, value] entry objects.")
           }
           define(out, coerceToString(getOwn(step.value, 0)), getOwn(step.value, 1))
         }),
@@ -132,91 +126,83 @@ export const objectGlobal = <R>(
   toolKeys: (path: ReadonlyArray<string>) => ReadonlyArray<string>,
 ) => {
   const protos = runner.prototypes
-  const construct = (args: Array<unknown>, node: AstNode): unknown => {
+  const construct = (args: Array<unknown>): unknown => {
     const first = args[0]
     if (first === null || first === undefined) return new ProgramObject(protos.Object)
     if (typeof first === "object") return first
-    throw new InterpreterRuntimeError(
-      `Object(${typeof first}) wrapper objects are not supported; use the primitive value directly.`,
-      node,
-    )
+    throw typeError(`Object(${typeof first}) wrapper objects are not supported; use the primitive value directly.`)
   }
   const object = constructor<R>(protos, protos.Object, {
     name: "Object",
     length: 1,
-    call: (_, args, node) => Effect.sync(() => construct(args, node)),
-    construct: (args, _, node) => Effect.sync(() => construct(args, node)),
+    call: (_, args) => Effect.sync(() => construct(args)),
+    construct: (args) => Effect.sync(() => construct(args)),
   })
   methods(protos, object, [
     [
       "keys",
       1,
-      (_, args, node) =>
+      (_, args) =>
         toProgram(
           protos,
           args[0] instanceof ToolReference
             ? [...toolKeys(args[0].path)]
-            : keys(enumerableSource(runner, "Object.keys(...)", args[0], node)),
+            : keys(enumerableSource(runner, "Object.keys(...)", args[0])),
           "Object.keys result",
         ),
     ],
     [
       "values",
       1,
-      (_, args, node) =>
+      (_, args) =>
         new ProgramArray(
           protos.Array,
-          entries(enumerableSource(runner, "Object.values(...)", args[0], node)).map((entry) => entry[1]),
+          entries(enumerableSource(runner, "Object.values(...)", args[0])).map((entry) => entry[1]),
         ),
     ],
     [
       "entries",
       1,
-      (_, args, node) =>
+      (_, args) =>
         new ProgramArray(
           protos.Array,
-          entries(enumerableSource(runner, "Object.entries(...)", args[0], node)).map(
+          entries(enumerableSource(runner, "Object.entries(...)", args[0])).map(
             (entry) => new ProgramArray(protos.Array, entry),
           ),
         ),
     ],
-    [
-      "hasOwn",
-      2,
-      (_, args, node) => hasOwn(enumerableSource(runner, "Object.hasOwn(...)", args[0], node), propertyKey(args[1])),
-    ],
+    ["hasOwn", 2, (_, args) => hasOwn(enumerableSource(runner, "Object.hasOwn(...)", args[0]), propertyKey(args[1]))],
     [
       "is",
       2,
-      (_, args, node) => {
+      (_, args) => {
         if (containsOpaqueReference(args[0]) || containsOpaqueReference(args[1])) {
-          throw new InterpreterRuntimeError("Object.is requires data values.", node, "InvalidDataValue")
+          throw invalidData("Object.is requires data values.")
         }
         return Object.is(args[0], args[1])
       },
     ],
-    ["assign", 2, (_, args, node) => objectAssign(runner, args, node)],
-    ["fromEntries", 1, (_, args, node) => objectFromEntries(runner, args[0], node)],
+    ["assign", 2, (_, args) => objectAssign(runner, args)],
+    ["fromEntries", 1, (_, args) => objectFromEntries(runner, args[0])],
   ])
   define(object, "groupBy", groupBy(runner, "Object"), hidden)
   methods(protos, protos.Object, [
     [
       "hasOwnProperty",
       1,
-      (thisValue, args, node) =>
-        hasOwn(receiver(ProgramObject, thisValue, "Object.prototype.hasOwnProperty", node), propertyKey(args[0])),
+      (thisValue, args) =>
+        hasOwn(receiver(ProgramObject, thisValue, "Object.prototype.hasOwnProperty"), propertyKey(args[0])),
     ],
     [
       "isPrototypeOf",
       1,
-      (thisValue, args, node) =>
-        hasPrototype(args[0], receiver(ProgramObject, thisValue, "Object.prototype.isPrototypeOf", node)),
+      (thisValue, args) => hasPrototype(args[0], receiver(ProgramObject, thisValue, "Object.prototype.isPrototypeOf")),
     ],
     [
       "propertyIsEnumerable",
       1,
-      (thisValue, args, node) =>
-        own(receiver(ProgramObject, thisValue, "Object.prototype.propertyIsEnumerable", node), propertyKey(args[0]))
+      (thisValue, args) =>
+        own(receiver(ProgramObject, thisValue, "Object.prototype.propertyIsEnumerable"), propertyKey(args[0]))
           ?.enumerable === true,
     ],
     ["toString", 0, (thisValue) => `[object ${classTag(thisValue)}]`],
@@ -224,9 +210,9 @@ export const objectGlobal = <R>(
     [
       "valueOf",
       0,
-      (thisValue, _, node) => {
+      (thisValue) => {
         if (thisValue === null || thisValue === undefined) {
-          throw new InterpreterRuntimeError("Object.prototype.valueOf called on null or undefined.", node)
+          throw typeError("Object.prototype.valueOf called on null or undefined.")
         }
         return thisValue
       },

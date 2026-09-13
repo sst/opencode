@@ -1,6 +1,7 @@
 import type { Node } from "acorn"
 import type { ErrorType } from "./intrinsics.js"
 import type { DiagnosticKind } from "../codemode.js"
+import type { ProgramError } from "./objects.js"
 
 /** Any parsed node; the interpreter narrows on `type` and reads `loc` for diagnostics. */
 export type AstNode = Node
@@ -33,32 +34,31 @@ export class GeneratorReturn {
 
 export const OptionalShortCircuit: unique symbol = Symbol("codemode.optional-short-circuit")
 
-export class InterpreterRuntimeError extends Error {
-  readonly node?: AstNode
+/**
+ * A failure raised by the interpreter or a built-in. It travels as a defect and becomes one program Error object
+ * the first time a handler observes it, so every observer of the same failure sees the same value.
+ */
+export class PendingThrow {
+  node?: AstNode
+  value?: ProgramError
 
   constructor(
-    message: string,
+    /** The JS error class a program sees when it catches this failure. */
+    readonly type: ErrorType,
+    readonly message: string,
     node?: AstNode,
     readonly kind: DiagnosticKind = "ExecutionFailure",
     readonly suggestions?: ReadonlyArray<string>,
-    /** The JS error class a program sees when it catches this failure. */
-    readonly type: ErrorType = "TypeError",
   ) {
-    super(message)
-    this.name = "InterpreterRuntimeError"
     if (node) this.node = node
   }
 }
 
-/** Attaches a source location to a failure raised where none was known, such as inside a property accessor. */
-export const locate = (error: unknown, node: AstNode): unknown =>
-  error instanceof InterpreterRuntimeError && error.node === undefined
-    ? new InterpreterRuntimeError(error.message, node, error.kind, error.suggestions, error.type)
-    : error
+const failure = (type: ErrorType, kind?: DiagnosticKind) => (message: string, node?: AstNode) =>
+  new PendingThrow(type, message, node, kind)
 
-const failure = (type: ErrorType) => (message: string, node?: AstNode) =>
-  new InterpreterRuntimeError(message, node, "ExecutionFailure", undefined, type)
-
+export const typeError = failure("TypeError")
+export const invalidData = failure("TypeError", "InvalidDataValue")
 export const rangeError = failure("RangeError")
 export const referenceError = failure("ReferenceError")
 export const syntaxError = failure("SyntaxError")
@@ -68,13 +68,13 @@ export const uriError = failure("URIError")
 export const supportedSyntaxMessage =
   "This is a restricted JavaScript-like language. Supported: plain and async functions, data literals, destructuring, standard control flow, await and Promise, and built-ins such as Array, Object, Math, JSON, Date, RegExp, Map, Set, and URL. Unsupported: classes, this, getters/setters, tagged templates, BigInt, and custom Symbols. Use plain functions and data objects instead."
 
-export const unsupportedSyntax = (kind: string, node: AstNode): InterpreterRuntimeError =>
-  new InterpreterRuntimeError(
+export const unsupportedSyntax = (kind: string, node: AstNode): PendingThrow =>
+  new PendingThrow(
+    "SyntaxError",
     `Syntax '${kind}' is not supported. ${supportedSyntaxMessage}`,
     node,
     "UnsupportedSyntax",
     [supportedSyntaxMessage],
-    "SyntaxError",
   )
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>

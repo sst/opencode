@@ -1,5 +1,5 @@
 import { ToolReference } from "../tool-runtime.js"
-import { type AstNode, InterpreterRuntimeError } from "./model.js"
+import { invalidData } from "./model.js"
 import {
   Callable,
   getOwn,
@@ -66,11 +66,10 @@ export const rejectCircularInsertion = (
   container: object,
   value: unknown,
   label: string,
-  node: AstNode,
   seen = new Set<object>(),
 ): void => {
   if (find(value, (current) => current === container, isRuntimeReference, seen)) {
-    throw new InterpreterRuntimeError(`${label} contains a circular value.`, node, "InvalidDataValue")
+    throw invalidData(`${label} contains a circular value.`)
   }
 }
 

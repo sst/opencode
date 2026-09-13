@@ -1,6 +1,6 @@
 import { Effect } from "effect"
 import { constructor, fn, type Method, methods, prototypeFrom, receiver, requiresNew } from "../interpreter/native.js"
-import { type AstNode, InterpreterRuntimeError } from "../interpreter/model.js"
+import { invalidData, typeError } from "../interpreter/model.js"
 import {
   define,
   defineAccessor,
@@ -24,35 +24,27 @@ import {
   toPrimitiveString,
 } from "../interpreter/runner.js"
 
-const coerceGroupByPropertyKey = <R>(
-  runner: Runner<R>,
-  value: unknown,
-  node: AstNode,
-): Effect.Effect<string, unknown, R> => {
+const coerceGroupByPropertyKey = <R>(runner: Runner<R>, value: unknown): Effect.Effect<string, unknown, R> => {
   if (value instanceof ProgramPromise) return Effect.succeed("[object Promise]")
   if (!isWrapper(value) && isRuntimeReference(value)) {
-    throw new InterpreterRuntimeError(
-      `Object.groupBy callback must return a data value, received ${describeValue(value)}.`,
-      node,
-      "InvalidDataValue",
-    )
+    throw invalidData(`Object.groupBy callback must return a data value, received ${describeValue(value)}.`)
   }
-  return toPrimitiveString(runner, value, node)
+  return toPrimitiveString(runner, value)
 }
 
 /** `Map.groupBy` and `Object.groupBy`: the same iteration, keyed into a Map or a data object. */
 export const groupBy = <R>(runner: Runner<R>, namespace: "Map" | "Object") =>
-  fn<R>(runner.prototypes, "groupBy", 2, (_, args, node) => {
+  fn<R>(runner.prototypes, "groupBy", 2, (_, args) => {
     const protos = runner.prototypes
     const source = args[0]
     if (source === null || source === undefined) {
-      throw new InterpreterRuntimeError(`${namespace}.groupBy expects an iterable collection.`, node)
+      throw typeError(`${namespace}.groupBy expects an iterable collection.`)
     }
-    const apply = applyCollectionCallback(runner, args[1], `${namespace}.groupBy`, node)
+    const apply = applyCollectionCallback(runner, args[1], `${namespace}.groupBy`)
     return Effect.gen(function* () {
-      const cursor = yield* runner.syncIterator(source, node)
+      const cursor = yield* runner.syncIterator(source)
       if (cursor === undefined) {
-        throw new InterpreterRuntimeError(`${namespace}.groupBy expects an iterable collection.`, node)
+        throw typeError(`${namespace}.groupBy expects an iterable collection.`)
       }
       if (namespace === "Map") {
         const result = new ProgramMap(protos.Map)
@@ -78,7 +70,7 @@ export const groupBy = <R>(runner: Runner<R>, namespace: "Map" | "Object") =>
         const item = step.value
         const key = yield* preserveConsumerError(
           cursor,
-          Effect.flatMap(apply([item, index]), (value) => coerceGroupByPropertyKey(runner, value, node)),
+          Effect.flatMap(apply([item, index]), (value) => coerceGroupByPropertyKey(runner, value)),
         )
         const group = getOwn(result, key)
         if (group === undefined) define(result, key, new ProgramArray(protos.Array, [item]))
@@ -88,13 +80,13 @@ export const groupBy = <R>(runner: Runner<R>, namespace: "Map" | "Object") =>
     })
   })
 
-const constructMap = <R>(runner: Runner<R>, init: unknown, proto: ProgramObject, node: AstNode) => {
+const constructMap = <R>(runner: Runner<R>, init: unknown, proto: ProgramObject) => {
   const target = new ProgramMap(proto)
   if (init === undefined || init === null) return Effect.succeed(target)
   return Effect.gen(function* () {
-    const cursor = yield* runner.syncIterator(init, node)
+    const cursor = yield* runner.syncIterator(init)
     if (cursor === undefined) {
-      throw new InterpreterRuntimeError("new Map(...) expects an iterable of [key, value] pairs or no argument.", node)
+      throw typeError("new Map(...) expects an iterable of [key, value] pairs or no argument.")
     }
     while (true) {
       const step = yield* cursor.next
@@ -103,7 +95,7 @@ const constructMap = <R>(runner: Runner<R>, init: unknown, proto: ProgramObject,
         cursor,
         Effect.sync(() => {
           if (!(step.value instanceof ProgramObject)) {
-            throw new InterpreterRuntimeError("new Map(...) expects [key, value] pairs as entry objects.", node)
+            throw typeError("new Map(...) expects [key, value] pairs as entry objects.")
           }
           target.map.set(getOwn(step.value, 0), getOwn(step.value, 1))
         }),
@@ -112,13 +104,13 @@ const constructMap = <R>(runner: Runner<R>, init: unknown, proto: ProgramObject,
   })
 }
 
-const constructSet = <R>(runner: Runner<R>, init: unknown, proto: ProgramObject, node: AstNode) => {
+const constructSet = <R>(runner: Runner<R>, init: unknown, proto: ProgramObject) => {
   const target = new ProgramSet(proto)
   if (init === undefined || init === null) return Effect.succeed(target)
   return Effect.gen(function* () {
-    const cursor = yield* runner.syncIterator(init, node)
+    const cursor = yield* runner.syncIterator(init)
     if (cursor === undefined) {
-      throw new InterpreterRuntimeError("new Set(...) expects a synchronous iterable or no argument.", node)
+      throw typeError("new Set(...) expects a synchronous iterable or no argument.")
     }
     while (true) {
       const step = yield* cursor.next
@@ -134,48 +126,46 @@ export const mapGlobal = <R>(runner: Runner<R>) => {
   const map = constructor<R>(protos, proto, {
     name: "Map",
     call: requiresNew("Map"),
-    construct: (args, newTarget, node) => constructMap(runner, args[0], prototypeFrom(newTarget, proto), node),
+    construct: (args, newTarget) => constructMap(runner, args[0], prototypeFrom(newTarget, proto)),
   })
   define(map, "groupBy", groupBy(runner, "Map"), hidden)
-  const self = (thisValue: unknown, name: string, node: AstNode) =>
-    receiver(ProgramMap, thisValue, `Map.prototype.${name}`, node)
+  const self = (thisValue: unknown, name: string) => receiver(ProgramMap, thisValue, `Map.prototype.${name}`)
   const wrap = (items: Array<unknown>) => new ProgramArray(protos.Array, items)
   defineAccessor(proto, "size", (thisValue) => receiver(ProgramMap, thisValue, "Map.prototype.size").map.size)
   methods(protos, proto, [
-    ["get", 1, (thisValue, args, node) => self(thisValue, "get", node).map.get(args[0])],
-    ["has", 1, (thisValue, args, node) => self(thisValue, "has", node).map.has(args[0])],
+    ["get", 1, (thisValue, args) => self(thisValue, "get").map.get(args[0])],
+    ["has", 1, (thisValue, args) => self(thisValue, "has").map.has(args[0])],
     [
       "set",
       2,
-      (thisValue, args, node) => {
-        const target = self(thisValue, "set", node)
+      (thisValue, args) => {
+        const target = self(thisValue, "set")
         target.map.set(args[0], args[1])
         return target
       },
     ],
-    ["delete", 1, (thisValue, args, node) => self(thisValue, "delete", node).map.delete(args[0])],
+    ["delete", 1, (thisValue, args) => self(thisValue, "delete").map.delete(args[0])],
     [
       "clear",
       0,
-      (thisValue, _, node) => {
-        self(thisValue, "clear", node).map.clear()
+      (thisValue) => {
+        self(thisValue, "clear").map.clear()
         return undefined
       },
     ],
-    ["keys", 0, (thisValue, _, node) => wrap(Array.from(self(thisValue, "keys", node).map.keys()))],
-    ["values", 0, (thisValue, _, node) => wrap(Array.from(self(thisValue, "values", node).map.values()))],
+    ["keys", 0, (thisValue) => wrap(Array.from(self(thisValue, "keys").map.keys()))],
+    ["values", 0, (thisValue) => wrap(Array.from(self(thisValue, "values").map.values()))],
     [
       "entries",
       0,
-      (thisValue, _, node) =>
-        wrap(Array.from(self(thisValue, "entries", node).map.entries(), ([key, item]) => wrap([key, item]))),
+      (thisValue) => wrap(Array.from(self(thisValue, "entries").map.entries(), ([key, item]) => wrap([key, item]))),
     ],
     [
       "forEach",
       1,
-      (thisValue, args, node) => {
-        const target = self(thisValue, "forEach", node)
-        const apply = applyCollectionCallback(runner, args[0], "Map.forEach", node)
+      (thisValue, args) => {
+        const target = self(thisValue, "forEach")
+        const apply = applyCollectionCallback(runner, args[0], "Map.forEach")
         return Effect.gen(function* () {
           for (const [key, item] of Array.from(target.map.entries())) yield* apply([item, key, target])
           return undefined
@@ -196,7 +186,6 @@ const loadSetRecord = <R>(
   runner: Runner<R>,
   source: unknown,
   name: string,
-  node: AstNode,
 ): Effect.Effect<SetRecord<R>, unknown, R> => {
   if (source instanceof ProgramSet) {
     return Effect.succeed({
@@ -213,25 +202,25 @@ const loadSetRecord = <R>(
     })
   }
   if (!(source instanceof ProgramObject)) {
-    throw new InterpreterRuntimeError(`Set.${name} expects a Set-like object.`, node)
+    throw typeError(`Set.${name} expects a Set-like object.`)
   }
   return Effect.gen(function* () {
-    const size = yield* toPrimitiveNumber(runner, get(source, "size"), node)
+    const size = yield* toPrimitiveNumber(runner, get(source, "size"))
     if (Number.isNaN(size)) {
-      throw new InterpreterRuntimeError(`Set.${name} received a Set-like object with an invalid size.`, node)
+      throw typeError(`Set.${name} received a Set-like object with an invalid size.`)
     }
     const has = get(source, "has")
     const keys = get(source, "keys")
     if (!isSupportedCallback(has) || !isSupportedCallback(keys)) {
-      throw new InterpreterRuntimeError(`Set.${name} expects callable 'has' and 'keys' methods.`, node)
+      throw typeError(`Set.${name} expects callable 'has' and 'keys' methods.`)
     }
     return {
       size: Math.max(Math.trunc(size), 0),
-      has: (item: unknown) => Effect.map(runner.invokeCallable(has, source, [item], node), Boolean),
+      has: (item: unknown) => Effect.map(runner.invokeCallable(has, source, [item]), Boolean),
       keys: () =>
-        Effect.flatMap(runner.invokeCallable(keys, source, [], node), (result) => {
+        Effect.flatMap(runner.invokeCallable(keys, source, []), (result) => {
           if (result instanceof ProgramArray) return Effect.succeed(result.items)
-          throw new InterpreterRuntimeError(`Set.${name} expected 'keys' to return an iterator.`, node)
+          throw typeError(`Set.${name} expected 'keys' to return an iterator.`)
         }),
     }
   })
@@ -242,10 +231,9 @@ const setOperation = <R>(
   target: ProgramSet,
   name: string,
   source: unknown,
-  node: AstNode,
 ): Effect.Effect<unknown, unknown, R> =>
   Effect.gen(function* () {
-    const other = yield* loadSetRecord(runner, source, name, node)
+    const other = yield* loadSetRecord(runner, source, name)
     const copy = () => {
       const result = new ProgramSet(runner.prototypes.Set)
       for (const item of target.set.values()) result.set.add(item)
@@ -320,51 +308,49 @@ export const setGlobal = <R>(runner: Runner<R>) => {
   const set = constructor<R>(protos, proto, {
     name: "Set",
     call: requiresNew("Set"),
-    construct: (args, newTarget, node) => constructSet(runner, args[0], prototypeFrom(newTarget, proto), node),
+    construct: (args, newTarget) => constructSet(runner, args[0], prototypeFrom(newTarget, proto)),
   })
-  const self = (thisValue: unknown, name: string, node: AstNode) =>
-    receiver(ProgramSet, thisValue, `Set.prototype.${name}`, node)
+  const self = (thisValue: unknown, name: string) => receiver(ProgramSet, thisValue, `Set.prototype.${name}`)
   const wrap = (items: Array<unknown>) => new ProgramArray(protos.Array, items)
   const operation = (name: string): Method => [
     name,
     1,
-    (thisValue, args, node) => setOperation(runner, self(thisValue, name, node), name, args[0], node),
+    (thisValue, args) => setOperation(runner, self(thisValue, name), name, args[0]),
   ]
   defineAccessor(proto, "size", (thisValue) => receiver(ProgramSet, thisValue, "Set.prototype.size").set.size)
   methods(protos, proto, [
-    ["has", 1, (thisValue, args, node) => self(thisValue, "has", node).set.has(args[0])],
+    ["has", 1, (thisValue, args) => self(thisValue, "has").set.has(args[0])],
     [
       "add",
       1,
-      (thisValue, args, node) => {
-        const target = self(thisValue, "add", node)
+      (thisValue, args) => {
+        const target = self(thisValue, "add")
         target.set.add(args[0])
         return target
       },
     ],
-    ["delete", 1, (thisValue, args, node) => self(thisValue, "delete", node).set.delete(args[0])],
+    ["delete", 1, (thisValue, args) => self(thisValue, "delete").set.delete(args[0])],
     [
       "clear",
       0,
-      (thisValue, _, node) => {
-        self(thisValue, "clear", node).set.clear()
+      (thisValue) => {
+        self(thisValue, "clear").set.clear()
         return undefined
       },
     ],
-    ["keys", 0, (thisValue, _, node) => wrap(Array.from(self(thisValue, "keys", node).set.values()))],
-    ["values", 0, (thisValue, _, node) => wrap(Array.from(self(thisValue, "values", node).set.values()))],
+    ["keys", 0, (thisValue) => wrap(Array.from(self(thisValue, "keys").set.values()))],
+    ["values", 0, (thisValue) => wrap(Array.from(self(thisValue, "values").set.values()))],
     [
       "entries",
       0,
-      (thisValue, _, node) =>
-        wrap(Array.from(self(thisValue, "entries", node).set.values(), (item) => wrap([item, item]))),
+      (thisValue) => wrap(Array.from(self(thisValue, "entries").set.values(), (item) => wrap([item, item]))),
     ],
     [
       "forEach",
       1,
-      (thisValue, args, node) => {
-        const target = self(thisValue, "forEach", node)
-        const apply = applyCollectionCallback(runner, args[0], "Set.forEach", node)
+      (thisValue, args) => {
+        const target = self(thisValue, "forEach")
+        const apply = applyCollectionCallback(runner, args[0], "Set.forEach")
         return Effect.gen(function* () {
           for (const item of Array.from(target.set.values())) yield* apply([item, item, target])
           return undefined

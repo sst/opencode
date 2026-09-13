@@ -347,7 +347,7 @@ describe("CodeMode console capture", () => {
     )
 
     expect(result.ok ? undefined : result.logs).toStrictEqual(["before failure"])
-    expect(result.ok ? undefined : result.error.message).toBe("Uncaught: boom")
+    expect(result.ok ? undefined : result.error.message).toBe("Error: boom")
   })
 
   test("prints NaN and Infinity literally instead of the JSON null", async () => {

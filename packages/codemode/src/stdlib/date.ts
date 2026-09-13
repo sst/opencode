@@ -1,16 +1,16 @@
 import { Effect } from "effect"
 import { constructor, type Method, methods, prototypeFrom, receiver } from "../interpreter/native.js"
-import { type AstNode, rangeError } from "../interpreter/model.js"
+import { rangeError } from "../interpreter/model.js"
 import { ProgramDate, ProgramObject } from "../interpreter/objects.js"
 import { type Runner, toPrimitive, toPrimitiveNumber } from "../interpreter/runner.js"
 import { coerceToNumber, coerceToString } from "./value.js"
 
-const constructDate = <R>(runner: Runner<R>, args: Array<unknown>, proto: ProgramObject, node: AstNode) => {
+const constructDate = <R>(runner: Runner<R>, args: Array<unknown>, proto: ProgramObject) => {
   if (args.length === 0) return Effect.succeed(new ProgramDate(proto, Date.now()))
   if (args.length === 1) {
     const arg = args[0]
     if (arg instanceof ProgramDate) return Effect.succeed(new ProgramDate(proto, arg.time))
-    return Effect.map(toPrimitive(runner, arg, "default", node), (value) =>
+    return Effect.map(toPrimitive(runner, arg, "default"), (value) =>
       typeof value === "string"
         ? new ProgramDate(proto, Date.parse(value))
         : new ProgramDate(proto, new Date(coerceToNumber(value)).getTime()),
@@ -74,7 +74,7 @@ export const dateGlobal = <R>(runner: Runner<R>) => {
     length: 7,
     // ISO instead of the host's locale string: date strings are deterministic and must not leak the host timezone.
     call: () => Effect.sync(() => new Date().toISOString()),
-    construct: (args, newTarget, node) => constructDate(runner, args, prototypeFrom(newTarget, proto), node),
+    construct: (args, newTarget) => constructDate(runner, args, prototypeFrom(newTarget, proto)),
   })
   methods(protos, date, [
     ["now", 0, () => Date.now()],
@@ -82,42 +82,39 @@ export const dateGlobal = <R>(runner: Runner<R>) => {
     ["UTC", 7, (_, args) => Date.UTC(...(args.map((arg) => coerceToNumber(arg)) as Parameters<typeof Date.UTC>))],
   ])
 
-  const self = (thisValue: unknown, name: string, node: AstNode) =>
-    receiver(ProgramDate, thisValue, `Date.prototype.${name}`, node)
-  const iso = (value: ProgramDate, node: AstNode) => {
-    if (!Number.isFinite(value.time)) throw rangeError("Invalid time value.", node)
+  const self = (thisValue: unknown, name: string) => receiver(ProgramDate, thisValue, `Date.prototype.${name}`)
+  const iso = (value: ProgramDate) => {
+    if (!Number.isFinite(value.time)) throw rangeError("Invalid time value.")
     return new Date(value.time).toISOString()
   }
   methods(protos, proto, [
-    ["getTime", 0, (thisValue, _, node) => self(thisValue, "getTime", node).time],
-    ["valueOf", 0, (thisValue, _, node) => self(thisValue, "valueOf", node).time],
-    ["toISOString", 0, (thisValue, _, node) => iso(self(thisValue, "toISOString", node), node)],
+    ["getTime", 0, (thisValue) => self(thisValue, "getTime").time],
+    ["valueOf", 0, (thisValue) => self(thisValue, "valueOf").time],
+    ["toISOString", 0, (thisValue) => iso(self(thisValue, "toISOString"))],
     [
       "toJSON",
       1,
-      (thisValue, _, node) => {
-        const value = self(thisValue, "toJSON", node)
-        return Number.isFinite(value.time) ? iso(value, node) : null
+      (thisValue) => {
+        const value = self(thisValue, "toJSON")
+        return Number.isFinite(value.time) ? iso(value) : null
       },
     ],
-    ["toString", 0, (thisValue, _, node) => coerceToString(self(thisValue, "toString", node))],
-    ["toDateString", 0, (thisValue, _, node) => new Date(self(thisValue, "toDateString", node).time).toDateString()],
-    ["toTimeString", 0, (thisValue, _, node) => new Date(self(thisValue, "toTimeString", node).time).toTimeString()],
-    ["toUTCString", 0, (thisValue, _, node) => new Date(self(thisValue, "toUTCString", node).time).toUTCString()],
-    ["toGMTString", 0, (thisValue, _, node) => new Date(self(thisValue, "toGMTString", node).time).toUTCString()],
-    ...getters.map(
-      (name): Method => [name, 0, (thisValue, _, node) => new Date(self(thisValue, name, node).time)[name]()],
-    ),
+    ["toString", 0, (thisValue) => coerceToString(self(thisValue, "toString"))],
+    ["toDateString", 0, (thisValue) => new Date(self(thisValue, "toDateString").time).toDateString()],
+    ["toTimeString", 0, (thisValue) => new Date(self(thisValue, "toTimeString").time).toTimeString()],
+    ["toUTCString", 0, (thisValue) => new Date(self(thisValue, "toUTCString").time).toUTCString()],
+    ["toGMTString", 0, (thisValue) => new Date(self(thisValue, "toGMTString").time).toUTCString()],
+    ...getters.map((name): Method => [name, 0, (thisValue) => new Date(self(thisValue, name).time)[name]()]),
     ...setters.map(
       ([name, length]): Method => [
         name,
         length,
-        (thisValue, args, node) => {
-          const target = self(thisValue, name, node)
+        (thisValue, args) => {
+          const target = self(thisValue, name)
           // Native setters read the current time before argument coercion, whose callbacks may mutate the Date.
           const hosted = new Date(target.time)
           return Effect.map(
-            Effect.forEach(args.slice(0, length), (arg) => toPrimitiveNumber(runner, arg, node), {
+            Effect.forEach(args.slice(0, length), (arg) => toPrimitiveNumber(runner, arg), {
               concurrency: 1,
             }),
             (values) => {

@@ -1,6 +1,6 @@
 import { Effect } from "effect"
 import { constants, type Method, methods } from "../interpreter/native.js"
-import { type AstNode, InterpreterRuntimeError } from "../interpreter/model.js"
+import { typeError } from "../interpreter/model.js"
 import { ProgramObject } from "../interpreter/objects.js"
 import { preserveConsumerError, type Runner } from "../interpreter/runner.js"
 
@@ -13,32 +13,28 @@ declare global {
 
 // Validate only the arguments a method consumes; like JS, extras are ignored
 // (so built-ins work as callbacks receiving (element, index, array)).
-const number = (name: string, args: Array<unknown>, index: number, node: AstNode): number => {
+const number = (name: string, args: Array<unknown>, index: number): number => {
   if (index >= args.length) return Number.NaN
   const arg = args[index]
-  if (typeof arg !== "number") throw new InterpreterRuntimeError(`Math.${name} expects number arguments.`, node)
+  if (typeof arg !== "number") throw typeError(`Math.${name} expects number arguments.`)
   return arg
 }
 
-const unary = (name: string, op: (a: number) => number): Method => [
-  name,
-  1,
-  (_, args, node) => op(number(name, args, 0, node)),
-]
+const unary = (name: string, op: (a: number) => number): Method => [name, 1, (_, args) => op(number(name, args, 0))]
 
 const binary = (name: string, op: (a: number, b: number) => number): Method => [
   name,
   2,
-  (_, args, node) => op(number(name, args, 0, node), number(name, args, 1, node)),
+  (_, args) => op(number(name, args, 0), number(name, args, 1)),
 ]
 
 const variadic = (name: string, op: (...values: Array<number>) => number): Method => [
   name,
   2,
-  (_, args, node) =>
+  (_, args) =>
     op(
       ...args.map((arg) => {
-        if (typeof arg !== "number") throw new InterpreterRuntimeError(`Math.${name} expects number arguments.`, node)
+        if (typeof arg !== "number") throw typeError(`Math.${name} expects number arguments.`)
         return arg
       }),
     ),
@@ -97,11 +93,11 @@ export const mathGlobal = <R>(runner: Runner<R>) => {
     [
       "sumPrecise",
       1,
-      (_, args, node) =>
+      (_, args) =>
         Effect.gen(function* () {
-          const cursor = yield* runner.syncIterator(args[0], node)
+          const cursor = yield* runner.syncIterator(args[0])
           if (cursor === undefined) {
-            throw new InterpreterRuntimeError("Math.sumPrecise expects a synchronous iterable.", node)
+            throw typeError("Math.sumPrecise expects a synchronous iterable.")
           }
           const numbers: Array<number> = []
           while (true) {
@@ -111,7 +107,7 @@ export const mathGlobal = <R>(runner: Runner<R>) => {
               cursor,
               Effect.sync(() => {
                 if (typeof step.value !== "number") {
-                  throw new InterpreterRuntimeError("Math.sumPrecise expects an iterable of numbers.", node)
+                  throw typeError("Math.sumPrecise expects an iterable of numbers.")
                 }
                 numbers.push(step.value)
               }),
