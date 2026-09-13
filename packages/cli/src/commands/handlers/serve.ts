@@ -7,6 +7,7 @@ import { Context, Layer, Option } from "effect"
 import * as Effect from "effect/Effect"
 import { HttpRouter, HttpServer } from "effect/unstable/http"
 import { createServer } from "node:http"
+import { bridgeClientDisconnect } from "@opencode-ai/core/util/http-server"
 import { createRoutes } from "@opencode-ai/server/routes"
 import { Commands } from "../commands"
 import { Runtime } from "../../framework/runtime"
@@ -39,7 +40,7 @@ function listen(hostname: string, port: Option.Option<number>, password: string)
 function bind(hostname: string, port: number, password: string) {
   return Layer.build(
     HttpRouter.serve(createRoutes(password), { disableListenLog: true, disableLogger: true }).pipe(
-      Layer.provideMerge(NodeHttpServer.layer(() => createServer(), { port, host: hostname })),
+      Layer.provideMerge(NodeHttpServer.layer(() => bridgeClientDisconnect(createServer()), { port, host: hostname })),
       Layer.provide(AppNodeBuilder.build(LayerNode.group([Credential.node, PermissionSaved.node]))),
     ),
   ).pipe(Effect.map((context) => Context.get(context, HttpServer.HttpServer).address))
