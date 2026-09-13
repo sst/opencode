@@ -402,6 +402,7 @@ This is separate from `opencode.json`, which configures server/runtime behavior.
 - `cursor` - Controls the terminal cursor in TUI input fields. `style` defaults to `"block"`, can be `"underline"`, `"line"`, or `"default"`; `blinking` defaults to `true`. When `style` is `"default"`, the terminal default cursor is restored, so `blinking` has no effect.
 - `mouse` - Enable or disable mouse capture in the TUI (default: `true`). When disabled, the terminal's native mouse selection/scrolling behavior is preserved.
 - `attention` - Configures TUI desktop notifications and sounds. Disabled by default.
+- `plugin_enabled` - Enables or disables individual TUI plugins by ID, for example `{ "my-plugin": false }`. Toggling a plugin from the command palette overrides the value set here.
 
 Use `OPENCODE_TUI_CONFIG` to load a custom TUI config path.
 
