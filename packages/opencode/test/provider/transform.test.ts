@@ -2325,7 +2325,9 @@ describe("ProviderTransform.message - surrogate sanitization", () => {
     api: {
       id: "test-model",
       url: "https://api.test.com",
-      npm: "@ai-sdk/openai-compatible",
+      // Use a signed-reasoning transport: plain-text echo transports now strip
+      // reasoning before the model ever sees it (see "reasoning echo" tests).
+      npm: "@ai-sdk/openai",
     },
     name: "Test Model",
     capabilities: {
@@ -6207,5 +6209,160 @@ describe("ProviderTransform.options - kimi family adaptive thinking", () => {
     }
     const result = ProviderTransform.options({ model, sessionID: "s1", providerOptions: {} })
     expect(result.thinking).toBeUndefined()
+  })
+})
+
+describe("ProviderTransform.message - reasoning echo", () => {
+  const createModel = (overrides: Record<string, any> = {}) =>
+    ({
+      id: "cerebras/qwen-3.8-27b",
+      providerID: "cerebras",
+      api: {
+        id: "qwen-3.8-27b",
+        url: "https://api.cerebras.ai/v1",
+        npm: "@ai-sdk/cerebras",
+      },
+      name: "Qwen3.8 27B",
+      capabilities: {
+        temperature: true,
+        reasoning: true,
+        attachment: false,
+        toolcall: true,
+        input: { text: true, audio: false, image: true, video: false, pdf: false },
+        output: { text: true, audio: false, image: false, video: false, pdf: false },
+        interleaved: false,
+      },
+      cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
+      limit: { context: 262128, output: 65536 },
+      status: "active",
+      options: {},
+      headers: {},
+      release_date: "2026-08-14",
+      ...overrides,
+    }) as any
+
+  const reasoningTurn: ModelMessage[] = [
+    { role: "user", content: "Remember the word pineapple. Reply with just: OK" },
+    {
+      role: "assistant",
+      content: [
+        { type: "reasoning", text: 'The user asked me to remember "pineapple".' },
+        { type: "text", text: "OK" },
+      ],
+    },
+    { role: "user", content: "What word did I ask you to remember?" },
+  ]
+
+  test("strips reasoning from assistant history for cerebras models without interleaved support", () => {
+    const result = ProviderTransform.message(reasoningTurn, createModel(), {})
+    expect(result).toStrictEqual([
+      { role: "user", content: "Remember the word pineapple. Reply with just: OK" },
+      { role: "assistant", content: [{ type: "text", text: "OK" }] },
+      { role: "user", content: "What word did I ask you to remember?" },
+    ])
+  })
+
+  test("drops reasoning-only assistant messages instead of emitting empty content", () => {
+    const result = ProviderTransform.message(
+      [
+        { role: "user", content: "hi" },
+        { role: "assistant", content: [{ type: "reasoning", text: "thinking" }] },
+        { role: "user", content: "are you there?" },
+      ],
+      createModel(),
+      {},
+    )
+    expect(result).toStrictEqual([
+      { role: "user", content: "hi" },
+      { role: "user", content: "are you there?" },
+    ])
+  })
+
+  test("keeps tool calls while stripping reasoning", () => {
+    const result = ProviderTransform.message(
+      [
+        { role: "user", content: "run ls" },
+        {
+          role: "assistant",
+          content: [
+            { type: "reasoning", text: "I should list files" },
+            { type: "tool-call", toolCallId: "call_1", toolName: "bash", input: { command: "ls" } },
+          ],
+        },
+        {
+          role: "tool",
+          content: [{ type: "tool-result", toolCallId: "call_1", toolName: "bash", output: { type: "text", value: "ok" } }],
+        },
+      ],
+      createModel(),
+      {},
+    )
+    expect(result[1]).toStrictEqual({
+      role: "assistant",
+      content: [{ type: "tool-call", toolCallId: "call_1", toolName: "bash", input: { command: "ls" } }],
+    })
+    expect(result).toHaveLength(3)
+  })
+
+  test("applies to every plain-text echo transport", () => {
+    for (const npm of [
+      "@ai-sdk/cerebras",
+      "@ai-sdk/openai-compatible",
+      "@ai-sdk/deepinfra",
+      "@ai-sdk/togetherai",
+      "@ai-sdk/deepseek",
+      "ai-gateway-provider",
+      "venice-ai-sdk-provider",
+    ]) {
+      const model = createModel({ providerID: "custom", api: { id: "some-model", url: "https://example.com", npm } })
+      const result = ProviderTransform.message(reasoningTurn, model, {})
+      const assistant = result[1] as Extract<ModelMessage, { role: "assistant" }>
+      if (!Array.isArray(assistant.content)) throw new Error("expected array content")
+      expect(assistant.content.some((part) => part.type === "reasoning")).toBe(false)
+      expect(assistant.content).toHaveLength(1)
+      expect(assistant.content[0]).toMatchObject({ type: "text", text: "OK" })
+    }
+  })
+
+  test("preserves reasoning when the model declares interleaved support", () => {
+    const model = createModel({
+      providerID: "deepseek",
+      api: { id: "deepseek-v4-flash-0731", url: "https://api.deepseek.com/v1", npm: "@ai-sdk/deepseek" },
+      capabilities: {
+        ...createModel().capabilities,
+        interleaved: { field: "reasoning_content" },
+      },
+    })
+    const result = ProviderTransform.message(reasoningTurn, model, {})
+    const assistant = result[1] as Extract<ModelMessage, { role: "assistant" }>
+    expect(assistant.providerOptions?.openaiCompatible?.reasoning_content).toBe(
+      'The user asked me to remember "pineapple".',
+    )
+    expect(assistant.content).toStrictEqual([{ type: "text", text: "OK" }])
+  })
+
+  test("leaves signed reasoning transports untouched", () => {
+    const model = createModel({
+      providerID: "anthropic",
+      api: { id: "claude-sonnet-4-5", url: "https://api.anthropic.com", npm: "@ai-sdk/anthropic" },
+    })
+    const result = ProviderTransform.message(reasoningTurn, model, {})
+    const assistant = result[1] as Extract<ModelMessage, { role: "assistant" }>
+    expect(Array.isArray(assistant.content) ? assistant.content : []).toStrictEqual([
+      { type: "reasoning", text: 'The user asked me to remember "pineapple".' },
+      { type: "text", text: "OK" },
+    ])
+  })
+
+  test("passes through string assistant content unchanged", () => {
+    const result = ProviderTransform.message(
+      [
+        { role: "user", content: "hi" },
+        { role: "assistant", content: "hello" },
+      ],
+      createModel(),
+      {},
+    )
+    expect(result[1]).toStrictEqual({ role: "assistant", content: "hello" })
   })
 })

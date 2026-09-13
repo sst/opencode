@@ -968,7 +968,7 @@ describe("session.llm.stream", () => {
 
   const cerebrasFixture = { providerID: "cerebras", modelID: "gpt-oss-120b" }
   it.instance(
-    "replays Cerebras assistant reasoning using the provider-supported field",
+    "omits Cerebras assistant reasoning when the model does not declare interleaved support",
     () =>
       Effect.gen(function* () {
         const fixture = loadFixture(cerebrasFixture.providerID, cerebrasFixture.modelID)
@@ -1025,8 +1025,12 @@ describe("session.llm.stream", () => {
         const messages = capture.body.messages as Array<Record<string, unknown>>
         const assistant = messages.find((msg) => msg.role === "assistant")
 
-        expect(assistant?.reasoning).toBe("thinking")
+        // Cerebras rejects replayed reasoning in any plain-text field
+        // ("reasoning_content is unsupported"), so non-interleaved models must
+        // not echo it at all — only the text reply survives.
+        expect(assistant && "reasoning" in assistant).toBe(false)
         expect(assistant && "reasoning_content" in assistant).toBe(false)
+        expect(assistant?.content).toBe("Previous answer")
       }),
     {
       config: () => ({

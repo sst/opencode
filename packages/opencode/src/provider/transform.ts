@@ -38,6 +38,24 @@ function isKimiFamily(model: Provider.Model) {
   return ["api.kimi.com", "api.moonshot.ai", "api.moonshot.cn", "api.moonshotai.cn"].some((host) => url.includes(host))
 }
 
+// These chat-completions SDKs serialize reasoning parts as plain-text body
+// fields (e.g. `reasoning_content`) on assistant history. Unlike signed
+// reasoning transports (Anthropic, OpenAI Responses, Google), these APIs are
+// free to reject replayed reasoning — Cerebras qwen-3.8-27b 400s with
+// "reasoning_content is unsupported", which the retry loop turns into an
+// infinite request loop. models.dev `interleaved` marks models whose API
+// explicitly accepts reasoning fed back in (e.g. DeepSeek); everywhere else
+// on these transports, drop reasoning from history.
+const REASONING_ECHO_TRANSPORTS = new Set([
+  "@ai-sdk/cerebras",
+  "@ai-sdk/openai-compatible",
+  "@ai-sdk/deepinfra",
+  "@ai-sdk/togetherai",
+  "@ai-sdk/deepseek",
+  "ai-gateway-provider",
+  "venice-ai-sdk-provider",
+])
+
 // Maps npm package to the key the AI SDK expects for providerOptions
 function sdkKey(npm: string): string | undefined {
   switch (npm) {
@@ -315,6 +333,19 @@ function normalizeMessages(
           { type: "reasoning" as const, text: "" },
         ],
       }
+    })
+  }
+
+  // Strip reasoning from assistant history on plain-text echo transports when
+  // the model has not declared interleaved reasoning support. A reasoning-only
+  // assistant turn carries no replayable state on these APIs, so drop it
+  // entirely rather than emit an empty message.
+  if (!model.capabilities.interleaved && REASONING_ECHO_TRANSPORTS.has(model.api.npm)) {
+    msgs = msgs.flatMap((msg) => {
+      if (msg.role !== "assistant" || !Array.isArray(msg.content)) return [msg]
+      const content = msg.content.filter((part) => part.type !== "reasoning")
+      if (content.length === 0) return []
+      return [{ ...msg, content }]
     })
   }
 
