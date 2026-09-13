@@ -55,6 +55,7 @@
     "@opentui/core": "catalog:",
     "@opentui/keymap": "catalog:",
     "@opentui/solid": "catalog:",
+    "bidi-js": "1.1.0",
     "clipboardy": "4.0.0",
     "diff": "catalog:",
     "effect": "catalog:",
