@@ -1158,13 +1158,16 @@ export function createData(config: CreateDataInput) {
         return
     }
 
+    // Catalog events arrive in bursts. A Desktop capture showed catalog.updated, integration.updated,
+    // and credential.updated for one location within ~190 ms, each refetching the same ~270 KB model
+    // list. The catalogs below invalidate now and settle into one refetch per resource and location.
     if (event.type === "credential.updated" || event.type === "credential.switched") {
       Object.keys(store.location).forEach((key) => {
         const ref = JSON.parse(key) as [string, string | null]
         const location = { directory: ref[0], workspaceID: ref[1] ?? undefined }
         if (event.type === "credential.updated") {
           result.location.integration.invalidate(location)
-          refresh(() => result.location.integration.sync(location))
+          settle(`location.integration:${key}`, () => result.location.integration.sync(location))
           return
         }
         setStore("location", key, (data) => ({
@@ -1182,7 +1185,8 @@ export function createData(config: CreateDataInput) {
         }))
         result.location.model.invalidate(location)
         result.location.provider.invalidate(location)
-        refresh(() => Promise.all([result.location.model.sync(location), result.location.provider.sync(location)]))
+        settle(`location.model:${key}`, () => result.location.model.sync(location))
+        settle(`location.provider:${key}`, () => result.location.provider.sync(location))
       })
       return
     }
@@ -1193,19 +1197,20 @@ export function createData(config: CreateDataInput) {
       case "catalog.updated":
         result.location.model.invalidate(location)
         result.location.provider.invalidate(location)
-        refresh(() => Promise.all([result.location.model.sync(location), result.location.provider.sync(location)]))
+        settle(`location.model:${locationKey(location)}`, () => result.location.model.sync(location))
+        settle(`location.provider:${locationKey(location)}`, () => result.location.provider.sync(location))
         break
       case "agent.updated":
         result.location.agent.invalidate(location)
-        refresh(() => result.location.agent.sync(location))
+        settle(`location.agent:${locationKey(location)}`, () => result.location.agent.sync(location))
         break
       case "command.updated":
         result.location.command.invalidate(location)
-        refresh(() => result.location.command.sync(location))
+        settle(`location.command:${locationKey(location)}`, () => result.location.command.sync(location))
         break
       case "skill.updated":
         result.location.skill.invalidate(location)
-        refresh(() => result.location.skill.sync(location))
+        settle(`location.skill:${locationKey(location)}`, () => result.location.skill.sync(location))
         break
       case "vcs.branch.updated":
         setStore("location", locationKey(location), (data) => ({
@@ -1240,39 +1245,35 @@ export function createData(config: CreateDataInput) {
         break
       case "reference.updated":
         result.location.reference.invalidate(location)
-        refresh(() => result.location.reference.sync(location))
+        settle(`location.reference:${locationKey(location)}`, () => result.location.reference.sync(location))
         break
       case "integration.updated":
         result.location.integration.invalidate(location)
         result.location.model.invalidate(location)
         result.location.provider.invalidate(location)
-        refresh(() =>
-          Promise.all([
-            result.location.integration.sync(location),
-            result.location.model.sync(location),
-            result.location.provider.sync(location),
-          ]),
-        )
+        settle(`location.integration:${locationKey(location)}`, () => result.location.integration.sync(location))
+        settle(`location.model:${locationKey(location)}`, () => result.location.model.sync(location))
+        settle(`location.provider:${locationKey(location)}`, () => result.location.provider.sync(location))
         break
       case "config.updated":
         result.location.config.invalidate(location)
         if (result.location.config.list(location) !== undefined || sync.has(`location.config:${locationKey(location)}`))
-          refresh(() => result.location.config.sync(location))
-        refresh(() => result.location.websearch.refresh(location))
+          settle(`location.config:${locationKey(location)}`, () => result.location.config.sync(location))
+        settle(`location.websearch:${locationKey(location)}`, () => result.location.websearch.refresh(location))
         break
       case "websearch.updated":
-        refresh(() => result.location.websearch.refresh(location))
+        settle(`location.websearch:${locationKey(location)}`, () => result.location.websearch.refresh(location))
         break
       // Authenticating an MCP integration reconnects its server, which emits mcp.status.changed,
       // so the mcp list syncs here rather than off integration.updated. The server emits one event
       // per MCP server as each settles, so a location booting nine servers emitted nine refetches.
       case "mcp.status.changed":
         result.location.mcp.server.invalidate(location)
-        settle(`mcp.status:${locationKey(location)}`, () => result.location.mcp.server.sync(location))
+        settle(`location.mcpServer:${locationKey(location)}`, () => result.location.mcp.server.sync(location))
         break
       case "mcp.resources.changed":
         result.location.mcp.resource.invalidate(location)
-        refresh(() => result.location.mcp.resource.sync(location))
+        settle(`location.mcpResource:${locationKey(location)}`, () => result.location.mcp.resource.sync(location))
         break
     }
   }

@@ -153,11 +153,14 @@ test.each(["reconnecting", "disposed"] as const)("background reads respect %s ow
     data: {},
   }
   listeners.forEach((listener) => listener({ name: event.type, details: event }))
+  expect(state.requests).toBe(0)
+  await new Promise((resolve) => setTimeout(resolve, settleMs * 2))
   if (mode === "reconnecting") {
     expect(state.requests).toBe(0)
     setup.dispose()
     return
   }
+  expect(state.requests).toBe(1)
   const joined = setup.data.location.command.sync()
   setup.dispose()
   pending.reject(new TypeError("Failed to fetch"))
@@ -202,6 +205,67 @@ test("a burst of mcp.status.changed events refetches the server list once it set
     expect(requests.filter((path) => path === "/api/mcp")).toHaveLength(1)
     await new Promise((resolve) => setTimeout(resolve, settleMs * 2))
     expect(requests.filter((path) => path === "/api/mcp")).toHaveLength(2)
+  } finally {
+    setup.dispose()
+  }
+})
+
+test("a burst of catalog, integration, and credential events refetches each catalog once per location", async () => {
+  const listeners = new Set<Parameters<CreateDataInput["event"]["listen"]>[0]>()
+  const requests: string[] = []
+  const location = { directory: "/project" }
+  const other = { directory: "/other", workspaceID: "workspace-other" }
+  const api = OpenCode.make({
+    baseUrl: "http://opencode.local",
+    fetch: async (input, init) => {
+      const request = input instanceof Request ? input : new Request(input, init)
+      const url = new URL(request.url)
+      requests.push(`${url.pathname} ${url.searchParams.get("location[directory]")}`)
+      return Response.json({
+        location: {
+          directory: url.searchParams.get("location[directory]"),
+          workspaceID: url.searchParams.get("location[workspace]") ?? undefined,
+        },
+        data: [],
+      })
+    },
+  })
+  const setup = createRoot((dispose) => ({
+    data: createData({
+      api: () => api,
+      directory: location.directory,
+      event: {
+        on: () => () => {},
+        listen(handler) {
+          listeners.add(handler)
+          return () => listeners.delete(handler)
+        },
+      },
+    }),
+    dispose,
+  }))
+  const emit = (details: OpenCodeEvent) => listeners.forEach((listener) => listener({ name: details.type, details }))
+  try {
+    await Promise.all(
+      [location, other].flatMap((ref) => [
+        setup.data.location.integration.sync(ref),
+        setup.data.location.model.sync(ref),
+        setup.data.location.provider.sync(ref),
+      ]),
+    )
+    requests.length = 0
+    emit({ id: "evt_catalog", created: 1, type: "catalog.updated", location, data: {} })
+    emit({ id: "evt_integration", created: 2, type: "integration.updated", location, data: {} })
+    emit({ id: "evt_credential", created: 3, type: "credential.updated", data: {} })
+    emit({ id: "evt_catalog_again", created: 4, type: "catalog.updated", location, data: {} })
+    expect(requests).toEqual([])
+    await new Promise((resolve) => setTimeout(resolve, settleMs * 2))
+    expect(requests.toSorted()).toEqual([
+      "/api/integration /other",
+      "/api/integration /project",
+      "/api/model /project",
+      "/api/provider /project",
+    ])
   } finally {
     setup.dispose()
   }

@@ -66,9 +66,9 @@ test("switches the selected account with enter and keeps the reactive account ma
     expect(fixture.accounts.map((account) => account.id)).toEqual(["cred_work", "cred_personal"])
     const frame = fixture.app.captureCharFrame()
     expect(frame.indexOf("Personal")).toBeLessThan(frame.indexOf("Work"))
+    // The switch reorders connections optimistically; the catalog refetch lands once the event burst settles.
+    await fixture.app.waitFor(() => fixture.reads.model > 0 && fixture.reads.provider > 0)
     expect(fixture.reads.integration).toBe(1)
-    expect(fixture.reads.model).toBeGreaterThan(0)
-    expect(fixture.reads.provider).toBeGreaterThan(0)
   } finally {
     fixture.app.renderer.destroy()
   }
