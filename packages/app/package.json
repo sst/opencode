@@ -87,7 +87,7 @@
     "core-js": "3.50.0",
     "effect": "catalog:",
     "fuzzysort": "catalog:",
-    "ghostty-web": "github:anomalyco/ghostty-web#83c0a07b8628b748aed073b232cb4b52a6ca11c1",
+    "ghostty-web": "github:anomalyco/ghostty-web#6e24d040458ddd7aae81572fe2901deec32f9fe7",
     "luxon": "catalog:",
     "qr-scanner": "1.4.2",
     "remeda": "catalog:",
