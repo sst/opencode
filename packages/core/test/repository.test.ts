@@ -56,10 +56,22 @@ describe("Repository", () => {
   test("rejects unsafe remote references and branches with typed errors", () => {
     expect(() => Repository.parseRemote("not-a-repo")).toThrow(Repository.InvalidReferenceError)
     expect(() => Repository.parseRemote("git@github.com:../../../etc/passwd")).toThrow(Repository.InvalidReferenceError)
-    expect(() => Repository.validateBranch("feature/docs.v1")).not.toThrow()
-    expect(() => Repository.validateBranch("-bad")).toThrow(Repository.InvalidBranchError)
-    expect(() => Repository.validateBranch("bad..branch")).toThrow(Repository.InvalidBranchError)
-    expect(() => Repository.validateBranch("bad branch")).toThrow(Repository.InvalidBranchError)
+    ;["feature/docs.v1", "topic./child", "topic.LOCK"].forEach((branch) =>
+      expect(() => Repository.validateBranch(branch)).not.toThrow(),
+    )
+    ;[
+      "-bad",
+      "bad..branch",
+      "bad branch",
+      "/topic",
+      "topic/",
+      "topic//child",
+      ".topic",
+      "topic/.child",
+      "topic.",
+      "topic.lock",
+      "topic.lock/child",
+    ].forEach((branch) => expect(() => Repository.validateBranch(branch)).toThrow(Repository.InvalidBranchError))
   })
 
   test("compares cache identity independent of input spelling", () => {
