@@ -25,12 +25,13 @@ test("measures turn duration from the user prompt across assistant steps", () =>
   expect(turnDuration(final, messages)).toBe(29_000)
 })
 
-test("measures turn output throughput across model steps without tool time", () => {
+test("measures request throughput including reasoning across model changes without tool time", () => {
   const first = assistant("assistant-1", [])
-  first.time = { created: 8_000, streamed: 10_000, completed: 20_000 }
+  first.time = { created: 8_000, streamed: 10_000, completed: 20_000, requestDurationMs: 4_000 }
   first.tokens = { input: 10, output: 20, reasoning: 5, cache: { read: 0, write: 0 } }
   const final = assistant("assistant-2", [])
-  final.time = { created: 27_000, streamed: 30_000, completed: 31_000 }
+  final.model = { id: "other-model", providerID: "other-provider", variant: "other-variant" }
+  final.time = { created: 27_000, streamed: 30_000, completed: 31_000, requestDurationMs: 6_000 }
   final.tokens = { input: 20, output: 30, reasoning: 10, cache: { read: 0, write: 0 } }
   const messages: SessionMessageInfo[] = [
     { type: "user", id: "user-1", text: "Question", time: { created: 1_000 } },
@@ -38,12 +39,15 @@ test("measures turn output throughput across model steps without tool time", () 
     final,
   ]
 
-  expect(turnTokensPerSecond(final, messages)).toBe(10)
+  expect(turnTokensPerSecond(final, messages)).toBe(6.5)
+  first.time.requestDurationMs = undefined
+  expect(turnTokensPerSecond(final, messages)).toBeUndefined()
 })
 
-test("omits turn throughput when a stream boundary is unavailable", () => {
+test("does not infer request timing for historical messages", () => {
   const final = assistant("assistant-1", [])
   final.tokens = { input: 10, output: 20, reasoning: 0, cache: { read: 0, write: 0 } }
+  final.time = { created: 1_000, streamed: 2_000, completed: 3_000 }
   expect(turnTokensPerSecond(final, [final])).toBeUndefined()
 })
 
@@ -52,7 +56,7 @@ test.each([false, true])(
   (indexed) => {
     const step = (id: string, created: number, streamed: number, completed: number, output: number) => ({
       ...assistant(id, []),
-      time: { created, streamed, completed },
+      time: { created, streamed, completed, requestDurationMs: streamed - created },
       tokens: { input: 1, output, reasoning: 2, cache: { read: 0, write: 0 } },
     })
     const messages: SessionMessageInfo[] = [
@@ -79,10 +83,10 @@ test.each([false, true])(
           : [],
       ),
     ).toEqual([
-      [2_000, 5],
-      [3_000, 10],
-      [6_000, 15],
-      [4_000, 6],
+      [2_000, 7],
+      [3_000, 12],
+      [6_000, 17],
+      [4_000, 7],
       [0, undefined],
     ])
   },
@@ -93,7 +97,7 @@ test("preserves missing-anchor footer fallbacks without including the absent ass
   absent.time = { created: 8_000, streamed: 9_000, completed: 10_000 }
   absent.tokens = { input: 1, output: 900, reasoning: 0, cache: { read: 0, write: 0 } }
   const stored = assistant("stored", [])
-  stored.time = { created: 6_000, streamed: 8_000, completed: 9_000 }
+  stored.time = { created: 6_000, streamed: 8_000, completed: 9_000, requestDurationMs: 2_000 }
   stored.tokens = { input: 1, output: 20, reasoning: 0, cache: { read: 0, write: 0 } }
   const input: SessionMessageInfo = { type: "user", id: "input", text: "Question", time: { created: 5_000 } }
 
@@ -109,7 +113,7 @@ test("indexed tail footer calculations do not subscribe to an unrelated history 
   createRoot((dispose) => {
     try {
       const final = assistant("final", [])
-      final.time = { created: 2_000, streamed: 3_000, completed: 5_000 }
+      final.time = { created: 2_000, streamed: 3_000, completed: 5_000, requestDurationMs: 1_000 }
       final.tokens = { input: 1, output: 20, reasoning: 0, cache: { read: 0, write: 0 } }
       const [messages, setMessages] = createStore<SessionMessageInfo[]>([
         { type: "user", id: "old-input", text: "Old question", time: { created: 0 } },
@@ -131,7 +135,11 @@ test("indexed tail footer calculations do not subscribe to an unrelated history 
 
       setMessages(2, "time", "created", 1_500)
       expect(footer()).toEqual([3_500, 20])
-      setMessages(3, { ...final, time: { ...final.time, streamed: 4_000 }, tokens: { ...final.tokens, output: 60 } })
+      setMessages(3, {
+        ...final,
+        time: { ...final.time, requestDurationMs: 2_000 },
+        tokens: { ...final.tokens, output: 60 },
+      })
       expect(footer()).toEqual([3_500, 30])
       expect(runs).toBe(3)
     } finally {

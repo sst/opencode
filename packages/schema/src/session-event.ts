@@ -354,6 +354,7 @@ export namespace Step {
       providerState: SessionMessage.ProviderState.pipe(optional),
       cost: Money.USD,
       tokens: TokenUsage.Info,
+      requestDurationMs: SessionMessage.Assistant.fields.time.fields.requestDurationMs,
       snapshot: Snapshot.ID.pipe(optional),
       files: Schema.Array(RelativePath).pipe(optional),
     },

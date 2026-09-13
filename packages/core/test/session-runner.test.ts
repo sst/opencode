@@ -3294,6 +3294,7 @@ describe("SessionRunnerLLM", () => {
       Expected.assistant({ finish: "stop" }, [Expected.text("Done")]),
     ])
     const assistant = requireAssistant(context)
+    expect(assistant.time.requestDurationMs).toBeUndefined()
     expect(yield* recordedStepSettlementTypes(sessionID, assistant.id)).toEqual([
       "session.step.started.1",
       "session.tool.called.1",
@@ -3327,11 +3328,17 @@ describe("SessionRunnerLLM", () => {
 
   scenario("consumes the full provider stream before recording its boundary and settling local tools", function* (s) {
     yield* s.admit("Echo this")
+    const request = yield* s.llm.gate
     const tail = yield* Deferred.make<void>()
     const complete = yield* Deferred.make<void>()
     const finished = yield* Deferred.make<void>()
     yield* s.llm.push(
-      Stream.fromIterable(TestLLM.tool("call-streamed", "echo", { text: "hello" })).pipe(
+      Stream.fromIterable(
+        TestLLM.complete(
+          { reason: { normalized: "tool-calls" }, usage: { outputTokens: 100, reasoningTokens: 80 } },
+          LLMEvent.toolCall({ id: "call-streamed", name: "echo", input: { text: "hello" } }),
+        ),
+      ).pipe(
         Stream.concat(
           Stream.fromEffect(Deferred.succeed(tail, undefined).pipe(Effect.andThen(Deferred.await(complete)))).pipe(
             Stream.drain,
@@ -3349,25 +3356,34 @@ describe("SessionRunnerLLM", () => {
     )
     const run = yield* Effect.forkChild(s.resume)
 
+    yield* request.started
+    yield* TestClock.adjust("2 seconds")
+    yield* request.release
     yield* tools.started
     yield* Deferred.await(tail)
     expect(s.requests).toHaveLength(1)
     expect(yield* recordedEventTypes(sessionID)).not.toContain("session.step.streamed.1")
     expect(requireAssistant(yield* s.context).time.completed).toBeUndefined()
+    yield* TestClock.adjust("3 seconds")
     yield* Deferred.succeed(complete, undefined)
     yield* Fiber.join(streamed)
     expect(yield* Deferred.isDone(finished)).toBe(true)
     const assistant = requireAssistant(yield* s.context)
     expect(assistant.time.streamed).toBeDefined()
+    expect(assistant.time.requestDurationMs).toBeUndefined()
     expect(assistant.time.completed).toBeUndefined()
     expect(assistant.content).toMatchObject([{ type: "tool", state: { status: "running" } }])
 
+    yield* TestClock.adjust("10 seconds")
     yield* tools.release
     yield* Fiber.join(run)
     const events = yield* recordedEventTypes(sessionID)
     expect(events.indexOf("session.step.streamed.1")).toBeLessThan(events.indexOf("session.tool.success.2"))
     expect(events.indexOf("session.tool.success.2")).toBeLessThan(events.indexOf("session.step.ended.1"))
     expect(events.filter((type) => type === "session.step.streamed.1")).toHaveLength(2)
+    yield* replaySessionProjection(sessionID)
+    const replayed = (yield* s.context).find((message) => message.id === assistant.id)
+    expect(replayed).toMatchObject({ time: { requestDurationMs: 5_000 }, tokens: { output: 20, reasoning: 80 } })
   })
 
   scenario("restores durable reasoning provider metadata in the next request", function* (s) {

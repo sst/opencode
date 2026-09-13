@@ -742,6 +742,7 @@ export type SessionLogOutput =
               readonly reasoning: number
               readonly cache: { readonly read: number; readonly write: number }
             }
+            readonly requestDurationMs?: number | undefined
             readonly snapshot?: (string & Brand.Brand<"Snapshot.ID">) | undefined
             readonly files?: ReadonlyArray<RelativePath> | undefined
           }

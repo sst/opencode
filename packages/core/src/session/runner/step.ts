@@ -10,7 +10,7 @@ import {
   type ToolCall,
 } from "@opencode/ai"
 import type { Agent } from "@opencode/schema/agent"
-import { Cause, Data, Effect, Exit, Fiber, Option, Stream } from "effect"
+import { Cause, Clock, Data, Effect, Exit, Fiber, Option, Stream } from "effect"
 import { SessionError } from "@opencode/schema/session-error"
 import { Bus } from "../../bus.js"
 import { Permission } from "../../permission.js"
@@ -98,11 +98,17 @@ export const make = Effect.gen(function* () {
     // Provider and tool fibers retain per-source order without a shared writer queue.
     // A local execution starts only after its Tool.Called publication completes.
     let overflowFailure: ProviderErrorEvent | undefined
+    let outputTokensReported = false
     // Read to the end, not just the finish event, so the next request can reuse this response.
     const providerStream = llm.stream(input.prepared.request, input.prepared.options).pipe(
       Stream.runForEach((event) =>
         Effect.gen(function* () {
           if (overflowFailure || publisher.hasProviderError()) return
+          if (event.type === "step-finish")
+            outputTokensReported =
+              event.usage?.outputTokens !== undefined &&
+              Number.isFinite(event.usage.outputTokens) &&
+              event.usage.outputTokens >= 0
           if (
             LLMEvent.is.providerError(event) &&
             isContextOverflowFailure(event) &&
@@ -133,7 +139,9 @@ export const make = Effect.gen(function* () {
     // Keep the final tool and Step events uninterruptible, even when the work itself is cancelled.
     return yield* Effect.uninterruptibleMask((restore) =>
       Effect.gen(function* () {
+        const started = yield* Clock.monotonicTimeNanos
         const stream = yield* restore(providerStream).pipe(Effect.exit)
+        const ended = yield* Clock.monotonicTimeNanos
         const streamFailure = Option.getOrUndefined(Exit.findErrorOption(stream))
         const streamInterrupted = Exit.hasInterrupts(stream)
         if (!overflowFailure && publisher.hasStarted()) yield* publisher.streamed()
@@ -235,6 +243,8 @@ export const make = Effect.gen(function* () {
               rawFinish: record.finish.rawFinish,
               providerState: record.finish.providerState,
               ...usage,
+              requestDurationMs:
+                outputTokensReported && Exit.isSuccess(stream) ? Number(ended - started) / 1_000_000 : undefined,
               snapshot,
               files,
             })

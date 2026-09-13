@@ -232,6 +232,8 @@ export const Assistant = Schema.Struct({
     /** When the provider response body ended, before tool settlement. */
     streamed: DateTimeUtcFromMillis.pipe(optional),
     completed: DateTimeUtcFromMillis.pipe(optional),
+    /** Provider-request preparation and response consumption, excluding tool settlement; absent without output usage. */
+    requestDurationMs: Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0)).pipe(optional),
   }),
 }).annotate({ identifier: "Session.Message.Assistant" })
 

@@ -359,10 +359,10 @@ export function turnTokensPerSecond(
     .slice(start + 1, end)
     .filter((item): item is SessionMessageAssistant => item.type === "assistant")
   const durations = steps.flatMap((step) =>
-    step.time.streamed === undefined ? [] : [Math.max(0, step.time.streamed - step.time.created)],
+    step.time.requestDurationMs === undefined ? [] : [step.time.requestDurationMs],
   )
   if (steps.length === 0 || durations.length !== steps.length) return
-  const output = steps.reduce((total, step) => total + (step.tokens?.output ?? 0), 0)
+  const output = steps.reduce((total, step) => total + (step.tokens?.output ?? 0) + (step.tokens?.reasoning ?? 0), 0)
   const duration = durations.reduce((total, value) => total + value, 0)
   if (output <= 0 || duration <= 0) return
   return output / (duration / 1_000)

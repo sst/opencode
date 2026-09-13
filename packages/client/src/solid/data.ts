@@ -846,6 +846,7 @@ export function createData(config: CreateDataInput) {
             existing.rawFinish = undefined
             existing.providerState = undefined
             existing.time.streamed = undefined
+            existing.time.requestDurationMs = undefined
             existing.time.completed = undefined
             if (event.data.snapshot) existing.snapshot = { ...existing.snapshot, start: event.data.snapshot }
             return
@@ -880,6 +881,7 @@ export function createData(config: CreateDataInput) {
           assistant.providerState = event.data.providerState
           assistant.cost = event.data.cost
           assistant.tokens = event.data.tokens
+          assistant.time.requestDurationMs = event.data.requestDurationMs
           if (event.data.snapshot) assistant.snapshot = { ...assistant.snapshot, end: event.data.snapshot }
         })
         return
