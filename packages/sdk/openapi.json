@@ -15375,6 +15375,9 @@
             "$ref": "#/components/schemas/EventSessionNextCompactionStarted"
           },
           {
+            "$ref": "#/components/schemas/EventSessionNextCompactionFailed"
+          },
+          {
             "$ref": "#/components/schemas/EventSessionNextCompactionDelta"
           },
           {
@@ -17140,6 +17143,9 @@
           "tail_start_id": {
             "type": "string",
             "pattern": "^msg"
+          },
+          "diagnostics": {
+            "$ref": "#/components/schemas/SessionCompactionDiagnostics"
           }
         },
         "required": ["id", "sessionID", "messageID", "type", "auto"],
@@ -18836,9 +18842,67 @@
                       "reason": {
                         "type": "string",
                         "enum": ["auto", "manual"]
+                      },
+                      "requested": {
+                        "type": "string",
+                        "enum": ["prepend", "suffix"]
                       }
                     },
                     "required": ["timestamp", "sessionID", "messageID", "reason"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["id", "type", "properties"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^evt_"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": ["session.next.compaction.failed"]
+                  },
+                  "properties": {
+                    "type": "object",
+                    "properties": {
+                      "timestamp": {
+                        "type": "number"
+                      },
+                      "sessionID": {
+                        "type": "string",
+                        "pattern": "^ses"
+                      },
+                      "messageID": {
+                        "type": "string",
+                        "pattern": "^msg_"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "enum": ["auto", "manual"]
+                      },
+                      "failure": {
+                        "type": "string",
+                        "enum": [
+                          "context",
+                          "plugin_prompt",
+                          "provider_tool",
+                          "provider_error",
+                          "tool_choice",
+                          "tool_call",
+                          "empty_summary",
+                          "invalid_summary",
+                          "interrupted"
+                        ]
+                      },
+                      "diagnostics": {
+                        "$ref": "#/components/schemas/SessionCompactionDiagnostics"
+                      }
+                    },
+                    "required": ["timestamp", "sessionID", "messageID", "reason", "failure", "diagnostics"],
                     "additionalProperties": false
                   }
                 },
@@ -18915,6 +18979,9 @@
                       },
                       "recent": {
                         "type": "string"
+                      },
+                      "diagnostics": {
+                        "$ref": "#/components/schemas/SessionCompactionDiagnostics"
                       }
                     },
                     "required": ["timestamp", "sessionID", "messageID", "reason", "text", "recent"],
@@ -20212,6 +20279,9 @@
                       "sessionID": {
                         "type": "string",
                         "pattern": "^ses"
+                      },
+                      "diagnostics": {
+                        "$ref": "#/components/schemas/SessionCompactionDiagnostics"
                       }
                     },
                     "required": ["sessionID"],
@@ -20511,6 +20581,9 @@
               },
               {
                 "$ref": "#/components/schemas/SyncEventSessionNextCompactionStarted"
+              },
+              {
+                "$ref": "#/components/schemas/SyncEventSessionNextCompactionFailed"
               },
               {
                 "$ref": "#/components/schemas/SyncEventSessionNextCompactionEnded"
@@ -21290,6 +21363,9 @@
             "type": "integer",
             "minimum": 0
           },
+          "disable_subagent_input": {
+            "type": "boolean"
+          },
           "username": {
             "type": "string"
           },
@@ -21507,6 +21583,10 @@
           "compaction": {
             "type": "object",
             "properties": {
+              "mode": {
+                "type": "string",
+                "enum": ["prepend", "suffix"]
+              },
               "auto": {
                 "type": "boolean"
               },
@@ -23741,6 +23821,9 @@
             "$ref": "#/components/schemas/SessionNextCompactionEnded"
           },
           {
+            "$ref": "#/components/schemas/SessionNextCompactionFailed"
+          },
+          {
             "$ref": "#/components/schemas/SessionNextRevertStaged"
           },
           {
@@ -24125,6 +24208,9 @@
           },
           {
             "$ref": "#/components/schemas/SessionNextCompactionStarted"
+          },
+          {
+            "$ref": "#/components/schemas/SessionNextCompactionFailed"
           },
           {
             "$ref": "#/components/schemas/SessionNextCompactionDelta"
@@ -24535,6 +24621,58 @@
           }
         },
         "required": ["directory"],
+        "additionalProperties": false
+      },
+      "SessionCompactionTokens": {
+        "type": "object",
+        "properties": {
+          "input": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cached": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "output": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "SessionCompactionDiagnostics": {
+        "type": "object",
+        "properties": {
+          "requested": {
+            "type": "string",
+            "enum": ["prepend", "suffix"]
+          },
+          "used": {
+            "type": "string",
+            "enum": ["prepend", "suffix"]
+          },
+          "fallback": {
+            "type": "string",
+            "enum": [
+              "context",
+              "plugin_prompt",
+              "provider_tool",
+              "provider_error",
+              "tool_choice",
+              "tool_call",
+              "empty_summary",
+              "invalid_summary"
+            ]
+          },
+          "durationMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/SessionCompactionTokens"
+          }
+        },
         "additionalProperties": false
       },
       "ModelRef": {
@@ -26789,9 +26927,88 @@
                   "reason": {
                     "type": "string",
                     "enum": ["auto", "manual"]
+                  },
+                  "requested": {
+                    "type": "string",
+                    "enum": ["prepend", "suffix"]
                   }
                 },
                 "required": ["timestamp", "sessionID", "messageID", "reason"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["type", "id", "seq", "aggregateID", "data"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["type", "id", "syncEvent"],
+        "additionalProperties": false
+      },
+      "SyncEventSessionNextCompactionFailed": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["sync"]
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^evt_"
+          },
+          "syncEvent": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["session.next.compaction.failed.1"]
+              },
+              "id": {
+                "type": "string",
+                "pattern": "^evt_"
+              },
+              "seq": {
+                "type": "number"
+              },
+              "aggregateID": {
+                "type": "string"
+              },
+              "data": {
+                "type": "object",
+                "properties": {
+                  "timestamp": {
+                    "type": "number"
+                  },
+                  "sessionID": {
+                    "type": "string",
+                    "pattern": "^ses"
+                  },
+                  "messageID": {
+                    "type": "string",
+                    "pattern": "^msg_"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": ["auto", "manual"]
+                  },
+                  "failure": {
+                    "type": "string",
+                    "enum": [
+                      "context",
+                      "plugin_prompt",
+                      "provider_tool",
+                      "provider_error",
+                      "tool_choice",
+                      "tool_call",
+                      "empty_summary",
+                      "invalid_summary",
+                      "interrupted"
+                    ]
+                  },
+                  "diagnostics": {
+                    "$ref": "#/components/schemas/SessionCompactionDiagnostics"
+                  }
+                },
+                "required": ["timestamp", "sessionID", "messageID", "reason", "failure", "diagnostics"],
                 "additionalProperties": false
               }
             },
@@ -26853,6 +27070,9 @@
                   },
                   "recent": {
                     "type": "string"
+                  },
+                  "diagnostics": {
+                    "$ref": "#/components/schemas/SessionCompactionDiagnostics"
                   }
                 },
                 "required": ["timestamp", "sessionID", "messageID", "reason", "text", "recent"],
@@ -27934,6 +28154,9 @@
           },
           "recent": {
             "type": "string"
+          },
+          "diagnostics": {
+            "$ref": "#/components/schemas/SessionCompactionDiagnostics"
           },
           "id": {
             "type": "string",
@@ -29515,6 +29738,10 @@
               "reason": {
                 "type": "string",
                 "enum": ["auto", "manual"]
+              },
+              "requested": {
+                "type": "string",
+                "enum": ["prepend", "suffix"]
               }
             },
             "required": ["timestamp", "sessionID", "messageID", "reason"],
@@ -29580,9 +29807,88 @@
               },
               "recent": {
                 "type": "string"
+              },
+              "diagnostics": {
+                "$ref": "#/components/schemas/SessionCompactionDiagnostics"
               }
             },
             "required": ["timestamp", "sessionID", "messageID", "reason", "text", "recent"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "data"],
+        "additionalProperties": false
+      },
+      "SessionNextCompactionFailed": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^evt_"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["session.next.compaction.failed"]
+          },
+          "durable": {
+            "type": "object",
+            "properties": {
+              "aggregateID": {
+                "type": "string"
+              },
+              "seq": {
+                "type": "integer"
+              },
+              "version": {
+                "type": "integer"
+              }
+            },
+            "required": ["aggregateID", "seq", "version"],
+            "additionalProperties": false
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationRef"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "number"
+              },
+              "sessionID": {
+                "type": "string",
+                "pattern": "^ses"
+              },
+              "messageID": {
+                "type": "string",
+                "pattern": "^msg_"
+              },
+              "reason": {
+                "type": "string",
+                "enum": ["auto", "manual"]
+              },
+              "failure": {
+                "type": "string",
+                "enum": [
+                  "context",
+                  "plugin_prompt",
+                  "provider_tool",
+                  "provider_error",
+                  "tool_choice",
+                  "tool_call",
+                  "empty_summary",
+                  "invalid_summary",
+                  "interrupted"
+                ]
+              },
+              "diagnostics": {
+                "$ref": "#/components/schemas/SessionCompactionDiagnostics"
+              }
+            },
+            "required": ["timestamp", "sessionID", "messageID", "reason", "failure", "diagnostics"],
             "additionalProperties": false
           }
         },
@@ -33330,6 +33636,9 @@
               "sessionID": {
                 "type": "string",
                 "pattern": "^ses"
+              },
+              "diagnostics": {
+                "$ref": "#/components/schemas/SessionCompactionDiagnostics"
               }
             },
             "required": ["sessionID"],
@@ -35248,9 +35557,67 @@
               "reason": {
                 "type": "string",
                 "enum": ["auto", "manual"]
+              },
+              "requested": {
+                "type": "string",
+                "enum": ["prepend", "suffix"]
               }
             },
             "required": ["timestamp", "sessionID", "messageID", "reason"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "type", "properties"],
+        "additionalProperties": false
+      },
+      "EventSessionNextCompactionFailed": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^evt_"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["session.next.compaction.failed"]
+          },
+          "properties": {
+            "type": "object",
+            "properties": {
+              "timestamp": {
+                "type": "number"
+              },
+              "sessionID": {
+                "type": "string",
+                "pattern": "^ses"
+              },
+              "messageID": {
+                "type": "string",
+                "pattern": "^msg_"
+              },
+              "reason": {
+                "type": "string",
+                "enum": ["auto", "manual"]
+              },
+              "failure": {
+                "type": "string",
+                "enum": [
+                  "context",
+                  "plugin_prompt",
+                  "provider_tool",
+                  "provider_error",
+                  "tool_choice",
+                  "tool_call",
+                  "empty_summary",
+                  "invalid_summary",
+                  "interrupted"
+                ]
+              },
+              "diagnostics": {
+                "$ref": "#/components/schemas/SessionCompactionDiagnostics"
+              }
+            },
+            "required": ["timestamp", "sessionID", "messageID", "reason", "failure", "diagnostics"],
             "additionalProperties": false
           }
         },
@@ -35327,6 +35694,9 @@
               },
               "recent": {
                 "type": "string"
+              },
+              "diagnostics": {
+                "$ref": "#/components/schemas/SessionCompactionDiagnostics"
               }
             },
             "required": ["timestamp", "sessionID", "messageID", "reason", "text", "recent"],
@@ -36486,6 +36856,9 @@
               "sessionID": {
                 "type": "string",
                 "pattern": "^ses"
+              },
+              "diagnostics": {
+                "$ref": "#/components/schemas/SessionCompactionDiagnostics"
               }
             },
             "required": ["sessionID"],

@@ -7,6 +7,7 @@ import { Project } from "../src/project"
 import { Pty } from "../src/pty"
 import { Question } from "../src/question"
 import { Session } from "../src/session"
+import { SessionCompaction } from "../src/session-compaction"
 import { SessionEvent } from "../src/session-event"
 import { SessionTodo } from "../src/session-todo"
 import { optional } from "../src/schema"
@@ -17,6 +18,30 @@ describe("contract hygiene", () => {
     expect(Schema.decodeUnknownSync(Value)({ value: "1" })).toEqual({ value: 1 })
     expect(Schema.encodeSync(Value)({ value: 1 })).toEqual({ value: "1" })
     expect(Schema.encodeSync(Value)({ value: undefined })).toEqual({})
+  })
+
+  test("compaction diagnostics use closed modes and omit unavailable diagnostics", () => {
+    expect(
+      Schema.encodeSync(SessionCompaction.Diagnostics)({
+        requested: "suffix",
+        used: "prepend",
+        fallback: undefined,
+        durationMs: 1,
+        tokens: undefined,
+      }),
+    ).toEqual({ requested: "suffix", used: "prepend", durationMs: 1 })
+    expect(() =>
+      Schema.decodeUnknownSync(SessionCompaction.Diagnostics)({ requested: "other", used: "prepend", durationMs: 1 }),
+    ).toThrow()
+  })
+
+  test("compaction token diagnostics omit unknown usage and reject invalid counts", () => {
+    expect(Schema.encodeSync(SessionCompaction.Tokens)({ input: 0, cached: undefined, output: undefined })).toEqual({
+      input: 0,
+    })
+    expect(Schema.decodeUnknownSync(SessionCompaction.Tokens)({})).toEqual({})
+    expect(() => Schema.decodeUnknownSync(SessionCompaction.Tokens)({ input: -1 })).toThrow()
+    expect(() => Schema.decodeUnknownSync(SessionCompaction.Tokens)({ output: Number.NaN })).toThrow()
   })
 
   test("todo status and priority preserve arbitrary strings", () => {

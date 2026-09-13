@@ -752,6 +752,7 @@ You can control context compaction behavior through the `compaction` option.
   "compaction": {
     "auto": true,
     "prune": false,
+    "mode": "prepend",
     "reserved": 10000
   }
 }
@@ -759,7 +760,10 @@ You can control context compaction behavior through the `compaction` option.
 
 - `auto` - Automatically compact the session when context is full (default: `true`).
 - `prune` - Remove old tool outputs to save tokens (default: `false`). Set to `true` to enable pruning.
+- `mode` - Compaction request mode. `prepend` is the default. `suffix` is experimental and off by default.
 - `reserved` - Token buffer for compaction. Leaves enough window to avoid overflow during compaction.
+
+Suffix mode appends the summary instruction to the live conversation so compatible providers can reuse their prompt cache. If the live request cannot safely use suffix mode, or the suffix output is invalid, OpenCode retries once with prepend mode. The TUI compaction divider shows the strategy used and provider cache-token counts when available.
 
 ---
 

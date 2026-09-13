@@ -387,3 +387,4 @@ Format as a structured prompt that a new agent can use to resume work.
 ```
 
 When `output.prompt` is set, it completely replaces the default compaction prompt. The `output.context` array is ignored in this case.
+When `compaction.mode` is `suffix`, setting `output.prompt` uses prepend mode for that compaction so the replacement semantics remain unchanged. Without a replacement prompt, values added to `output.context` are included in either mode.

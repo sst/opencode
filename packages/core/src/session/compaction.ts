@@ -1,72 +1,55 @@
 export * as SessionCompaction from "./compaction"
 
-import { LLM, LLMError, LLMEvent, Message, type LLMRequest, type Model } from "@opencode-ai/llm"
+import {
+  LLM,
+  LLMError,
+  LLMEvent,
+  Message,
+  mergeGenerationOptions,
+  type LLMRequest,
+  type Model,
+  type Usage,
+} from "@opencode-ai/llm"
+import { SessionCompaction } from "@opencode-ai/schema/session-compaction"
 import { DateTime, Effect, Stream } from "effect"
 import type { Config } from "../config"
 import type { EventV2 } from "../event"
 import { SessionEvent } from "./event"
 import { SessionMessage } from "./message"
 import { SessionSchema } from "./schema"
+import {
+  SessionCompactionSuffix,
+  SUMMARY_OUTPUT_TOKENS,
+  SUMMARY_TEMPLATE,
+  SUMMARY_UPDATE_INSTRUCTIONS,
+} from "./compaction-suffix"
 import { Token } from "../util/token"
 
 const DEFAULT_BUFFER = 20_000
 const DEFAULT_KEEP_TOKENS = 8_000
 const TOOL_OUTPUT_MAX_CHARS = 2_000
-const SUMMARY_OUTPUT_TOKENS = 4_096
-const SUMMARY_TEMPLATE = `Output exactly the Markdown structure shown inside <template> and keep the section order unchanged. Do not include the <template> tags in your response.
-<template>
-## Objective
-- [one or two brief sentences describing what the user is trying to accomplish]
-
-## Important Details
-- [constraints/preferences, decisions and why, important facts/assumptions, exact context needed to continue, or "(none)"]
-
-## Work State
-### Completed
-- [finished work, verified facts, or changes made; otherwise "(none)"]
-
-### Active
-- [current work, partial changes, or investigation state; otherwise "(none)"]
-
-### Blocked
-- [blockers, failing commands, or unknowns; otherwise "(none)"]
-
-## Next Move
-1. [immediate concrete action, or "(none)"]
-2. [next action if known, or "(none)"]
-
-## Relevant Files
-- [file or directory path: why it matters, or "(none)"]
-</template>
-
-Rules:
-- Keep every section, even when empty.
-- Use terse bullets, not prose paragraphs.
-- Preserve exact file paths, symbols, commands, error strings, URLs, and identifiers when known.
-- Do not mention the summary process or that context was compacted.`
-const SUMMARY_UPDATE_INSTRUCTIONS = `The <prior-summary> summarizes everything that happened before the <conversation>. Construct a new summary that combines both. The <prior-summary> is discarded after this: anything you do not carry into the new summary is lost.
-
-When combining:
-- Carry forward objectives, constraints, user directives, decisions, and parallel workstreams from the <prior-summary> even when the <conversation> does not mention them. Drop only what is finished and no longer needed.
-- The <conversation> is more recent than the <prior-summary>. Where they conflict, the conversation wins: state the corrected fact and drop the old claim.
-- Add new progress, decisions, constraints, and context from the conversation.
-- Move completed work from "Active" to "Completed".
-- If a blocker has been resolved, update the summary to reflect that while keeping any details still needed to continue the work.
-- Update "Objective" and "Next Move" to reflect the current work state.`
-
 type Entry = {
   readonly seq: number
   readonly message: SessionMessage.Message
+}
+
+type Selected = {
+  readonly head: string
+  readonly recent: string
+  readonly firstRecent?: Entry
+  readonly recentMessageCount: number
+  readonly recentTurnCount: number
 }
 
 type Settings = {
   readonly auto: boolean
   readonly buffer: number
   readonly tokens: number
+  readonly mode: "prepend" | "suffix"
 }
 
 type Dependencies = {
-  readonly events: EventV2.Interface
+  readonly events: Pick<EventV2.Interface, "publish">
   readonly llm: {
     readonly stream: (request: LLMRequest) => Stream.Stream<LLMEvent, LLMError>
   }
@@ -129,32 +112,56 @@ const settings = (documents: readonly Config.Entry[]) => {
       auto: current.auto ?? result.auto,
       buffer: current.buffer ?? result.buffer,
       tokens: current.keep?.tokens ?? result.tokens,
+      mode: current.mode ?? result.mode,
     }),
-    { auto: true, buffer: DEFAULT_BUFFER, tokens: DEFAULT_KEEP_TOKENS },
+    { auto: true, buffer: DEFAULT_BUFFER, tokens: DEFAULT_KEEP_TOKENS, mode: "prepend" },
   )
 }
 
-const select = (
-  entries: readonly Entry[],
-  tokens: number,
-): { readonly head: string; readonly recent: string } | undefined => {
+const select = (entries: readonly Entry[], tokens: number): Selected | undefined => {
   const conversation = entries
     .filter((entry) => entry.message.type !== "compaction")
-    .map((entry) => serialize(entry.message))
-    .filter(Boolean)
+    .map((entry) => ({ entry, text: serialize(entry.message) }))
+    .filter((item) => Boolean(item.text))
   if (conversation.length === 0) return
   let total = 0
   let split = conversation.length
   for (let index = conversation.length - 1; index >= 0; index--) {
-    const next = total + Token.estimate(conversation[index])
+    const next = total + Token.estimate(conversation[index].text)
     if (next > tokens) break
     total = next
     split = index
   }
   return {
-    head: conversation.slice(0, split).join("\n\n"),
-    recent: conversation.slice(split).join("\n\n"),
+    head: conversation
+      .slice(0, split)
+      .map((item) => item.text)
+      .join("\n\n"),
+    recent: conversation
+      .slice(split)
+      .map((item) => item.text)
+      .join("\n\n"),
+    firstRecent: conversation[split]?.entry,
+    recentMessageCount: conversation.length - split,
+    recentTurnCount: conversation.slice(split).filter((item) => item.entry.message.type === "user").length,
   }
+}
+
+const tokens = (usage: Usage | undefined) => {
+  const value = (field: "inputTokens" | "cacheReadInputTokens" | "outputTokens") => {
+    const current = usage?.[field]
+    return typeof current === "number" && Number.isFinite(current) ? current : undefined
+  }
+  const input = value("inputTokens")
+  const cached = value("cacheReadInputTokens")
+  const output = value("outputTokens")
+  const result = {
+    ...(input === undefined ? {} : { input: Math.max(0, Math.round(input)) }),
+    ...(cached === undefined ? {} : { cached: Math.max(0, Math.round(cached)) }),
+    ...(output === undefined ? {} : { output: Math.max(0, Math.round(output)) }),
+  }
+  if (!Object.keys(result).length) return
+  return result
 }
 
 export const buildPrompt = (input: { readonly previousSummary?: string; readonly context: readonly string[] }) => {
@@ -187,47 +194,170 @@ export const make = (dependencies: Dependencies) => {
       context: [previousSummary?.type === "compaction" ? previousSummary.recent : "", selected.head].filter(Boolean),
     })
     const summaryOutput = Math.min(output || SUMMARY_OUTPUT_TOKENS, SUMMARY_OUTPUT_TOKENS)
-    if (Token.estimate(summaryPrompt) > context - summaryOutput) return false
+    const prependFits = Token.estimate(summaryPrompt) <= context - summaryOutput
+    if (config.mode === "prepend" && !prependFits) return false
+    const requested = config.mode
     const messageID = SessionMessage.ID.create()
+    const started = yield* DateTime.now
     yield* dependencies.events.publish(SessionEvent.Compaction.Started, {
       sessionID: input.sessionID,
       messageID,
-      timestamp: yield* DateTime.now,
+      timestamp: started,
       reason: "auto",
+      requested,
     })
-
-    const chunks: string[] = []
-    let failed = false
-    const summarized = yield* dependencies.llm
-      .stream(
-        LLM.request({
-          model: input.model,
-          http: input.request.http,
-          messages: [Message.user(summaryPrompt)],
-          tools: [],
-          generation: { maxTokens: summaryOutput },
+    let attempted: SessionCompaction.Mode | undefined
+    let attemptedUsage: Usage | undefined
+    let terminal = false
+    const diagnostics = (
+      input: { readonly fallback?: SessionCompaction.FallbackReason; readonly usage?: Usage } = {},
+    ) =>
+      Effect.gen(function* () {
+        const diagnosticTokens = tokens(input.usage ?? attemptedUsage)
+        return {
+          requested,
+          ...(attempted ? { used: attempted } : {}),
+          ...(input.fallback ? { fallback: input.fallback } : {}),
+          durationMs: Math.max(
+            0,
+            Math.round(DateTime.toEpochMillis(yield* DateTime.now) - DateTime.toEpochMillis(started)),
+          ),
+          ...(diagnosticTokens ? { tokens: diagnosticTokens } : {}),
+        }
+      })
+    const run = (
+      request: LLMRequest,
+      mode: SessionCompaction.Mode,
+    ): Effect.Effect<
+      { summary: string; usage: Usage | undefined } | { failure: SessionCompaction.FallbackReason; usage?: Usage }
+    > =>
+      Effect.gen(function* () {
+        attempted = mode
+        attemptedUsage = undefined
+        const chunks: string[] = []
+        let failure: SessionCompaction.FallbackReason | undefined
+        let usage: Usage | undefined
+        const streamed = yield* dependencies.llm.stream(request).pipe(
+          Stream.runForEach((event) => {
+            if (LLMEvent.is.providerError(event)) failure = "provider_error"
+            if (LLMEvent.is.toolCall(event)) failure = "tool_call"
+            if (LLMEvent.is.textDelta(event)) chunks.push(event.text)
+            if (LLMEvent.is.stepFinish(event) || LLMEvent.is.finish(event)) {
+              usage = event.usage
+              attemptedUsage = usage
+            }
+            return Effect.void
+          }),
+          Effect.as(true),
+          Effect.catchTag("LLM.Error", () => Effect.succeed(false)),
+        )
+        const summary = chunks.join("")
+        if (!streamed || failure) return { failure: failure ?? "provider_error", usage }
+        if (!summary.trim()) return { failure: "empty_summary" as const, usage }
+        if (mode === "suffix" && !SessionCompactionSuffix.validateSummary(summary))
+          return { failure: "invalid_summary" as const, usage }
+        return { summary, usage }
+      })
+    const prepend = () =>
+      prependFits
+        ? run(
+            LLM.request({
+              model: input.model,
+              http: input.request.http,
+              messages: [Message.user(summaryPrompt)],
+              tools: [],
+              generation: { maxTokens: summaryOutput },
+            }),
+            "prepend",
+          )
+        : Effect.succeed({ failure: "context" as const })
+    const suffixPrompt = SessionCompactionSuffix.buildPrompt({
+      anchor: selected.firstRecent
+        ? {
+            role: selected.firstRecent.message.type,
+            text: serialize(selected.firstRecent.message),
+            recentMessageCount: selected.recentMessageCount,
+            recentTurnCount: selected.recentTurnCount,
+          }
+        : { recentMessageCount: selected.recentMessageCount, recentTurnCount: selected.recentTurnCount },
+    })
+    const suffixRequest = LLM.updateRequest(input.request, {
+      messages: [...input.request.messages, Message.user(suffixPrompt)],
+      generation: mergeGenerationOptions(input.request.generation, { maxTokens: summaryOutput }),
+    })
+    const suffixUnavailable =
+      input.request.toolChoice && !["auto", "none"].includes(input.request.toolChoice.type)
+        ? ("tool_choice" as const)
+        : input.request.tools.some((tool) => tool.native !== undefined)
+          ? ("provider_tool" as const)
+          : undefined
+    const suffixFits =
+      estimate({
+        system: suffixRequest.system,
+        messages: suffixRequest.messages,
+        tools: suffixRequest.tools,
+        toolChoice: suffixRequest.toolChoice,
+      }) <=
+      context - summaryOutput
+    const execute = Effect.gen(function* () {
+      const suffix =
+        requested === "suffix" && !suffixUnavailable && suffixFits ? yield* run(suffixRequest, "suffix") : undefined
+      const suffixSuccess = suffix && "summary" in suffix
+      const final = suffixSuccess ? suffix : yield* prepend()
+      const fallback =
+        (suffix && "failure" in suffix ? suffix.failure : undefined) ??
+        (requested === "suffix" ? (suffixUnavailable ?? (!suffixFits ? "context" : undefined)) : undefined)
+      const suffixUsage = suffix && "usage" in suffix ? suffix.usage : undefined
+      const finalUsage = "usage" in final ? final.usage : undefined
+      const completedDiagnostics = yield* diagnostics({ fallback, usage: suffixUsage ?? finalUsage })
+      if (!("summary" in final)) {
+        yield* Effect.logWarning("session compaction failed", { failure: final.failure, ...completedDiagnostics })
+        terminal = true
+        yield* Effect.uninterruptible(
+          dependencies.events.publish(SessionEvent.Compaction.Failed, {
+            sessionID: input.sessionID,
+            messageID,
+            timestamp: yield* DateTime.now,
+            reason: "auto",
+            failure: final.failure,
+            diagnostics: completedDiagnostics,
+          }),
+        )
+        return false
+      }
+      yield* Effect.logInfo("session compaction completed", completedDiagnostics)
+      terminal = true
+      yield* Effect.uninterruptible(
+        dependencies.events.publish(SessionEvent.Compaction.Ended, {
+          sessionID: input.sessionID,
+          messageID,
+          timestamp: yield* DateTime.now,
+          reason: "auto",
+          text: final.summary,
+          recent: selected.recent,
+          diagnostics: completedDiagnostics,
         }),
       )
-      .pipe(
-        Stream.runForEach((event) => {
-          if (LLMEvent.is.providerError(event)) failed = true
-          if (LLMEvent.is.textDelta(event)) chunks.push(event.text)
-          return Effect.void
-        }),
-        Effect.as(true),
-        Effect.catchTag("LLM.Error", () => Effect.succeed(false)),
-      )
-    const summary = chunks.join("")
-    if (!summarized || failed || !summary.trim()) return false
-    yield* dependencies.events.publish(SessionEvent.Compaction.Ended, {
-      sessionID: input.sessionID,
-      messageID,
-      timestamp: yield* DateTime.now,
-      reason: "auto",
-      text: summary,
-      recent: selected.recent,
+      return true
     })
-    return true
+    return yield* execute.pipe(
+      Effect.onInterrupt(() =>
+        terminal
+          ? Effect.void
+          : Effect.uninterruptible(
+              Effect.gen(function* () {
+                yield* dependencies.events.publish(SessionEvent.Compaction.Failed, {
+                  sessionID: input.sessionID,
+                  messageID,
+                  timestamp: yield* DateTime.now,
+                  reason: "auto",
+                  failure: "interrupted",
+                  diagnostics: yield* diagnostics(),
+                })
+              }),
+            ),
+      ),
+    )
   })
   const compactIfNeeded = Effect.fn("SessionCompaction.compactIfNeeded")(function* (input: Input) {
     if (!config.auto) return false

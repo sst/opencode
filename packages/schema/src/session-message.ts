@@ -8,6 +8,7 @@ import { FileAttachment, Prompt } from "./prompt"
 import { DateTimeUtcFromMillis, RelativePath, statics } from "./schema"
 import { SessionID } from "./session-id"
 import { ascending } from "./identifier"
+import { SessionCompaction } from "./session-compaction"
 
 export const ID = Schema.String.check(Schema.isStartsWith("msg_")).pipe(
   Schema.brand("Session.Message.ID"),
@@ -194,6 +195,7 @@ export const Compaction = Schema.Struct({
   reason: Schema.Literals(["auto", "manual"]),
   summary: Schema.String,
   recent: Schema.String,
+  diagnostics: SessionCompaction.Diagnostics.pipe(optional),
   ...Base,
 }).annotate({ identifier: "Session.Message.Compaction" })
 

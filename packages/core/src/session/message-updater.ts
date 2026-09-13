@@ -383,10 +383,13 @@ export function update(adapter: Adapter, event: SessionEvent.Event) {
             reason: event.data.reason,
             summary: event.data.text,
             recent: event.data.recent,
+            ...(event.data.diagnostics ? { diagnostics: event.data.diagnostics } : {}),
             time: { created: event.data.timestamp },
           }),
         )
       },
+      // Failed compactions deliberately have no projected message.
+      "session.next.compaction.failed": () => Effect.void,
       "session.next.revert.staged": () => Effect.void,
       "session.next.revert.cleared": () => Effect.void,
       "session.next.revert.committed": () => Effect.void,

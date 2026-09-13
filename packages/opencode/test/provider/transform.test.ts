@@ -529,7 +529,7 @@ describe("ProviderTransform.options - gpt-5 textVerbosity", () => {
     expect(result.textVerbosity).toBeUndefined()
   })
 
-  test("azure chat completions omit Responses-only reasoning options after variants merge", async () => {
+  test("azure chat completions omit Responses-only options and cap plugin output overrides", async () => {
     const model = {
       ...createGpt5Model("gpt-5.4"),
       id: "azure/gpt-5.4",
@@ -576,11 +576,13 @@ describe("ProviderTransform.options - gpt-5 textVerbosity", () => {
         provider: { id: "azure", options: { useCompletionUrls: true } } as any,
         auth: undefined,
         plugin: {
-          trigger: (_name: string, _input: unknown, output: unknown) => Effect.succeed(output),
+          trigger: (name: string, _input: unknown, output: unknown) =>
+            Effect.succeed(name === "chat.params" ? { ...(output as object), maxOutputTokens: 8_192 } : output),
           list: () => Effect.succeed([]),
           init: () => Effect.void,
         } as any,
         flags: { outputTokenMax: 32_000, client: "test" } as any,
+        maxOutputTokens: 4_096,
         isWorkflow: false,
       }),
     )
@@ -588,6 +590,7 @@ describe("ProviderTransform.options - gpt-5 textVerbosity", () => {
     expect(result.params.options.reasoningSummary).toBeUndefined()
     expect(result.params.options.include).toBeUndefined()
     expect(result.tools.lookup.strict).toBe(false)
+    expect(result.params.maxOutputTokens).toBe(4_096)
   })
 
   test("gpt-5.1 should have textVerbosity set to low", () => {

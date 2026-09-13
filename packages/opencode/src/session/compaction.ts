@@ -22,6 +22,10 @@ import { ProviderV2 } from "@opencode-ai/core/provider"
 import { ModelV2 } from "@opencode-ai/core/model"
 import { buildPrompt } from "@opencode-ai/core/session/compaction"
 import { SessionCompactionEvent } from "@opencode-ai/schema/session-compaction-event"
+import { SessionCompaction } from "@opencode-ai/schema/session-compaction"
+import { SessionCompactionSuffix, SUMMARY_OUTPUT_TOKENS } from "@opencode-ai/core/session/compaction-suffix"
+import { LLM } from "./llm"
+import type { Tool } from "ai"
 
 export const Event = SessionCompactionEvent
 
@@ -174,6 +178,12 @@ export interface Interface {
     sessionID: SessionID
     auto: boolean
     overflow?: boolean
+    capture?: { request: LLM.InternalStreamInput; messageIDs: ReadonlySet<MessageID> }
+    rebuild?: (input: {
+      messages: SessionV1.WithParts[]
+      processor: SessionProcessor.Handle
+      model: Provider.Model
+    }) => Effect.Effect<LLM.InternalStreamInput>
   }) => Effect.Effect<"continue" | "stop">
   readonly create: (input: {
     sessionID: SessionID
@@ -322,7 +332,14 @@ const layer = Layer.effect(
       sessionID: SessionID
       auto: boolean
       overflow?: boolean
+      capture?: { request: LLM.InternalStreamInput; messageIDs: ReadonlySet<MessageID> }
+      rebuild?: (input: {
+        messages: SessionV1.WithParts[]
+        processor: SessionProcessor.Handle
+        model: Provider.Model
+      }) => Effect.Effect<LLM.InternalStreamInput>
     }) {
+      const started = Date.now()
       const parent = input.messages.findLast((m) => m.info.id === input.parentID)
       if (!parent || parent.info.role !== "user") {
         throw new Error(`Compaction parent must be a user message: ${input.parentID}`)
@@ -355,11 +372,13 @@ const layer = Layer.effect(
         }
       }
 
-      const agent = yield* agents.get("compaction")
-      const model = agent.model
-        ? yield* provider.getModel(agent.model.providerID, agent.model.modelID).pipe(Effect.orDie)
+      const compactionAgent = yield* agents.get("compaction")
+      const compactionModel = compactionAgent.model
+        ? yield* provider.getModel(compactionAgent.model.providerID, compactionAgent.model.modelID).pipe(Effect.orDie)
         : yield* provider.getModel(userMessage.model.providerID, userMessage.model.modelID).pipe(Effect.orDie)
       const cfg = yield* config.get()
+      const requested = cfg.compaction?.mode === "suffix" ? "suffix" : "prepend"
+      const suffixCapture = requested === "suffix" ? input.capture : undefined
       const history = compactionPart && messages.at(-1)?.info.id === input.parentID ? messages.slice(0, -1) : messages
       const prior = completedCompactions(history)
       const hidden = new Set(prior.flatMap((item) => [item.userIndex, item.assistantIndex]))
@@ -367,7 +386,7 @@ const layer = Layer.effect(
       const selected = yield* select({
         messages: history.filter((_, index) => !hidden.has(index)),
         cfg,
-        model,
+        model: suffixCapture?.request.model ?? compactionModel,
       })
       // Allow plugins to inject context or replace compaction prompt.
       const compacting = yield* plugin.trigger(
@@ -375,77 +394,276 @@ const layer = Layer.effect(
         { sessionID: input.sessionID },
         { context: [], prompt: undefined },
       )
-      const msgs = structuredClone(selected.head)
-      yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
-      const conversation = msgs.map(serialize).filter(Boolean).join("\n\n")
-      const nextPrompt =
-        compacting.prompt ??
-        [
-          buildPrompt({
-            previousSummary,
-            context: [conversation],
-          }),
-          ...compacting.context,
-        ]
-          .filter(Boolean)
-          .join("\n\n")
-      const ctx = yield* InstanceState.context
-      const msg: SessionV1.Assistant = {
-        id: MessageID.ascending(),
-        role: "assistant",
-        parentID: input.parentID,
-        sessionID: input.sessionID,
-        mode: "compaction",
-        agent: "compaction",
-        variant: userMessage.model.variant,
-        summary: true,
-        path: {
-          cwd: ctx.directory,
-          root: ctx.worktree,
-        },
-        cost: 0,
-        tokens: {
-          output: 0,
-          input: 0,
-          reasoning: 0,
-          cache: { read: 0, write: 0 },
-        },
-        modelID: model.id,
-        providerID: model.providerID,
-        time: {
-          created: Date.now(),
-        },
+      const suffix = suffixCapture && !compacting.prompt ? suffixCapture : undefined
+      const suffixRebuild = requested === "suffix" && !suffix && !compacting.prompt ? input.rebuild : undefined
+      let fallback: SessionCompaction.FallbackReason | undefined =
+        requested === "suffix" && compacting.prompt ? "plugin_prompt" : undefined
+      const retained = selected.tail_start_id
+        ? history.slice(
+            Math.max(
+              0,
+              history.findIndex((item) => item.info.id === selected.tail_start_id),
+            ),
+          )
+        : []
+      const anchor = retained[0]
+        ? {
+            role: retained[0].info.role,
+            text: serialize(retained[0]),
+            recentMessageCount: retained.length,
+            recentTurnCount: turns(retained).length,
+          }
+        : undefined
+      const suffixPrompt = SessionCompactionSuffix.buildPrompt({ anchor, pluginContext: compacting.context })
+      let activeProcessor: SessionProcessor.Handle | undefined
+      let activeMode: SessionCompaction.Mode | undefined
+      let failedSuffixUsage: ReturnType<SessionProcessor.Handle["latestUsage"]>
+      let persistedDiagnostics: SessionCompaction.Diagnostics | undefined
+      const suffixUnavailable = (request: LLM.InternalStreamInput): SessionCompaction.FallbackReason | undefined => {
+        if (request.toolChoice !== undefined && request.toolChoice !== "auto" && request.toolChoice !== "none") {
+          return "tool_choice"
+        }
+        if (Object.values(request.tools).some((tool) => tool.type === "provider")) {
+          return "provider_tool"
+        }
+        return undefined
       }
-      yield* session.updateMessage(msg)
-      const processor = yield* processors.create({
-        assistantMessage: msg,
-        sessionID: input.sessionID,
-        model,
+      const fitsSuffix = (request: LLM.InternalStreamInput) =>
+        Token.estimate(
+          JSON.stringify({
+            system: request.system,
+            messages: request.messages,
+            tools: request.tools,
+            toolChoice: request.toolChoice,
+          }),
+        ) <=
+        usable({
+          cfg,
+          model: request.model,
+          outputTokenMax: Math.min(SUMMARY_OUTPUT_TOKENS, flags.outputTokenMax ?? SUMMARY_OUTPUT_TOKENS),
+        })
+      const canSuffix = suffix ? !suffixUnavailable(suffix.request) : !!suffixRebuild
+      if (suffix && !canSuffix) fallback = suffixUnavailable(suffix.request)
+      const ctx = yield* InstanceState.context
+      const makeProcessor = Effect.fn("SessionCompaction.makeProcessor")(function* (attempt?: {
+        capture?: typeof suffix
+        suffix?: boolean
+      }) {
+        const capture = attempt?.capture
+        const model =
+          capture?.request.model ??
+          (attempt?.suffix && suffixRebuild
+            ? yield* provider.getModel(userMessage.model.providerID, userMessage.model.modelID).pipe(Effect.orDie)
+            : compactionModel)
+        const agent = capture?.request.agent ?? compactionAgent
+        const msg: SessionV1.Assistant = {
+          id: MessageID.ascending(),
+          role: "assistant",
+          parentID: input.parentID,
+          sessionID: input.sessionID,
+          mode: "compaction",
+          agent: "compaction",
+          variant: userMessage.model.variant,
+          summary: true,
+          path: { cwd: ctx.directory, root: ctx.worktree },
+          cost: 0,
+          tokens: { output: 0, input: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+          modelID: model.id,
+          providerID: model.providerID,
+          time: { created: Date.now() },
+        }
+        yield* session.updateMessage(msg)
+        const processor = yield* processors.create({ assistantMessage: msg, sessionID: input.sessionID, model })
+        activeProcessor = processor
+        const rebuilt =
+          !capture && attempt?.suffix && suffixRebuild
+            ? yield* suffixRebuild({ messages: history, processor, model })
+            : undefined
+        const rawRequest = capture?.request ?? rebuilt
+        const request = capture
+          ? (() => {
+              const { prepareSystem: _prepareSystem, onSystemPrepared: _onSystemPrepared, ...prepared } = capture.request
+              return { ...prepared, systemPrepared: true }
+            })()
+          : rawRequest?.prepareSystem
+          ? yield* rawRequest.prepareSystem().pipe(
+              Effect.map((system) => {
+                const { prepareSystem: _prepareSystem, onSystemPrepared: _onSystemPrepared, ...prepared } = rawRequest
+                return { ...prepared, system, systemPrepared: true }
+              }),
+            )
+          : rawRequest
+        const unavailable = request ? suffixUnavailable(request) : undefined
+        if (request && !unavailable) {
+          const additions = capture
+            ? structuredClone(
+                history.filter(
+                  (item) =>
+                    !capture.messageIDs.has(item.info.id) && !item.parts.some((part) => part.type === "compaction"),
+                ),
+              )
+            : []
+          if (additions.length)
+            yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: additions })
+          const additionMessages = capture ? yield* MessageV2.toModelMessagesEffect(additions, model) : []
+          const suffixRequest = {
+            ...request,
+            maxOutputTokens: SUMMARY_OUTPUT_TOKENS,
+            messages: [...request.messages, ...additionMessages, { role: "user" as const, content: suffixPrompt }],
+          }
+          if (fitsSuffix(suffixRequest)) {
+            const tools: Record<string, Tool> = {}
+            for (const [name, definition] of Object.entries(request.tools)) {
+              tools[name] = {
+                ...definition,
+                execute: () => Promise.reject(new Error("Tools cannot execute during compaction")),
+              }
+            }
+            activeMode = "suffix"
+            const result = yield* processor.process({
+              ...suffixRequest,
+              agent: request.agent,
+              model,
+              tools,
+            })
+            return { processor, result, suffix: true }
+          }
+          fallback = "context"
+        }
+        if (request) {
+          fallback = unavailable ?? "context"
+          if (attempt?.suffix) return { processor, retryLegacy: true as const }
+        }
+        const msgs = structuredClone(selected.head)
+        yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
+        const conversation = msgs.map(serialize).filter(Boolean).join("\n\n")
+        const nextPrompt =
+          compacting.prompt ??
+          [buildPrompt({ previousSummary, context: [conversation] }), ...compacting.context]
+            .filter(Boolean)
+            .join("\n\n")
+        activeMode = "prepend"
+        const result = yield* processor.process({
+          user: userMessage,
+          agent,
+          sessionID: input.sessionID,
+          tools: {},
+          system: [],
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: [
+                    nextPrompt,
+                    ...(compacting.prompt ? ["The following is the conversation history:", conversation] : []),
+                  ]
+                    .filter(Boolean)
+                    .join("\n\n"),
+                },
+              ],
+            },
+          ],
+          model,
+        })
+        return { processor, result, suffix: false }
       })
-      const result = yield* processor.process({
-        user: userMessage,
-        agent,
-        sessionID: input.sessionID,
-        tools: {},
-        system: [],
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: [
-                  nextPrompt,
-                  ...(compacting.prompt ? ["The following is the conversation history:", conversation] : []),
-                ]
-                  .filter(Boolean)
-                  .join("\n\n"),
-              },
-            ],
-          },
-        ],
-        model,
+      const persistDiagnostics = Effect.fn("SessionCompaction.persistDiagnostics")(function* (input?: {
+        result?: "continue" | "compact" | "stop"
+        interrupted?: boolean
+      }) {
+        if (persistedDiagnostics) return persistedDiagnostics
+        const processor = activeProcessor
+        if (!processor) return undefined
+        const rawUsage = failedSuffixUsage ?? processor.latestUsage()
+        const tokenUsage = rawUsage
+          ? {
+              ...(rawUsage.inputTokens === undefined ? {} : { input: rawUsage.inputTokens }),
+              ...(rawUsage.cacheReadInputTokens === undefined ? {} : { cached: rawUsage.cacheReadInputTokens }),
+              ...(rawUsage.outputTokens === undefined ? {} : { output: rawUsage.outputTokens }),
+            }
+          : undefined
+        const diagnostics: SessionCompaction.Diagnostics = {
+          requested,
+          ...(activeMode ? { used: activeMode } : {}),
+          fallback: input?.interrupted
+            ? fallback
+            : (fallback ??
+              (input?.result === "compact" ? "context" : processor.message.error ? "provider_error" : undefined)),
+          durationMs: Math.max(0, Date.now() - started),
+          tokens: tokenUsage && Object.keys(tokenUsage).length ? tokenUsage : undefined,
+        }
+        yield* Effect.logInfo("compacted", {
+          requested,
+          used: activeMode,
+          fallback: diagnostics.fallback,
+          tokens: diagnostics.tokens,
+        })
+        yield* Effect.uninterruptible(
+          Effect.gen(function* () {
+            if (compactionPart) {
+              yield* session.updatePart({
+                ...compactionPart,
+                tail_start_id: selected.tail_start_id ?? compactionPart.tail_start_id,
+                diagnostics,
+              })
+            }
+            persistedDiagnostics = diagnostics
+          }),
+        )
+        return diagnostics
       })
+      const runProcessor = Effect.fnUntraced(function* (attempt?: { capture?: typeof suffix; suffix?: boolean }) {
+        const run = yield* makeProcessor(attempt)
+        if (!("retryLegacy" in run)) return run
+        yield* session.removeMessage({ sessionID: input.sessionID, messageID: run.processor.message.id })
+        const legacy = yield* makeProcessor()
+        if ("retryLegacy" in legacy) return yield* Effect.die("Legacy compaction cannot request a legacy retry")
+        return legacy
+      })
+      const runWithDiagnostics = (attempt?: { capture?: typeof suffix; suffix?: boolean }) =>
+        runProcessor(attempt).pipe(
+          Effect.onInterrupt(() => Effect.uninterruptible(persistDiagnostics({ interrupted: true }))),
+        )
+      let run = yield* runWithDiagnostics(canSuffix ? { capture: suffix, suffix: true } : undefined)
+      const suffixMessage = () =>
+        session.messages({ sessionID: input.sessionID }).pipe(
+          Effect.map((items) => items.find((item) => item.info.id === run.processor.message.id)),
+          Effect.orDie,
+        )
+      const persistedSuffix = yield* suffixMessage()
+      const suffixText = persistedSuffix ? summaryText(persistedSuffix) : undefined
+      const suffixToolCall = run.processor.attemptedToolCall()
+      const suffixFailed =
+        run.suffix &&
+        (run.result === "compact" ||
+          !!run.processor.message.error ||
+          !suffixText ||
+          !SessionCompactionSuffix.validateSummary(suffixText) ||
+          suffixToolCall)
+      if (suffixFailed) {
+        yield* Effect.uninterruptibleMask((restore) =>
+          Effect.gen(function* () {
+            const suffixUsage = run.processor.latestUsage()
+            fallback =
+              run.result === "compact"
+                ? "context"
+                : suffixToolCall
+                  ? "tool_call"
+                  : run.processor.message.error
+                    ? "provider_error"
+                    : suffixText
+                      ? "invalid_summary"
+                      : "empty_summary"
+            yield* session.removeMessage({ sessionID: input.sessionID, messageID: run.processor.message.id })
+            failedSuffixUsage = suffixUsage
+            run = yield* restore(runWithDiagnostics())
+          }),
+        ).pipe(Effect.onInterrupt(() => Effect.uninterruptible(persistDiagnostics({ interrupted: true }))))
+      }
+      const processor = run.processor
+      const result = run.result
 
       if (result === "compact") {
         processor.message.error = new SessionV1.ContextOverflowError({
@@ -455,15 +673,14 @@ const layer = Layer.effect(
         }).toObject()
         processor.message.finish = "error"
         yield* session.updateMessage(processor.message)
+        yield* persistDiagnostics({ result })
         return "stop"
       }
-
-      if (compactionPart && selected.tail_start_id && compactionPart.tail_start_id !== selected.tail_start_id) {
-        yield* session.updatePart({
-          ...compactionPart,
-          tail_start_id: selected.tail_start_id,
-        })
+      if (processor.message.error) {
+        yield* persistDiagnostics({ result })
+        return "stop"
       }
+      const diagnostics = yield* persistDiagnostics({ result })
 
       if (result === "continue" && input.auto) {
         if (replay) {
@@ -549,9 +766,8 @@ const layer = Layer.effect(
         }
       }
 
-      if (processor.message.error) return "stop"
       if (result === "continue") {
-        yield* events.publish(Event.Compacted, { sessionID: input.sessionID })
+        yield* events.publish(Event.Compacted, { sessionID: input.sessionID, diagnostics })
       }
       return result
     })

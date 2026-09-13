@@ -51,6 +51,7 @@ import type { PromptInfo } from "../../component/prompt/history"
 import { DialogConfirm } from "../../ui/dialog-confirm"
 import { DialogTimeline } from "./dialog-timeline"
 import { DialogForkFromTimeline } from "./dialog-fork-from-timeline"
+import { formatCompactionDiagnostics } from "./compaction-diagnostics"
 import { DialogSessionRename } from "../../component/dialog-session-rename"
 import { Sidebar } from "./sidebar"
 import { SubagentFooter } from "./subagent-footer.tsx"
@@ -1390,6 +1391,10 @@ function UserMessage(props: {
   const metadataVisible = createMemo(() => queued() || ctx.showTimestamps())
 
   const compaction = createMemo(() => props.parts.find((x) => x.type === "compaction"))
+  const compactionDiagnostics = createMemo(() => {
+    const diagnostics = compaction()?.diagnostics
+    return diagnostics ? formatCompactionDiagnostics(diagnostics) : undefined
+  })
 
   return (
     <>
@@ -1454,13 +1459,17 @@ function UserMessage(props: {
         </box>
       </Show>
       <Show when={compaction()}>
-        <box
-          marginTop={1}
-          border={["top"]}
-          title=" Compaction "
-          titleAlignment="center"
-          borderColor={theme.borderActive}
-        />
+        <box marginTop={1}>
+          <box
+            border={["top"]}
+            title={` Compaction${compactionDiagnostics()?.mode ? ` · ${compactionDiagnostics()?.mode}` : ""} `}
+            titleAlignment="center"
+            borderColor={theme.borderActive}
+          />
+          <Show when={compactionDiagnostics()?.details}>
+            <text fg={theme.textMuted}>{compactionDiagnostics()?.details}</text>
+          </Show>
+        </box>
       </Show>
     </>
   )

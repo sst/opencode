@@ -12,6 +12,7 @@ import { SessionID } from "./session-id"
 import { Location } from "./location"
 import { SessionMessage } from "./session-message"
 import { Revert } from "./revert"
+import { SessionCompaction } from "./session-compaction"
 
 export { FileAttachment }
 
@@ -403,6 +404,7 @@ export namespace Compaction {
       ...Base,
       messageID: SessionMessage.ID,
       reason: Schema.Union([Schema.Literal("auto"), Schema.Literal("manual")]),
+      requested: SessionCompaction.Mode.pipe(optional),
     },
   })
   export type Started = typeof Started.Type
@@ -426,9 +428,23 @@ export namespace Compaction {
       reason: Started.data.fields.reason,
       text: Schema.String,
       recent: Schema.String,
+      diagnostics: SessionCompaction.Diagnostics.pipe(optional),
     },
   })
   export type Ended = typeof Ended.Type
+
+  export const Failed = Event.define({
+    type: "session.next.compaction.failed",
+    ...options,
+    schema: {
+      ...Base,
+      messageID: SessionMessage.ID,
+      reason: Started.data.fields.reason,
+      failure: SessionCompaction.FailureReason,
+      diagnostics: SessionCompaction.Diagnostics,
+    },
+  })
+  export type Failed = typeof Failed.Type
 }
 
 export namespace RevertEvent {
@@ -471,6 +487,7 @@ export const DurableDefinitions = Event.inventory(
   Retried,
   Compaction.Started,
   Compaction.Ended,
+  Compaction.Failed,
   RevertEvent.Staged,
   RevertEvent.Cleared,
   RevertEvent.Committed,
@@ -504,6 +521,7 @@ export const Definitions = Event.inventory(
   Tool.Failed,
   Retried,
   Compaction.Started,
+  Compaction.Failed,
   Compaction.Delta,
   Compaction.Ended,
   RevertEvent.Staged,

@@ -148,6 +148,9 @@ export const Info = Schema.Struct({
   }),
   compaction: Schema.optional(
     Schema.Struct({
+      mode: Schema.optional(Schema.Literals(["prepend", "suffix"])).annotate({
+        description: "Compaction request mode. Suffix is experimental and off by default; prepend remains the default.",
+      }),
       auto: Schema.optional(Schema.Boolean).annotate({
         description: "Enable automatic compaction when context is full (default: true)",
       }),

@@ -43,6 +43,7 @@ export type Event =
   | EventSessionNextToolFailed
   | EventSessionNextRetried
   | EventSessionNextCompactionStarted
+  | EventSessionNextCompactionFailed
   | EventSessionNextCompactionDelta
   | EventSessionNextCompactionEnded
   | EventSessionNextRevertStaged
@@ -622,6 +623,7 @@ export type CompactionPart = {
   auto: boolean
   overflow?: boolean
   tail_start_id?: string
+  diagnostics?: SessionCompactionDiagnostics
 }
 
 export type Part =
@@ -1140,6 +1142,28 @@ export type GlobalEvent = {
           sessionID: string
           messageID: string
           reason: "auto" | "manual"
+          requested?: "prepend" | "suffix"
+        }
+      }
+    | {
+        id: string
+        type: "session.next.compaction.failed"
+        properties: {
+          timestamp: number
+          sessionID: string
+          messageID: string
+          reason: "auto" | "manual"
+          failure:
+            | "context"
+            | "plugin_prompt"
+            | "provider_tool"
+            | "provider_error"
+            | "tool_choice"
+            | "tool_call"
+            | "empty_summary"
+            | "invalid_summary"
+            | "interrupted"
+          diagnostics: SessionCompactionDiagnostics
         }
       }
     | {
@@ -1162,6 +1186,7 @@ export type GlobalEvent = {
           reason: "auto" | "manual"
           text: string
           recent: string
+          diagnostics?: SessionCompactionDiagnostics
         }
       }
     | {
@@ -1540,6 +1565,7 @@ export type GlobalEvent = {
         type: "session.compacted"
         properties: {
           sessionID: string
+          diagnostics?: SessionCompactionDiagnostics
         }
       }
     | {
@@ -1632,6 +1658,7 @@ export type GlobalEvent = {
     | SyncEventSessionNextToolFailed
     | SyncEventSessionNextRetried
     | SyncEventSessionNextCompactionStarted
+    | SyncEventSessionNextCompactionFailed
     | SyncEventSessionNextCompactionEnded
     | SyncEventSessionNextRevertStaged
     | SyncEventSessionNextRevertCleared
@@ -2015,6 +2042,7 @@ export type Config = {
     max_bytes?: number
   }
   compaction?: {
+    mode?: "prepend" | "suffix"
     auto?: boolean
     prune?: boolean
     tail_turns?: number
@@ -2765,6 +2793,7 @@ export type SessionDurableEvent =
   | SessionNextRetried
   | SessionNextCompactionStarted
   | SessionNextCompactionEnded
+  | SessionNextCompactionFailed
   | SessionNextRevertStaged
   | SessionNextRevertCleared
   | SessionNextRevertCommitted
@@ -2894,6 +2923,7 @@ export type V2Event =
   | SessionNextToolFailed
   | SessionNextRetried
   | SessionNextCompactionStarted
+  | SessionNextCompactionFailed
   | SessionNextCompactionDelta
   | SessionNextCompactionEnded
   | SessionNextRevertStaged
@@ -3036,6 +3066,28 @@ export type SkillV2Source = SkillV2DirectorySource | SkillV2UrlSource | SkillV2E
 
 export type MoveSessionDestination = {
   directory: string
+}
+
+export type SessionCompactionTokens = {
+  input?: number
+  cached?: number
+  output?: number
+}
+
+export type SessionCompactionDiagnostics = {
+  requested?: "prepend" | "suffix"
+  used?: "prepend" | "suffix"
+  fallback?:
+    | "context"
+    | "plugin_prompt"
+    | "provider_tool"
+    | "provider_error"
+    | "tool_choice"
+    | "tool_call"
+    | "empty_summary"
+    | "invalid_summary"
+  durationMs?: number
+  tokens?: SessionCompactionTokens
 }
 
 export type ModelRef = {
@@ -3756,6 +3808,35 @@ export type SyncEventSessionNextCompactionStarted = {
       sessionID: string
       messageID: string
       reason: "auto" | "manual"
+      requested?: "prepend" | "suffix"
+    }
+  }
+}
+
+export type SyncEventSessionNextCompactionFailed = {
+  type: "sync"
+  id: string
+  syncEvent: {
+    type: "session.next.compaction.failed.1"
+    id: string
+    seq: number
+    aggregateID: string
+    data: {
+      timestamp: number
+      sessionID: string
+      messageID: string
+      reason: "auto" | "manual"
+      failure:
+        | "context"
+        | "plugin_prompt"
+        | "provider_tool"
+        | "provider_error"
+        | "tool_choice"
+        | "tool_call"
+        | "empty_summary"
+        | "invalid_summary"
+        | "interrupted"
+      diagnostics: SessionCompactionDiagnostics
     }
   }
 }
@@ -3775,6 +3856,7 @@ export type SyncEventSessionNextCompactionEnded = {
       reason: "auto" | "manual"
       text: string
       recent: string
+      diagnostics?: SessionCompactionDiagnostics
     }
   }
 }
@@ -4146,6 +4228,7 @@ export type SessionMessageCompaction = {
   reason: "auto" | "manual"
   summary: string
   recent: string
+  diagnostics?: SessionCompactionDiagnostics
   id: string
   metadata?: {
     [key: string]: unknown
@@ -4693,6 +4776,7 @@ export type SessionNextCompactionStarted = {
     sessionID: string
     messageID: string
     reason: "auto" | "manual"
+    requested?: "prepend" | "suffix"
   }
 }
 
@@ -4715,6 +4799,38 @@ export type SessionNextCompactionEnded = {
     reason: "auto" | "manual"
     text: string
     recent: string
+    diagnostics?: SessionCompactionDiagnostics
+  }
+}
+
+export type SessionNextCompactionFailed = {
+  id: string
+  metadata?: {
+    [key: string]: unknown
+  }
+  type: "session.next.compaction.failed"
+  durable?: {
+    aggregateID: string
+    seq: number
+    version: number
+  }
+  location?: LocationRef
+  data: {
+    timestamp: number
+    sessionID: string
+    messageID: string
+    reason: "auto" | "manual"
+    failure:
+      | "context"
+      | "plugin_prompt"
+      | "provider_tool"
+      | "provider_error"
+      | "tool_choice"
+      | "tool_call"
+      | "empty_summary"
+      | "invalid_summary"
+      | "interrupted"
+    diagnostics: SessionCompactionDiagnostics
   }
 }
 
@@ -5967,6 +6083,7 @@ export type SessionCompacted = {
   location?: LocationRef
   data: {
     sessionID: string
+    diagnostics?: SessionCompactionDiagnostics
   }
 }
 
@@ -6599,6 +6716,29 @@ export type EventSessionNextCompactionStarted = {
     sessionID: string
     messageID: string
     reason: "auto" | "manual"
+    requested?: "prepend" | "suffix"
+  }
+}
+
+export type EventSessionNextCompactionFailed = {
+  id: string
+  type: "session.next.compaction.failed"
+  properties: {
+    timestamp: number
+    sessionID: string
+    messageID: string
+    reason: "auto" | "manual"
+    failure:
+      | "context"
+      | "plugin_prompt"
+      | "provider_tool"
+      | "provider_error"
+      | "tool_choice"
+      | "tool_call"
+      | "empty_summary"
+      | "invalid_summary"
+      | "interrupted"
+    diagnostics: SessionCompactionDiagnostics
   }
 }
 
@@ -6623,6 +6763,7 @@ export type EventSessionNextCompactionEnded = {
     reason: "auto" | "manual"
     text: string
     recent: string
+    diagnostics?: SessionCompactionDiagnostics
   }
 }
 
@@ -6986,6 +7127,7 @@ export type EventSessionCompacted = {
   type: "session.compacted"
   properties: {
     sessionID: string
+    diagnostics?: SessionCompactionDiagnostics
   }
 }
 

@@ -325,6 +325,22 @@ describe("SessionProjector", () => {
           .all()
           .pipe(Effect.orDie),
       ).toEqual([])
+      yield* events.publish(SessionEvent.Compaction.Failed, {
+        sessionID,
+        messageID: SessionMessage.ID.create(),
+        timestamp: DateTime.makeUnsafe(1),
+        reason: "auto",
+        failure: "context",
+        diagnostics: { requested: "suffix", fallback: "context", durationMs: 1 },
+      })
+      expect(
+        yield* db
+          .select({ id: SessionMessageTable.id })
+          .from(SessionMessageTable)
+          .where(eq(SessionMessageTable.type, "compaction"))
+          .all()
+          .pipe(Effect.orDie),
+      ).toEqual([])
       yield* events.publish(SessionEvent.Compaction.Ended, {
         sessionID,
         messageID: compactionID,
@@ -332,6 +348,13 @@ describe("SessionProjector", () => {
         reason: "manual",
         text: "summary",
         recent: "recent context",
+        diagnostics: {
+          requested: "suffix",
+          used: "prepend",
+          fallback: "invalid_summary",
+          durationMs: 12,
+          tokens: { input: 40, cached: 30, output: 10 },
+        },
       })
 
       const rows = yield* db
@@ -359,6 +382,13 @@ describe("SessionProjector", () => {
       expect(messages.find((message) => message.type === "compaction")).toMatchObject({
         summary: "summary",
         recent: "recent context",
+        diagnostics: {
+          requested: "suffix",
+          used: "prepend",
+          fallback: "invalid_summary",
+          durationMs: 12,
+          tokens: { input: 40, cached: 30, output: 10 },
+        },
       })
       expect(
         yield* db.select().from(SessionTable).where(eq(SessionTable.id, sessionID)).get().pipe(Effect.orDie),

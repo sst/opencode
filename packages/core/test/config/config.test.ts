@@ -87,6 +87,19 @@ describe("Config", () => {
     }),
   )
 
+  it.effect("accepts and migrates compaction mode", () =>
+    Effect.sync(() => {
+      const v1 = Schema.decodeUnknownSync(ConfigV1.Info)({ compaction: { mode: "suffix" } })
+      const migrated = ConfigMigrateV1.migrate(v1)
+
+      expect(migrated.compaction?.mode).toBe("suffix")
+      expect(Schema.decodeUnknownSync(Config.Info)(migrated).compaction?.mode).toBe("suffix")
+      expect(Schema.decodeUnknownSync(Config.Info)({ compaction: { mode: "prepend" } }).compaction?.mode).toBe(
+        "prepend",
+      )
+    }),
+  )
+
   it.effect("migrates v1 provider setup options into AISDK settings", () =>
     Effect.sync(() => {
       const migrated = ConfigMigrateV1.migrate({

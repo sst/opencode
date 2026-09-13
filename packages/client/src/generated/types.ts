@@ -669,6 +669,21 @@ export type SessionsContextOutput = {
         readonly reason: "auto" | "manual"
         readonly summary: string
         readonly recent: string
+        readonly diagnostics?: {
+          readonly requested?: "prepend" | "suffix"
+          readonly used?: "prepend" | "suffix"
+          readonly fallback?:
+            | "context"
+            | "plugin_prompt"
+            | "provider_tool"
+            | "provider_error"
+            | "tool_choice"
+            | "tool_call"
+            | "empty_summary"
+            | "invalid_summary"
+          readonly durationMs?: number
+          readonly tokens?: { readonly input?: number; readonly cached?: number; readonly output?: number }
+        }
         readonly id: string
         readonly metadata?: { readonly [x: string]: JsonValue }
         readonly time: { readonly created: number }
@@ -1075,6 +1090,7 @@ export type SessionsHistoryOutput = {
           readonly sessionID: string
           readonly messageID: string
           readonly reason: "auto" | "manual"
+          readonly requested?: "prepend" | "suffix"
         }
       }
     | {
@@ -1090,6 +1106,59 @@ export type SessionsHistoryOutput = {
           readonly reason: "auto" | "manual"
           readonly text: string
           readonly recent: string
+          readonly diagnostics?: {
+            readonly requested?: "prepend" | "suffix"
+            readonly used?: "prepend" | "suffix"
+            readonly fallback?:
+              | "context"
+              | "plugin_prompt"
+              | "provider_tool"
+              | "provider_error"
+              | "tool_choice"
+              | "tool_call"
+              | "empty_summary"
+              | "invalid_summary"
+            readonly durationMs?: number
+            readonly tokens?: { readonly input?: number; readonly cached?: number; readonly output?: number }
+          }
+        }
+      }
+    | {
+        readonly id: string
+        readonly metadata?: { readonly [x: string]: JsonValue }
+        readonly type: "session.next.compaction.failed"
+        readonly durable?: { readonly aggregateID: string; readonly seq: number; readonly version: number }
+        readonly location?: { readonly directory: string; readonly workspaceID?: string }
+        readonly data: {
+          readonly timestamp: number
+          readonly sessionID: string
+          readonly messageID: string
+          readonly reason: "auto" | "manual"
+          readonly failure:
+            | "context"
+            | "plugin_prompt"
+            | "provider_tool"
+            | "provider_error"
+            | "tool_choice"
+            | "tool_call"
+            | "empty_summary"
+            | "invalid_summary"
+            | "interrupted"
+          readonly diagnostics: {
+            readonly requested?: "prepend" | "suffix"
+            readonly used?: "prepend" | "suffix"
+            readonly fallback?:
+              | "context"
+              | "plugin_prompt"
+              | "provider_tool"
+              | "provider_error"
+              | "tool_choice"
+              | "tool_call"
+              | "empty_summary"
+              | "invalid_summary"
+            readonly durationMs?: number
+            readonly tokens?: { readonly input?: number; readonly cached?: number; readonly output?: number }
+          }
         }
       }
     | {
@@ -1533,6 +1602,7 @@ export type SessionsEventsOutput =
         readonly sessionID: string
         readonly messageID: string
         readonly reason: "auto" | "manual"
+        readonly requested?: "prepend" | "suffix"
       }
     }
   | {
@@ -1548,6 +1618,59 @@ export type SessionsEventsOutput =
         readonly reason: "auto" | "manual"
         readonly text: string
         readonly recent: string
+        readonly diagnostics?: {
+          readonly requested?: "prepend" | "suffix"
+          readonly used?: "prepend" | "suffix"
+          readonly fallback?:
+            | "context"
+            | "plugin_prompt"
+            | "provider_tool"
+            | "provider_error"
+            | "tool_choice"
+            | "tool_call"
+            | "empty_summary"
+            | "invalid_summary"
+          readonly durationMs?: number
+          readonly tokens?: { readonly input?: number; readonly cached?: number; readonly output?: number }
+        }
+      }
+    }
+  | {
+      readonly id: string
+      readonly metadata?: { readonly [x: string]: unknown }
+      readonly type: "session.next.compaction.failed"
+      readonly durable?: { readonly aggregateID: string; readonly seq: number; readonly version: number }
+      readonly location?: { readonly directory: string; readonly workspaceID?: string }
+      readonly data: {
+        readonly timestamp: number
+        readonly sessionID: string
+        readonly messageID: string
+        readonly reason: "auto" | "manual"
+        readonly failure:
+          | "context"
+          | "plugin_prompt"
+          | "provider_tool"
+          | "provider_error"
+          | "tool_choice"
+          | "tool_call"
+          | "empty_summary"
+          | "invalid_summary"
+          | "interrupted"
+        readonly diagnostics: {
+          readonly requested?: "prepend" | "suffix"
+          readonly used?: "prepend" | "suffix"
+          readonly fallback?:
+            | "context"
+            | "plugin_prompt"
+            | "provider_tool"
+            | "provider_error"
+            | "tool_choice"
+            | "tool_call"
+            | "empty_summary"
+            | "invalid_summary"
+          readonly durationMs?: number
+          readonly tokens?: { readonly input?: number; readonly cached?: number; readonly output?: number }
+        }
       }
     }
   | {
@@ -1747,6 +1870,21 @@ export type SessionsMessageOutput = {
         readonly reason: "auto" | "manual"
         readonly summary: string
         readonly recent: string
+        readonly diagnostics?: {
+          readonly requested?: "prepend" | "suffix"
+          readonly used?: "prepend" | "suffix"
+          readonly fallback?:
+            | "context"
+            | "plugin_prompt"
+            | "provider_tool"
+            | "provider_error"
+            | "tool_choice"
+            | "tool_call"
+            | "empty_summary"
+            | "invalid_summary"
+          readonly durationMs?: number
+          readonly tokens?: { readonly input?: number; readonly cached?: number; readonly output?: number }
+        }
         readonly id: string
         readonly metadata?: { readonly [x: string]: JsonValue }
         readonly time: { readonly created: number }
@@ -1919,6 +2057,21 @@ export type MessagesListOutput = {
         readonly reason: "auto" | "manual"
         readonly summary: string
         readonly recent: string
+        readonly diagnostics?: {
+          readonly requested?: "prepend" | "suffix"
+          readonly used?: "prepend" | "suffix"
+          readonly fallback?:
+            | "context"
+            | "plugin_prompt"
+            | "provider_tool"
+            | "provider_error"
+            | "tool_choice"
+            | "tool_call"
+            | "empty_summary"
+            | "invalid_summary"
+          readonly durationMs?: number
+          readonly tokens?: { readonly input?: number; readonly cached?: number; readonly output?: number }
+        }
         readonly id: string
         readonly metadata?: { readonly [x: string]: JsonValue }
         readonly time: { readonly created: number }

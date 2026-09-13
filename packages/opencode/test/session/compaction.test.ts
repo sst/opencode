@@ -3,12 +3,13 @@ import { ConfigV1 } from "@opencode-ai/core/v1/config/config"
 import { SessionV1 } from "@opencode-ai/core/v1/session"
 import { Database } from "@opencode-ai/core/database/database"
 import { EventV2Bridge } from "@/event-v2-bridge"
-import { APICallError } from "ai"
+import { APICallError, jsonSchema, tool } from "ai"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Schema } from "effect"
 import * as Stream from "effect/Stream"
 import { Config } from "@/config/config"
 import { LLM } from "../../src/session/llm"
 import { SessionCompaction } from "../../src/session/compaction"
+import { usable } from "../../src/session/overflow"
 import { Token } from "@/util/token"
 import { Plugin } from "../../src/plugin"
 import { provideTmpdirInstance, TestInstance } from "../fixture/fixture"
@@ -51,6 +52,33 @@ const ref = {
 const usage = (input: ConstructorParameters<typeof Usage>[0]) => new Usage(input)
 
 const basicUsage = () => usage({ inputTokens: 1, outputTokens: 1, totalTokens: 2 })
+
+const suffixSummary = `## Objective
+- compact
+
+## Important Details
+- none
+
+## Work State
+### Completed
+- none
+
+### Active
+- none
+
+### Blocked
+- none
+
+## Next Move
+1. none
+2. none
+
+## Relevant Files
+- none`
+
+function hasMessages(output: unknown): output is { messages: SessionV1.WithParts[] } {
+  return typeof output === "object" && output !== null && "messages" in output && Array.isArray(output.messages)
+}
 
 afterEach(() => {
   mock.restore()
@@ -202,6 +230,8 @@ function fake(
     get message() {
       return msg
     },
+    latestUsage: () => undefined,
+    attemptedToolCall: () => false,
     updateToolCall: Effect.fn("TestSessionProcessor.updateToolCall")(() => Effect.succeed(undefined)),
     completeToolCall: Effect.fn("TestSessionProcessor.completeToolCall")(() => Effect.void),
     process: Effect.fn("TestSessionProcessor.process")(() => Effect.succeed(result)),
@@ -238,6 +268,11 @@ const env = AppNodeBuilder.build(compactionTestNode, [
 ])
 
 const it = testEffect(env)
+
+test("usable honors reserved tokens without an input limit", () => {
+  const model = createModel({ context: 100_000, output: 32_000 })
+  expect(usable({ cfg: { compaction: { reserved: 12_000 } }, model })).toBe(56_000)
+})
 
 const compactionEnv = AppNodeBuilder.build(
   LayerNode.group([SessionNs.node, SessionProjector.node, Database.node, EventV2Bridge.node, CrossSpawnSpawner.node]),
@@ -1228,8 +1263,10 @@ describe("session.compaction.process", () => {
         const events = yield* EventV2Bridge.Service
         const ready = yield* Deferred.make<void>()
         const session = yield* ssn.create({})
-        const msg = yield* createUserMessage(session.id, "hello")
+        yield* createUserMessage(session.id, "hello")
+        yield* createCompactionMarker(session.id)
         const msgs = yield* ssn.messages({ sessionID: session.id })
+        const marker = msgs.at(-1)!.info
         const off = yield* events.listen((evt) => {
           if (evt.type !== SessionStatus.Event.Status.type) return Effect.void
           const data = evt.data as typeof SessionStatus.Event.Status.data.Type
@@ -1241,7 +1278,7 @@ describe("session.compaction.process", () => {
 
         const fiber = yield* SessionCompaction.use
           .process({
-            parentID: msg.id,
+            parentID: marker.id,
             messages: msgs,
             sessionID: session.id,
             auto: false,
@@ -1258,6 +1295,10 @@ describe("session.compaction.process", () => {
           expect(Cause.hasInterrupts(exit.cause)).toBe(true)
           expect(Date.now() - start).toBeLessThan(250)
         }
+        expect((yield* readCompactionPart(session.id))?.diagnostics).toMatchObject({
+          requested: "prepend",
+          used: "prepend",
+        })
       }).pipe(withCompaction({ llm: stub.llmLayer }))
     },
     { git: true },
@@ -1354,12 +1395,40 @@ describe("session.compaction.process", () => {
           }),
         ),
       )
+      stub.push(reply("legacy summary"))
       return Effect.gen(function* () {
         const ssn = yield* SessionNs.Service
         const session = yield* ssn.create({})
         const msg = yield* createUserMessage(session.id, "hello")
+        yield* createCompactionMarker(session.id)
         const msgs = yield* ssn.messages({ sessionID: session.id })
-        yield* SessionCompaction.use.process({ parentID: msg.id, messages: msgs, sessionID: session.id, auto: false })
+        const marker = msgs.at(-1)!.info
+        let executions = 0
+        const captured: LLM.StreamInput = {
+          user: msg,
+          agent: { name: "build" } as LLM.StreamInput["agent"],
+          sessionID: session.id,
+          system: [],
+          messages: [{ role: "user", content: [{ type: "text", text: "hello" }] }],
+          tools: {
+            _noop: tool({
+              description: "test tool",
+              inputSchema: jsonSchema({ type: "object", properties: {} }),
+              execute: async () => {
+                executions++
+                return "executed"
+              },
+            }),
+          },
+          model: createModel({ context: 100_000, output: 32_000 }),
+        }
+        yield* SessionCompaction.use.process({
+          parentID: marker.id,
+          messages: msgs,
+          sessionID: session.id,
+          auto: false,
+          capture: { request: captured, messageIDs: new Set([msg.id]) },
+        })
 
         const summary = (yield* ssn.messages({ sessionID: session.id })).find(
           (item) => item.info.role === "assistant" && item.info.summary,
@@ -1367,7 +1436,13 @@ describe("session.compaction.process", () => {
 
         expect(summary?.info.role).toBe("assistant")
         expect(summary?.parts.some((part) => part.type === "tool")).toBe(false)
-      }).pipe(withCompaction({ llm: stub.llmLayer }))
+        expect(executions).toBe(0)
+        expect((yield* readCompactionPart(session.id))?.diagnostics).toMatchObject({
+          requested: "suffix",
+          used: "prepend",
+          fallback: "tool_call",
+        })
+      }).pipe(withCompaction({ llm: stub.llmLayer, config: cfg({ mode: "suffix" }) }))
     },
     { git: true },
   )
@@ -1615,6 +1690,288 @@ describe("session.compaction.process", () => {
         filtered.some((msg) => msg.info.role === "user" && msg.parts.some((part) => part.type === "compaction")),
       ).toBe(true)
     }).pipe(withCompaction({ llm: stub.llmLayer, config: cfg({ tail_turns: 2, preserve_recent_tokens: 10_000 }) }))
+  })
+
+  itCompaction.instance("appends only uncaptured history and the suffix instruction to a captured request", () => {
+    const stub = llm()
+    let request: LLM.StreamInput | undefined
+    let transforms = 0
+    const plugins = Layer.mock(Plugin.Service)({
+      trigger: <Name extends string, Input, Output>(name: Name, _input: Input, output: Output) => {
+        if (name === "experimental.chat.messages.transform" && hasMessages(output)) {
+          transforms++
+          for (const message of output.messages) {
+            for (const part of message.parts) {
+              if (part.type === "text" && part.text === "new history") part.text = "redacted history"
+            }
+          }
+        }
+        return Effect.succeed(output)
+      },
+      list: () => Effect.succeed([]),
+      init: () => Effect.void,
+    })
+    stub.push(reply(suffixSummary, (input) => (request = input)))
+    return Effect.gen(function* () {
+      const ssn = yield* SessionNs.Service
+      const session = yield* ssn.create({})
+      const original = yield* createUserMessage(session.id, "captured prefix")
+      yield* createUserMessage(session.id, "new history")
+      yield* createCompactionMarker(session.id)
+      const messages = yield* ssn.messages({ sessionID: session.id })
+      const marker = messages.at(-1)!.info
+      const captured: LLM.InternalStreamInput = {
+        user: original,
+        agent: { name: "build" } as LLM.StreamInput["agent"],
+        sessionID: session.id,
+        system: ["captured system"],
+        messages: [{ role: "user", content: [{ type: "text", text: "captured prefix" }] }],
+        tools: {
+          safe: tool({
+            description: "safe test tool",
+            inputSchema: jsonSchema({ type: "object", properties: {} }),
+          }),
+        },
+        toolChoice: "auto",
+        parentSessionID: "ses_parent",
+        retries: 3,
+        small: true,
+        model: createModel({ context: 100_000, output: 32_000 }),
+        systemPrepared: true,
+        prepareSystem: () => Effect.die("captured system must not be prepared again"),
+        onSystemPrepared: () => {
+          throw new Error("captured callbacks must not run")
+        },
+      }
+      yield* SessionCompaction.use.process({
+        parentID: marker.id,
+        messages,
+        sessionID: session.id,
+        auto: false,
+        capture: { request: captured, messageIDs: new Set([original.id]) },
+      })
+      expect(request?.system).toEqual(captured.system)
+      expect(request?.messages.slice(0, captured.messages.length)).toEqual(captured.messages)
+      expect(request?.messages).toHaveLength(captured.messages.length + 2)
+      expect(captured.tools.safe).toBeDefined()
+      expect(request?.tools.safe).toMatchObject(captured.tools.safe)
+      expect(request?.toolChoice).toEqual(captured.toolChoice)
+      expect(request?.parentSessionID).toEqual(captured.parentSessionID)
+      expect(request?.retries).toEqual(captured.retries)
+      expect(request?.small).toEqual(captured.small)
+      expect(request?.maxOutputTokens).toBe(4096)
+      expect(JSON.stringify(request?.messages.at(-1))).toContain("Summarize the older portion")
+      expect(JSON.stringify(request?.messages)).toContain("redacted history")
+      expect(JSON.stringify(request?.messages)).not.toContain("new history")
+      expect(transforms).toBe(1)
+    }).pipe(withCompaction({ llm: stub.llmLayer, plugin: plugins, config: cfg({ mode: "suffix" }) }))
+  })
+
+  itCompaction.instance("uses the bounded suffix output cap when a normal output reservation would not fit", () => {
+    const stub = llm()
+    let request: LLM.StreamInput | undefined
+    stub.push(reply(suffixSummary, (input) => (request = input)))
+    return Effect.gen(function* () {
+      const ssn = yield* SessionNs.Service
+      const session = yield* ssn.create({})
+      const original = yield* createUserMessage(session.id, "captured prefix")
+      yield* createCompactionMarker(session.id)
+      const messages = yield* ssn.messages({ sessionID: session.id })
+      const marker = messages.at(-1)!.info
+      const captured: LLM.StreamInput = {
+        user: original,
+        agent: { name: "build" } as LLM.StreamInput["agent"],
+        sessionID: session.id,
+        system: [],
+        messages: [{ role: "user", content: [{ type: "text", text: "captured prefix" }] }],
+        tools: {},
+        model: createModel({ context: 10_000, output: 32_000 }),
+      }
+      expect(usable({ cfg: {}, model: captured.model })).toBe(0)
+      yield* SessionCompaction.use.process({
+        parentID: marker.id,
+        messages,
+        sessionID: session.id,
+        auto: false,
+        capture: { request: captured, messageIDs: new Set([original.id]) },
+      })
+      expect(request?.maxOutputTokens).toBe(4096)
+      expect((yield* readCompactionPart(session.id))?.diagnostics).toMatchObject({
+        requested: "suffix",
+        used: "suffix",
+      })
+    }).pipe(withCompaction({ llm: stub.llmLayer, config: cfg({ mode: "suffix" }) }))
+  })
+
+  itCompaction.instance("falls back before sending a suffix when uncaptured additions exceed its context", () => {
+    const stub = llm()
+    const requests: LLM.StreamInput[] = []
+    stub.push(reply("legacy summary", (input) => requests.push(input)))
+    return Effect.gen(function* () {
+      const ssn = yield* SessionNs.Service
+      const session = yield* ssn.create({})
+      const original = yield* createUserMessage(session.id, "captured prefix")
+      yield* createUserMessage(session.id, "uncaptured addition ".repeat(3_000))
+      yield* createCompactionMarker(session.id)
+      const messages = yield* ssn.messages({ sessionID: session.id })
+      const marker = messages.at(-1)!.info
+      const captured: LLM.StreamInput = {
+        user: original,
+        agent: { name: "build" } as LLM.StreamInput["agent"],
+        sessionID: session.id,
+        system: [],
+        messages: [{ role: "user", content: [{ type: "text", text: "captured prefix" }] }],
+        tools: {},
+        model: createModel({ context: 10_000, output: 32_000 }),
+      }
+      yield* SessionCompaction.use.process({
+        parentID: marker.id,
+        messages,
+        sessionID: session.id,
+        auto: false,
+        capture: { request: captured, messageIDs: new Set([original.id]) },
+      })
+      expect(requests).toHaveLength(1)
+      expect(JSON.stringify(requests[0]?.messages)).not.toContain("Summarize the older portion")
+      expect((yield* readCompactionPart(session.id))?.diagnostics).toMatchObject({
+        requested: "suffix",
+        used: "prepend",
+        fallback: "context",
+      })
+    }).pipe(withCompaction({ llm: stub.llmLayer, config: cfg({ mode: "suffix" }) }))
+  })
+
+  itCompaction.instance("uses a rebuilt live request when no capture is available", () => {
+    const stub = llm()
+    let request: LLM.StreamInput | undefined
+    let rebuildModel: Provider.Model | undefined
+    stub.push(reply(suffixSummary, (input) => (request = input)))
+    return Effect.gen(function* () {
+      const ssn = yield* SessionNs.Service
+      const session = yield* ssn.create({})
+      const original = yield* createUserMessage(session.id, "rebuilt prefix")
+      yield* createCompactionMarker(session.id)
+      const messages = yield* ssn.messages({ sessionID: session.id })
+      const marker = messages.at(-1)!.info
+      let systemTransforms = 0
+      const rebuilt: LLM.InternalStreamInput = {
+        user: original,
+        agent: { name: "build" } as LLM.StreamInput["agent"],
+        sessionID: session.id,
+        system: ["rebuilt system"],
+        messages: [{ role: "user", content: [{ type: "text", text: "rebuilt prefix" }] }],
+        tools: {},
+        model: createModel({ context: 100_000, output: 32_000 }),
+        prepareSystem: () =>
+          Effect.sync(() => {
+            systemTransforms++
+            return ["transformed system"]
+          }),
+      }
+
+      yield* SessionCompaction.use.process({
+        parentID: marker.id,
+        messages,
+        sessionID: session.id,
+        auto: false,
+        rebuild: ({ model }) =>
+          Effect.sync(() => {
+            rebuildModel = model
+            return rebuilt
+          }),
+      })
+
+      expect(request?.system).toEqual(["transformed system"])
+      expect(systemTransforms).toBe(1)
+      expect(rebuildModel).toBe(request?.model)
+      expect(request?.messages.slice(0, rebuilt.messages.length)).toEqual(rebuilt.messages)
+      expect(JSON.stringify(request?.messages.at(-1))).toContain("Summarize the older portion")
+      expect((yield* readCompactionPart(session.id))?.diagnostics).toMatchObject({
+        requested: "suffix",
+        used: "suffix",
+      })
+    }).pipe(withCompaction({ llm: stub.llmLayer, config: cfg({ mode: "suffix" }) }))
+  })
+
+  itCompaction.instance("removes an invalid suffix attempt before prepend fallback", () => {
+    const stub = llm()
+    const requests: LLM.StreamInput[] = []
+    stub.push(reply("invalid summary", (input) => requests.push(input)))
+    stub.push(reply("legacy summary", (input) => requests.push(input)))
+    return Effect.gen(function* () {
+      const ssn = yield* SessionNs.Service
+      const session = yield* ssn.create({})
+      const original = yield* createUserMessage(session.id, "captured prefix")
+      yield* createUserMessage(session.id, "new history")
+      yield* createCompactionMarker(session.id)
+      const messages = yield* ssn.messages({ sessionID: session.id })
+      const marker = messages.at(-1)!.info
+      const captured: LLM.StreamInput = {
+        user: original,
+        agent: { name: "build" } as LLM.StreamInput["agent"],
+        sessionID: session.id,
+        system: ["captured system"],
+        messages: [{ role: "user", content: [{ type: "text", text: "captured prefix" }] }],
+        tools: {},
+        model: createModel({ context: 100_000, output: 32_000 }),
+      }
+
+      yield* SessionCompaction.use.process({
+        parentID: marker.id,
+        messages,
+        sessionID: session.id,
+        auto: false,
+        capture: { request: captured, messageIDs: new Set([original.id]) },
+      })
+
+      expect(requests).toHaveLength(2)
+      expect(requests[0]?.messages.slice(0, captured.messages.length)).toEqual(captured.messages)
+      expect(requests[1]?.messages).toHaveLength(1)
+      const persisted = yield* ssn.messages({ sessionID: session.id })
+      expect(persisted.filter((message) => message.info.role === "assistant" && message.info.summary)).toHaveLength(1)
+      expect((yield* readCompactionPart(session.id))?.diagnostics).toMatchObject({
+        requested: "suffix",
+        used: "prepend",
+        fallback: "invalid_summary",
+      })
+    }).pipe(withCompaction({ llm: stub.llmLayer, config: cfg({ mode: "suffix" }) }))
+  })
+
+  itCompaction.instance("persists fallback diagnostics when the prepend retry fails", () => {
+    const stub = llm()
+    stub.push(reply("invalid summary"))
+    stub.push(Stream.make(LLMEvent.providerError({ message: "provider boom" })))
+    return Effect.gen(function* () {
+      const ssn = yield* SessionNs.Service
+      const session = yield* ssn.create({})
+      const original = yield* createUserMessage(session.id, "captured prefix")
+      yield* createCompactionMarker(session.id)
+      const messages = yield* ssn.messages({ sessionID: session.id })
+      const marker = messages.at(-1)!.info
+      const captured: LLM.StreamInput = {
+        user: original,
+        agent: { name: "build" } as LLM.StreamInput["agent"],
+        sessionID: session.id,
+        system: [],
+        messages: [{ role: "user", content: [{ type: "text", text: "captured prefix" }] }],
+        tools: {},
+        model: createModel({ context: 100_000, output: 32_000 }),
+      }
+      expect(
+        yield* SessionCompaction.use.process({
+          parentID: marker.id,
+          messages,
+          sessionID: session.id,
+          auto: false,
+          capture: { request: captured, messageIDs: new Set([original.id]) },
+        }),
+      ).toBe("stop")
+      expect((yield* readCompactionPart(session.id))?.diagnostics).toMatchObject({
+        requested: "suffix",
+        used: "prepend",
+        fallback: "invalid_summary",
+      })
+    }).pipe(withCompaction({ llm: stub.llmLayer, config: cfg({ mode: "suffix" }) }))
   })
 
   itCompaction.instance(
