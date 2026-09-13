@@ -76,6 +76,7 @@ export default Runtime.handler(Commands, (input) =>
         continue: input.continue,
         sessionID: Option.getOrUndefined(input.session),
         prompt: Option.getOrUndefined(input.prompt),
+        model: Option.getOrUndefined(input.model),
         auto: input.auto || input.yolo || input.dangerouslySkipPermissions,
       },
       config: {
