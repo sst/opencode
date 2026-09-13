@@ -149,7 +149,7 @@ test("export reports a missing session without a stack trace", async () => {
   }
 })
 
-test("import validates a file and sends it to the resolved location", async () => {
+test.each([info.id, "ses_import_copy"])("import validates a file and reports the returned ID %s", async (sessionID) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-import-"))
   const file = path.join(root, "session.json")
   await fs.writeFile(file, JSON.stringify(transfer))
@@ -167,7 +167,7 @@ test("import validates a file and sends it to the resolved location", async () =
       }
       if (url.pathname === "/api/session/import") {
         imported = await request.json()
-        return Response.json({ data: { ...info, location: { directory: root } } })
+        return Response.json({ data: { ...info, id: sessionID, location: { directory: root } } })
       }
       return new Response("Not found", { status: 404 })
     },
@@ -185,7 +185,11 @@ test("import validates a file and sends it to the resolved location", async () =
     ])
 
     expect(exitCode).toBe(0)
-    expect(stdout).toBe(`Imported session: ${info.id}${os.EOL}`)
+    expect(stdout).toBe(
+      sessionID === info.id
+        ? `Imported session: ${info.id}${os.EOL}`
+        : `Imported session: ${sessionID} (new ID because ${info.id} already exists)${os.EOL}`,
+    )
     expect(imported).toEqual({ ...transfer, location: { directory: root } })
   } finally {
     await server.stop(true)

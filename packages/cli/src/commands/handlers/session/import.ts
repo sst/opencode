@@ -56,6 +56,10 @@ export default Runtime.handler(
     const imported = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Struct({ data: Session.Info })))(
       yield* Effect.promise(() => response.text()),
     )
-    process.stdout.write(`Imported session: ${imported.data.id}${EOL}`)
+    process.stdout.write(
+      imported.data.id === data.info.id
+        ? `Imported session: ${imported.data.id}${EOL}`
+        : `Imported session: ${imported.data.id} (new ID because ${data.info.id} already exists)${EOL}`,
+    )
   }),
 )

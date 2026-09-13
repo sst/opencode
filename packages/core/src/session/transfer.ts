@@ -62,14 +62,13 @@ const layer = Layer.effect(
         return input.sanitize ? sanitize(data) : data
       }),
       import: Effect.fn("SessionTransfer.import")(function* (input) {
-        const sessionID = input.data.info.id
         const recorded = yield* db
           .select({ id: SessionTable.id })
           .from(SessionTable)
-          .where(eq(SessionTable.id, sessionID))
+          .where(eq(SessionTable.id, input.data.info.id))
           .get()
           .pipe(Effect.orDie)
-        if (recorded) return yield* new ImportConflictError({ sessionID })
+        const sessionID = recorded ? Session.ID.create() : input.data.info.id
         if (input.data.info.parentID) yield* sessions.get(input.data.info.parentID)
         const project = yield* projects.resolve(input.location.directory)
         yield* upsertProject(db, project).pipe(Effect.orDie)
@@ -78,7 +77,7 @@ const layer = Layer.effect(
           const encoded = encodeMessage(message)
           const { id: _, type, ...data } = encoded
           return {
-            id: message.id,
+            id: recorded ? SessionMessage.ID.create() : message.id,
             session_id: sessionID,
             type,
             seq: index + 1,

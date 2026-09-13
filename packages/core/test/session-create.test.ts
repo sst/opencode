@@ -1451,16 +1451,37 @@ describe("SessionTransfer", () => {
     }),
   )
 
-  it.effect("rejects an existing session ID without changing its transcript", () =>
+  it.effect("copies an existing session with fresh message IDs into another location", () =>
     Effect.gen(function* () {
       const session = yield* Session.Service
       const transfer = yield* SessionTransfer.Service
+      const bus = yield* Bus.Service
+      const { db } = yield* Database.Service
       const existing = yield* session.create({ location, title: "Existing" })
-      const exit = yield* Effect.exit(transfer.import({ data: { info: existing, messages: [] }, location }))
+      yield* session.prompt({ sessionID: existing.id, text: "Original prompt", resume: false })
+      yield* SessionInbox.promote(db, bus, existing.id, "steer")
+      const data = yield* transfer.export({ sessionID: existing.id })
+      const destination = Location.Ref.make({ directory: AbsolutePath.make("/another-project") })
+      const imported = yield* transfer.import({ data, location: destination })
+      const copy = yield* session.messages({ sessionID: imported.id, order: "asc" })
 
-      expect(exit._tag).toBe("Failure")
-      expect((yield* session.get(existing.id)).title).toBe("Existing")
-      expect(yield* session.messages({ sessionID: existing.id })).toEqual([])
+      expect(imported.id).not.toBe(existing.id)
+      expect(imported).toMatchObject({ title: "Existing", location: destination })
+      expect(copy).toHaveLength(1)
+      const first = copy[0]
+      const original = data.messages[0]
+      if (!first || !original) throw new Error("Expected original and copied messages")
+      expect(first.id).not.toBe(original.id)
+      expect(first).toEqual({ ...original, id: first.id })
+      expect(yield* session.get(existing.id)).toEqual(data.info)
+
+      yield* session.prompt({ sessionID: imported.id, text: "Continue copy", resume: false })
+      yield* SessionInbox.promote(db, bus, imported.id, "steer")
+      expect(yield* session.messages({ sessionID: imported.id, order: "asc" })).toMatchObject([
+        Expected.user("Original prompt"),
+        Expected.user("Continue copy"),
+      ])
+      expect(yield* session.messages({ sessionID: existing.id, order: "asc" })).toEqual([...data.messages])
     }),
   )
 
