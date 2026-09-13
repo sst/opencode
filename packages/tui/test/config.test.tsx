@@ -7,6 +7,7 @@ import {
   Info,
   LeaderTimeoutDefault,
   PluginSpec,
+  SidebarWidthDefault,
   resolve,
   TuiConfigProvider,
   type Info as TuiConfigInfo,
@@ -45,7 +46,14 @@ test("validates config constraints", () => {
   expect(() => decodeInfo({ prompt: { max_width: 0 } })).toThrow()
   expect(() => decodeInfo({ scroll_speed: 0 })).toThrow()
   expect(() => decodeInfo({ cursor: { style: "beam" } })).toThrow()
+  expect(() => decodeInfo({ sidebar_width: 42.7 })).toThrow()
   expect(decodeInfo({ attention: { sounds: { unknown: "sound.wav" } } })).toEqual({ attention: { sounds: {} } })
+})
+
+test("decodes the optional sidebar state vocabulary", () => {
+  expect(decodeInfo({ sidebar: "collapsed" }).sidebar).toBe("collapsed")
+  expect(decodeInfo({ sidebar: "hide" }).sidebar).toBe("hide")
+  expect(decodeInfo({}).sidebar).toBeUndefined()
 })
 
 test("resolves host-neutral defaults", () => {
@@ -61,6 +69,7 @@ test("resolves host-neutral defaults", () => {
   })
   expect(config.leader_timeout).toBe(LeaderTimeoutDefault)
   expect(config.mouse).toBe(true)
+  expect(config.sidebar_width).toBe(SidebarWidthDefault)
   expect(config.keybinds.has("terminal.suspend")).toBe(true)
   expect(config.keybinds.has("session.list")).toBe(true)
   expect(config.cursor).toBeUndefined()
@@ -70,6 +79,7 @@ test("resolves overrides without mutating input", () => {
   const input: TuiConfigInfo = {
     theme: "custom",
     mouse: false,
+    sidebar_width: 56,
     leader_timeout: 750,
     attention: {
       enabled: true,
@@ -87,6 +97,7 @@ test("resolves overrides without mutating input", () => {
   expect(config).toMatchObject({
     theme: "custom",
     mouse: false,
+    sidebar_width: 56,
     leader_timeout: 750,
     attention: input.attention,
     cursor: { style: "block", blinking: false },

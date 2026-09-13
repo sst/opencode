@@ -18,6 +18,18 @@ function createResolvedKeymapConfig(input: TuiKeybind.KeybindOverrides = {}) {
   }
 }
 
+test("defines sidebar command IDs and preserves the toggle default", () => {
+  expect(TuiKeybind.CommandMap.sidebar_hide).toBe("session.sidebar.hide")
+  expect(TuiKeybind.CommandMap.sidebar_width_reset).toBe("session.sidebar.width.reset")
+  expect(TuiKeybind.CommandMap.sidebar_width_grow).toBe("session.sidebar.width.grow")
+  expect(TuiKeybind.CommandMap.sidebar_width_shrink).toBe("session.sidebar.width.shrink")
+  expect(TuiKeybind.defaultValue("sidebar_toggle")).toBe("<leader>b")
+  expect(TuiKeybind.defaultValue("sidebar_hide")).toBe("none")
+  expect(TuiKeybind.defaultValue("sidebar_width_reset")).toBe("none")
+  expect(TuiKeybind.defaultValue("sidebar_width_grow")).toBe("none")
+  expect(TuiKeybind.defaultValue("sidebar_width_shrink")).toBe("none")
+})
+
 test("legacy page key aliases compile as page keys", async () => {
   const sequences: Record<string, string[][]> = {}
 

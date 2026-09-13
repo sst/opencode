@@ -18,6 +18,17 @@ export const { use: useKV, provider: KVProvider } = createSimpleContext({
     const [store, setStore] = createStore<Record<string, any>>()
     // Queue same-process writes so rapid updates persist in order.
     let write = Promise.resolve()
+    // Count of queued persists; lets tests assert write-once behavior without watching the file.
+    let writes = 0
+    const persist = () => {
+      writes++
+      const snapshot = structuredClone(unwrap(store))
+      write = write
+        .then(() => Flock.withLock(lock, () => writeJsonAtomic(file, snapshot)))
+        .catch((error) => {
+          console.error("Failed to write KV state", { error })
+        })
+    }
 
     Flock.withLock(lock, () => readJson<Record<string, unknown>>(file))
       .then((x) => {
@@ -33,6 +44,9 @@ export const { use: useKV, provider: KVProvider } = createSimpleContext({
     const result = {
       get ready() {
         return ready()
+      },
+      get writes() {
+        return writes
       },
       get store() {
         return store
@@ -53,12 +67,12 @@ export const { use: useKV, provider: KVProvider } = createSimpleContext({
       },
       set(key: string, value: any) {
         setStore(key, value)
-        const snapshot = structuredClone(unwrap(store))
-        write = write
-          .then(() => Flock.withLock(lock, () => writeJsonAtomic(file, snapshot)))
-          .catch((error) => {
-            console.error("Failed to write KV state", { error })
-          })
+        persist()
+      },
+      delete(key: string) {
+        // undefined removes the key from the store and drops it from the JSON snapshot.
+        setStore(key, undefined)
+        persist()
       },
     }
     return result

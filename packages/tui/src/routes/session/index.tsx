@@ -13,6 +13,7 @@ import {
   Switch,
   untrack,
   useContext,
+  type Setter,
 } from "solid-js"
 import path from "node:path"
 import { mkdir, writeFile } from "node:fs/promises"
@@ -24,7 +25,16 @@ import { SplitBorder } from "../../ui/border"
 import { useTuiPaths, useTuiTerminalEnvironment } from "../../context/runtime"
 import { Spinner } from "../../component/spinner"
 import { createSyntaxStyleMemo, generateSubtleSyntax, selectedForeground, useTheme } from "../../context/theme"
-import { BoxRenderable, ScrollBoxRenderable, addDefaultParsers, TextAttributes, RGBA } from "@opentui/core"
+import {
+  BoxRenderable,
+  ScrollBoxRenderable,
+  addDefaultParsers,
+  TextAttributes,
+  RGBA,
+  type MouseEvent,
+  type Renderable,
+} from "@opentui/core"
+import { Flag } from "@opencode-ai/core/flag/flag"
 import { Prompt, type PromptRef } from "../../component/prompt"
 import type {
   AssistantMessage,
@@ -53,6 +63,21 @@ import { DialogTimeline } from "./dialog-timeline"
 import { DialogForkFromTimeline } from "./dialog-fork-from-timeline"
 import { DialogSessionRename } from "../../component/dialog-session-rename"
 import { Sidebar } from "./sidebar"
+import { SidebarRail } from "./sidebar-rail"
+import { SidebarWidthMin, clampSidebarWidth } from "../../util/sidebar-width"
+import {
+  SIDEBAR_WIDTH_STEP,
+  nextSidebarState,
+  resolveSidebarWidth,
+  sidebarDragEnd,
+  sidebarDragMove,
+  sidebarDragStart,
+  sidebarLayout,
+  sidebarWidthStep,
+  type SidebarDrag,
+  type SidebarInline,
+  type SidebarState,
+} from "../../util/sidebar-rail"
 import { SubagentFooter } from "./subagent-footer.tsx"
 import { filetype } from "../../util/filetype"
 import parsers from "../../parsers-config"
@@ -122,6 +147,10 @@ const sessionBindingCommands = [
   "session.undo",
   "session.redo",
   "session.sidebar.toggle",
+  "session.sidebar.hide",
+  "session.sidebar.width.reset",
+  "session.sidebar.width.grow",
+  "session.sidebar.width.shrink",
   "session.toggle.conceal",
   "session.toggle.timestamps",
   "session.toggle.thinking",
@@ -253,7 +282,7 @@ export function Session() {
   })
 
   const dimensions = useTerminalDimensions()
-  const [sidebar, setSidebar] = kv.signal<"auto" | "hide">("sidebar", "auto")
+  const [sidebar, setSidebar] = kv.signal<"auto" | "collapsed" | "hide">("sidebar", tuiConfig.sidebar ?? "auto")
   const [sidebarOpen, setSidebarOpen] = createSignal(false)
   const [conceal, setConceal] = createSignal(true)
   const thinking = useThinkingMode()
@@ -268,14 +297,29 @@ export function Session() {
   const [showGenericToolOutput, setShowGenericToolOutput] = kv.signal("generic_tool_output_visibility", false)
 
   const wide = createMemo(() => dimensions().width > 120)
-  const sidebarVisible = createMemo(() => {
-    if (session()?.parentID) return false
-    if (sidebarOpen()) return true
-    if (sidebar() === "auto" && wide()) return true
-    return false
-  })
+  const mouseEnabled = createMemo(() => !Flag.OPENCODE_DISABLE_MOUSE && tuiConfig.mouse)
+  const layout = createMemo(() =>
+    sidebarLayout({
+      parentID: session()?.parentID,
+      wide: wide(),
+      sidebarOpen: sidebarOpen(),
+      state: sidebar(),
+    }),
+  )
+  const sidebarInline = createMemo(() => layout().inline)
+  const sidebarVisible = createMemo(() => layout().visible)
+  // The rail is one extra column beside the sidebar; sidebarWidth stays the sidebar box width.
+  const railWidth = createMemo(() => layout().rail)
+  const [drag, setDrag] = createSignal<SidebarDrag>()
+  // kv.get rather than kv.signal: a signal would re-seed the default after a reset, making reset a silent no-op.
+  // A live gesture wins over the stored width; kv is only written on release.
+  const sidebarWidth = createMemo(
+    () =>
+      drag()?.width ??
+      clampSidebarWidth(resolveSidebarWidth(kv.get("sidebar_width"), tuiConfig.sidebar_width), dimensions().width),
+  )
   const showTimestamps = createMemo(() => timestamps() === "show")
-  const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? 42 : 0) - 4)
+  const contentWidth = createMemo(() => dimensions().width - (sidebarVisible() ? sidebarWidth() : 0) - railWidth() - 4)
   const providers = createMemo(() => Model.index(sync.data.provider))
 
   const scrollAcceleration = createMemo(() => getScrollAcceleration(tuiConfig))
@@ -669,16 +713,39 @@ export function Session() {
         })
       },
     },
+    ...sidebarVisibilityCommands({
+      parentID: () => session()?.parentID,
+      wide,
+      sidebar,
+      sidebarVisible,
+      setSidebar,
+      setSidebarOpen,
+      clearDialog: () => dialog.clear(),
+    }),
     {
-      title: sidebarVisible() ? "Hide sidebar" : "Show sidebar",
-      value: "session.sidebar.toggle",
+      title: "Reset sidebar width",
+      value: "session.sidebar.width.reset",
       category: "Session",
       run: () => {
-        batch(() => {
-          const isVisible = sidebarVisible()
-          setSidebar(() => (isVisible ? "hide" : "auto"))
-          setSidebarOpen(!isVisible)
-        })
+        kv.delete("sidebar_width")
+        dialog.clear()
+      },
+    },
+    {
+      title: "Increase sidebar width",
+      value: "session.sidebar.width.grow",
+      category: "Session",
+      run: () => {
+        kv.set("sidebar_width", sidebarWidthStep(sidebarWidth(), SIDEBAR_WIDTH_STEP, dimensions().width))
+        dialog.clear()
+      },
+    },
+    {
+      title: "Decrease sidebar width",
+      value: "session.sidebar.width.shrink",
+      category: "Session",
+      run: () => {
+        kv.set("sidebar_width", sidebarWidthStep(sidebarWidth(), -SIDEBAR_WIDTH_STEP, dimensions().width))
         dialog.clear()
       },
     },
@@ -1174,7 +1241,18 @@ export function Session() {
           tui: tuiConfig,
         }}
       >
-        <box flexDirection="row" flexGrow={1} minHeight={0}>
+        <SidebarDragRegion
+          sessionID={route.sessionID}
+          wide={wide}
+          sidebarInline={sidebarInline}
+          sidebarVisible={sidebarVisible}
+          sidebarWidth={sidebarWidth}
+          railWidth={railWidth}
+          mouseEnabled={mouseEnabled}
+          drag={drag}
+          setDrag={setDrag}
+          onToggle={() => setSidebar(() => nextSidebarState(sidebar()))}
+        >
           <box flexGrow={1} minHeight={0} paddingBottom={1} paddingLeft={2} paddingRight={2} gap={1}>
             <Show when={session()}>
               <scrollbox
@@ -1335,29 +1413,137 @@ export function Session() {
             </Show>
             <Toast />
           </box>
-          <Show when={sidebarVisible()}>
-            <Switch>
-              <Match when={wide()}>
-                <Sidebar sessionID={route.sessionID} />
-              </Match>
-              <Match when={!wide()}>
-                <box
-                  position="absolute"
-                  top={0}
-                  left={0}
-                  right={0}
-                  bottom={0}
-                  alignItems="flex-end"
-                  backgroundColor={RGBA.fromInts(0, 0, 0, 70)}
-                >
-                  <Sidebar sessionID={route.sessionID} />
-                </box>
-              </Match>
-            </Switch>
-          </Show>
-        </box>
+        </SidebarDragRegion>
       </context.Provider>
     </LocationProvider>
+  )
+}
+
+export function SidebarRegion(props: {
+  sessionID: string
+  wide: () => boolean
+  sidebarInline: () => SidebarInline
+  sidebarVisible: () => boolean
+  sidebarWidth: () => number
+  railWidth: () => number
+  mouseEnabled: () => boolean
+  onRailMouseDown?: (evt: MouseEvent) => void
+  onRailMouseUp?: () => void
+}) {
+  return (
+    <Switch>
+      <Match when={props.wide()}>
+        <Show when={props.sidebarInline()}>
+          {/* Yoga shrinks auto-width rows when oversized content competes for columns. */}
+          <box flexDirection="row" flexShrink={0}>
+            <SidebarRail
+              collapsed={props.sidebarInline() === "collapsed"}
+              width={props.railWidth()}
+              mouseEnabled={props.mouseEnabled()}
+              onMouseDown={props.onRailMouseDown}
+              onMouseUp={props.onRailMouseUp}
+            />
+            <Show when={props.sidebarInline() === "expanded"}>
+              <Sidebar sessionID={props.sessionID} width={props.sidebarWidth()} />
+            </Show>
+          </box>
+        </Show>
+      </Match>
+      <Match when={!props.wide()}>
+        <Show when={props.sidebarVisible()}>
+          <box
+            position="absolute"
+            top={0}
+            left={0}
+            right={0}
+            bottom={0}
+            alignItems="flex-end"
+            backgroundColor={RGBA.fromInts(0, 0, 0, 70)}
+          >
+            <Sidebar sessionID={props.sessionID} width={props.sidebarWidth()} />
+          </box>
+        </Show>
+      </Match>
+    </Switch>
+  )
+}
+
+export function SidebarDragRegion(props: {
+  sessionID: string
+  wide: () => boolean
+  sidebarInline: () => SidebarInline
+  sidebarVisible: () => boolean
+  sidebarWidth: () => number
+  railWidth: () => number
+  mouseEnabled: () => boolean
+  drag: () => SidebarDrag | undefined
+  setDrag: Setter<SidebarDrag | undefined>
+  onToggle?: () => void
+  children?: JSX.Element
+}) {
+  const kv = useKV()
+  const dimensions = useTerminalDimensions()
+  // The drag lifecycle binds here on the common ancestor of the content column and the
+  // sidebar: a rail drag captures the renderable under the cursor — off the rail that is
+  // a neighboring column — and captured events bubble here.
+  const railUp = () => {
+    // Release sends drag-end to the captured renderable, then may re-dispatch the up to the
+    // current hit — which can be the rail. Drag-end clears the gesture first, so this guard
+    // drops the rail's duplicate toggle.
+    if (!props.drag()) return
+    props.setDrag(undefined)
+    props.onToggle?.()
+  }
+
+  const startDrag = (evt: MouseEvent) => {
+    const collapsed = props.sidebarInline() === "collapsed"
+    props.setDrag(sidebarDragStart(evt.x, collapsed ? SidebarWidthMin : props.sidebarWidth()))
+  }
+
+  const handlers = () => {
+    if (!props.mouseEnabled()) return {}
+    return {
+      onMouseDown: (evt: MouseEvent) => {
+        // A press that does not begin on the rail ends an armed gesture — a lost up after a
+        // rail down must not resize on a later content drag.
+        let source: Renderable | null = evt.target
+        while (source && source.id !== "sidebar-rail") source = source.parent
+        if (!source) props.setDrag(undefined)
+      },
+      onMouseDrag: (evt: MouseEvent) => {
+        const current = props.drag()
+        if (!current) return
+        const next = sidebarDragMove(current, evt.x, dimensions().width)
+        // One state write per gesture: leave collapsed mode on the first moved event, never per frame.
+        if (props.sidebarInline() === "collapsed" && !current.moved && next.moved) props.onToggle?.()
+        props.setDrag(next)
+      },
+      onMouseDragEnd: () => {
+        const current = props.drag()
+        if (!current) return
+        const end = sidebarDragEnd(current)
+        if ("persist" in end) kv.set("sidebar_width", end.persist)
+        else props.onToggle?.()
+        props.setDrag(undefined)
+      },
+    }
+  }
+
+  return (
+    <box id="sidebar-drag-row" flexDirection="row" flexGrow={1} minHeight={0} {...handlers()}>
+      {props.children}
+      <SidebarRegion
+        sessionID={props.sessionID}
+        wide={props.wide}
+        sidebarInline={props.sidebarInline}
+        sidebarVisible={props.sidebarVisible}
+        sidebarWidth={props.sidebarWidth}
+        railWidth={props.railWidth}
+        mouseEnabled={props.mouseEnabled}
+        onRailMouseDown={startDrag}
+        onRailMouseUp={railUp}
+      />
+    </box>
   )
 }
 
@@ -2703,4 +2889,57 @@ export function parseDiagnostics(value: unknown, filePath: string) {
       return [{ range: { start: { line, character } }, message }]
     })
     .slice(0, 3)
+}
+
+export function sidebarVisibilityCommands(input: {
+  parentID: () => string | undefined
+  wide: () => boolean
+  sidebar: () => SidebarState
+  sidebarVisible: () => boolean
+  setSidebar: (next: Setter<SidebarState>) => void
+  setSidebarOpen: (open: boolean) => void
+  clearDialog: () => void
+}) {
+  return [
+    {
+      title: input.wide()
+        ? input.sidebar() === "auto"
+          ? "Collapse sidebar"
+          : "Expand sidebar"
+        : input.sidebarVisible()
+          ? "Hide sidebar"
+          : "Show sidebar",
+      value: "session.sidebar.toggle",
+      category: "Session",
+      // Child sessions render no sidebar; a visibility change here would persist a global
+      // state the screen cannot show.
+      enabled: !input.parentID(),
+      run: () => {
+        if (input.parentID()) return
+        batch(() => {
+          if (input.wide()) {
+            input.setSidebar(() => nextSidebarState(input.sidebar()))
+            input.setSidebarOpen(false)
+            return
+          }
+          input.setSidebarOpen(!input.sidebarVisible())
+        })
+        input.clearDialog()
+      },
+    },
+    {
+      title: "Hide sidebar",
+      value: "session.sidebar.hide",
+      category: "Session",
+      enabled: !input.parentID(),
+      run: () => {
+        if (input.parentID()) return
+        batch(() => {
+          input.setSidebar(() => "hide")
+          input.setSidebarOpen(false)
+        })
+        input.clearDialog()
+      },
+    },
+  ]
 }
