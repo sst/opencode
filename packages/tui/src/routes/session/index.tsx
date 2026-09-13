@@ -24,7 +24,7 @@ import { useTuiPaths, useTuiTerminalEnvironment } from "../../context/runtime"
 import { Spinner, SPINNER_FRAMES } from "../../component/spinner"
 import { PatchDiff } from "../../component/patch-diff"
 import { createSyntaxStyleMemo, ThemeContextProvider, useTheme, useThemes } from "../../context/theme"
-import { BoxRenderable, CodeRenderable, ScrollBoxRenderable, addDefaultParsers, TextAttributes, RGBA, MouseEvent } from "@opentui/core"
+import { BoxRenderable, ScrollBoxRenderable, addDefaultParsers, TextAttributes, RGBA, MouseEvent } from "@opentui/core"
 import { Prompt, type PromptRef } from "../../component/prompt"
 import type {
   SessionMessageInfo,
@@ -111,7 +111,6 @@ import { createHistoryPrepend } from "./history"
 import { context, use, type PendingAction } from "./render-context"
 import { INLINE_TOOL_ICON_WIDTH, InlineToolRow, ReasoningPart, reasoningContent, TextPart } from "./message-parts"
 import { groupRefs } from "./grouping/session"
-import { applyBidiCodePaint, withBidiMarkdown } from "../../component/bidi-markdown"
 import "../../component/bidi-elements"
 export { InlineToolRow } from "./message-parts"
 
@@ -1835,7 +1834,6 @@ function SessionReasoningGroupView(props: {
                           paddingLeft={1}
                         >
                           <code
-                            ref={(el: CodeRenderable) => applyBidiCodePaint(el)}
                             filetype="markdown"
                             drawUnstyledText={false}
                             streaming={part()?.time?.completed === undefined && message()?.time.completed === undefined}
@@ -2114,7 +2112,7 @@ function CompactionMessage(props: { message: Extract<SessionMessageInfo, { type:
         <box paddingTop={1} paddingLeft={3}>
           <markdown
             syntaxStyle={syntax()}
-            renderNode={withBidiMarkdown(plugins.markdown())}
+            renderNode={plugins.markdown()}
             streaming={true}
             internalBlockMode="top-level"
             content={content()}

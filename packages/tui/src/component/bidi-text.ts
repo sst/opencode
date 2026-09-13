@@ -1,5 +1,5 @@
 import { TextRenderable, type OptimizedBuffer } from "@opentui/core"
-import { hasRtl, layoutBidiText, wrappedLogicalText, type BidiLayout } from "../util/bidi"
+import { hasRtl, layoutBidiText, paintBidiCell, wrappedLogicalText, type BidiLayout } from "../util/bidi"
 
 // RTL-aware text element for user-authored content (chat input echoes).
 // English-only content renders through the stock OpenTUI path untouched; the
@@ -51,7 +51,7 @@ export class BidiTextRenderable extends TextRenderable {
       for (const cell of line.cells) {
         const x = x0 + cell.col
         if (x < 0 || x >= buffer.width) continue
-        buffer.setCell(x, y, cell.char, fg, bg, attributes)
+        paintBidiCell(buffer, x, y, cell.char, fg, bg, attributes)
       }
     }
   }

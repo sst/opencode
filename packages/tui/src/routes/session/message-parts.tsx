@@ -14,7 +14,6 @@ import { SplitBorder } from "../../ui/border"
 import { Locale } from "../../util/locale"
 import { use } from "./render-context"
 import { generateThinkingSyntax } from "./thinking-syntax"
-import { withBidiMarkdown } from "../../component/bidi-markdown"
 import "../../component/bidi-elements"
 
 export const INLINE_TOOL_ICON_WIDTH = 2
@@ -161,7 +160,7 @@ export function TextPart(props: {
         {/* Configure custom nodes before parsing; apply content before streaming so completion keeps the final tokens. */}
         <markdown
           syntaxStyle={syntax()}
-          renderNode={withBidiMarkdown(plugins.markdown())}
+          renderNode={plugins.markdown()}
           content={props.part.text.trim()}
           streaming={props.message.time.completed === undefined}
           internalBlockMode="top-level"

@@ -5,6 +5,7 @@ import {
   hasRtl,
   layoutBidiText,
   logicalCursorToBoundary,
+  paintBidiCell,
   visualStep,
   visualToBoundary,
   widthOffsetToBoundary,
@@ -75,7 +76,8 @@ export class BidiTextareaRenderable extends TextareaRenderable {
         const x = x0 + cell.col
         if (x < 0 || x >= buffer.width) continue
         const selected = selStart >= 0 && cell.glyph >= selStart && cell.glyph < selEnd
-        buffer.setCell(
+        paintBidiCell(
+          buffer,
           x,
           y,
           cell.char,

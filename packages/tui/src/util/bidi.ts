@@ -1,4 +1,5 @@
 import bidiFactory from "bidi-js"
+import type { OptimizedBuffer, RGBA } from "@opentui/core"
 
 // Unicode Bidirectional Algorithm (UAX #9) engine. bidi-js is a pure-JS
 // implementation verified against the Unicode bidi conformance suite. All
@@ -24,12 +25,15 @@ export function hasRtl(text: string) {
   return RTL_PROBE.test(text)
 }
 
-// LTR islands embedded in RTL text, matched on logical text and wrapped in
-// LRI/PDI during layout. Bare English words are deliberately not isolated:
+// LTR island seeds embedded in RTL text, matched on logical text and wrapped
+// in LRI/PDI during layout. Bare English words far from any seed stay bare:
 // UAX #9 already renders them as LTR runs and they must stay in natural bidi
-// flow with the surrounding sentence.
+// flow with the surrounding sentence. Seeds adjacent to bare Latin/digit
+// words absorb them (see expandIslands). Multi-token runs are isolated so
+// surrounding neutrals (backticks, asterisks, colons, dots, slashes,
+// brackets) cannot leak into them or split them apart.
 const LTR_ISLAND =
-  /(?:https?:\/\/|www\.)\S+|[A-Za-z0-9_@]+(?:[/\\.-][A-Za-z0-9_@-]+)+|\d+(?:[.,:/]\d+)*%?/g
+  /`[^`\n]+`|[A-Za-z]:\\[A-Za-z0-9_@.\\-]*(?: +[A-Za-z0-9_@.\\-]+)*(?::\d+)?|(?:https?:\/\/|www\.)\S+|[A-Za-z0-9_@]+(?:[/\\.-][A-Za-z0-9_@-]+)+(?::\d+)?|[A-Za-z0-9_@]+:\d+|\d+(?:[.,:/]\d+)*%?/g
 
 export type BidiGlyph = {
   char: string
@@ -97,6 +101,22 @@ export type BidiLayout = {
 // Caller-provided isolate ranges in char-index space of the source string.
 export type BidiIsolateRange = [number, number]
 
+// Paints one laid-out cell. The native setCell stores a single code point and
+// silently drops combining marks (Arabic tashkeel); drawText keeps grapheme
+// clusters intact, so multi-unit glyphs go through drawText.
+export function paintBidiCell(
+  buffer: OptimizedBuffer,
+  x: number,
+  y: number,
+  char: string,
+  fg: RGBA,
+  bg: RGBA,
+  attributes: number,
+) {
+  if (char.length > 1) buffer.drawText(char, x, y, fg, bg, attributes)
+  else buffer.setCell(x, y, char, fg, bg, attributes)
+}
+
 const WHITESPACE = /\s/
 
 function glyphWidth(char: string) {
@@ -106,13 +126,33 @@ function glyphWidth(char: string) {
 
 // Greedy word wrapping mirroring the native text-buffer policy: break after
 // whitespace when possible, hard-break a run that cannot fit, and never split
-// a grapheme.
-function wrapGlyphs(glyphs: BidiGlyph[], start: number, end: number, maxWidth: number) {
+// a grapheme. Breaks outside LTR islands are preferred so an island is kept
+// on one visual line whenever it fits; breaking inside an island is only the
+// fallback before a mid-word hard break.
+function wrapGlyphs(
+  glyphs: BidiGlyph[],
+  start: number,
+  end: number,
+  maxWidth: number,
+  inIsland?: (index: number) => boolean,
+) {
   const ranges: Array<[number, number]> = []
   const limit = maxWidth > 0 ? maxWidth : Number.POSITIVE_INFINITY
   let lineStart = start
   let width = 0
   let breakAt = -1
+  let breakOutside = -1
+  const noteBreak = (pos: number, at: number) => {
+    breakAt = pos
+    if (!inIsland || !inIsland(at)) breakOutside = pos
+  }
+  const rescanBreaks = (from: number, to: number) => {
+    breakAt = -1
+    breakOutside = -1
+    for (let j = from; j < to; j++) {
+      if (WHITESPACE.test(glyphs[j].char)) noteBreak(j + 1, j)
+    }
+  }
   for (let i = start; i < end; i++) {
     const glyph = glyphs[i]
     if (glyph.newline) {
@@ -120,25 +160,24 @@ function wrapGlyphs(glyphs: BidiGlyph[], start: number, end: number, maxWidth: n
       lineStart = i + 1
       width = 0
       breakAt = -1
+      breakOutside = -1
       continue
     }
     if (width + glyph.width > limit && i > lineStart) {
-      if (breakAt > lineStart) {
-        ranges.push([lineStart, breakAt])
-        lineStart = breakAt
+      const cut = breakOutside > lineStart ? breakOutside : breakAt
+      if (cut > lineStart) {
+        ranges.push([lineStart, cut])
+        lineStart = cut
       } else {
         ranges.push([lineStart, i])
         lineStart = i
       }
       width = 0
       for (let j = lineStart; j < i; j++) width += glyphs[j].width
-      breakAt = -1
-      for (let j = lineStart; j < i; j++) {
-        if (WHITESPACE.test(glyphs[j].char)) breakAt = j + 1
-      }
+      rescanBreaks(lineStart, i)
     }
     width += glyph.width
-    if (WHITESPACE.test(glyph.char)) breakAt = i + 1
+    if (WHITESPACE.test(glyph.char)) noteBreak(i + 1, i)
   }
   ranges.push([lineStart, end])
   return ranges
@@ -164,20 +203,6 @@ function trimEdgeWhitespace(glyphs: BidiGlyph[], start: number, end: number) {
   return [start, end] as const
 }
 
-// Converts a UTF-16 code-unit index into a glyph index using the glyph
-// start-offset table; bidi-js works in code units while layout works in
-// graphemes.
-function unitToGlyph(starts: Uint32Array, unit: number) {
-  let lo = 0
-  let hi = starts.length - 1
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >> 1
-    if (starts[mid] <= unit) lo = mid
-    else hi = mid - 1
-  }
-  return lo
-}
-
 function mergeRanges(ranges: Array<[number, number]>) {
   if (ranges.length === 0) return [] as Array<[number, number]>
   const sorted = ranges.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1])
@@ -191,6 +216,52 @@ function mergeRanges(ranges: Array<[number, number]>) {
     merged.push([from, to])
   }
   return merged
+}
+
+// ASCII word characters only; RTL text never matches, so expansion always
+// stops at direction boundaries. The first code unit decides: combining marks
+// ride with their base letter either way.
+const ISLAND_WORD = /[A-Za-z0-9_@]/
+
+function isIslandWord(glyph: BidiGlyph | undefined) {
+  return !!glyph && !glyph.newline && !glyph.control && ISLAND_WORD.test(glyph.char[0] ?? "")
+}
+
+function isIslandSpace(glyph: BidiGlyph | undefined) {
+  const char = glyph?.control || glyph?.newline ? undefined : glyph?.char
+  return char === " " || char === "\t"
+}
+
+// Expands every island across directly adjacent Latin/digit words and the
+// spaces joining them, so one isolate covers each maximal LTR run. This is
+// required, not cosmetic: UAX #9 L2 resolves a bare LTR run and a neighboring
+// isolate as sibling sub-flips plus the whole-line flip, and that composition
+// swaps the two runs. A single isolate over the whole run keeps them ordered.
+function expandIslands(
+  glyphs: BidiGlyph[],
+  paraStart: number,
+  paraEnd: number,
+  ranges: Array<[number, number]>,
+) {
+  return ranges.map(([from, to]) => {
+    let start = from
+    for (;;) {
+      let i = start - 1
+      while (i >= paraStart && isIslandSpace(glyphs[i])) i--
+      if (i < paraStart || !isIslandWord(glyphs[i])) break
+      while (i - 1 >= paraStart && isIslandWord(glyphs[i - 1])) i--
+      start = i
+    }
+    let end = to
+    for (;;) {
+      let i = end + 1
+      while (i < paraEnd && isIslandSpace(glyphs[i])) i++
+      if (i >= paraEnd || !isIslandWord(glyphs[i])) break
+      while (i + 1 < paraEnd && isIslandWord(glyphs[i + 1])) i++
+      end = i
+    }
+    return [start, end] as [number, number]
+  })
 }
 
 export function layoutBidiText(text: string, maxWidth: number, isolateRanges: BidiIsolateRange[] = []): BidiLayout {
@@ -240,16 +311,20 @@ export function layoutBidiText(text: string, maxWidth: number, isolateRanges: Bi
     const paraText = text.slice(baseChar, endChar)
     const rtlParagraph = hasRtl(paraText)
 
-    // LTR islands: caller-provided ranges plus regex detection, all converted
-    // to glyph indices and merged so isolates never nest.
+    // LTR islands: caller-provided ranges plus regex detection, expanded so one
+    // isolate covers each maximal LTR run, then merged so isolates never nest.
     const detected: Array<[number, number]> = []
     if (rtlParagraph) {
       LTR_ISLAND.lastIndex = 0
       let match = LTR_ISLAND.exec(paraText)
       while (match) {
-        const from = charToGlyph.get(baseChar + match.index)
-        const to = charToGlyph.get(baseChar + match.index + match[0].length - 1)
-        if (from !== undefined && to !== undefined && to >= from) detected.push([from, to])
+        // A code span containing strong RTL prose is not an LTR island;
+        // isolating it would pin Arabic left-to-right. Let it flow naturally.
+        if (!(match[0].startsWith("`") && hasRtl(match[0]))) {
+          const from = charToGlyph.get(baseChar + match.index)
+          const to = charToGlyph.get(baseChar + match.index + match[0].length - 1)
+          if (from !== undefined && to !== undefined && to >= from) detected.push([from, to])
+        }
         match = LTR_ISLAND.exec(paraText)
       }
     }
@@ -264,25 +339,30 @@ export function layoutBidiText(text: string, maxWidth: number, isolateRanges: Bi
       }
       return first === -1 || first < paraStart || last >= paraEnd ? [] : [[first, last] as [number, number]]
     })
-    const islands = mergeRanges([...callerRanges, ...detected])
+    const islands = mergeRanges([...callerRanges, ...expandIslands(glyphs, paraStart, paraEnd, detected)])
 
     // Augmented glyph stream with LRI/PDI around islands. Control glyphs are
     // zero width and map back to -1 in the logical stream.
     const augmented: BidiGlyph[] = []
     const augmentedToLogical: number[] = []
+    const augmentedIsland: boolean[] = []
     let islandCursor = 0
     for (let i = paraStart; i < paraEnd; i++) {
       while (islandCursor < islands.length && islands[islandCursor][1] < i) islandCursor++
       const island = islands[islandCursor]
+      const inIsland = !!island && i >= island[0] && i <= island[1]
       if (island && i === island[0]) {
         augmented.push({ char: LRI, width: 0, charIndex: -1, newline: false, control: true })
         augmentedToLogical.push(-1)
+        augmentedIsland.push(false)
       }
       augmented.push(glyphs[i])
       augmentedToLogical.push(i)
+      augmentedIsland.push(inIsland)
       if (island && i === island[1]) {
         augmented.push({ char: PDI, width: 0, charIndex: -1, newline: false, control: true })
         augmentedToLogical.push(-1)
+        augmentedIsland.push(false)
       }
     }
 
@@ -303,41 +383,42 @@ export function layoutBidiText(text: string, maxWidth: number, isolateRanges: Bi
     const levels = embedding ? embedding.levels : new Uint8Array(augmentedText.length)
     const rtl = embedding ? (embedding.paragraphs[0].level & 1) === 1 : false
 
-    for (const [rawStart, rawEnd] of wrapGlyphs(augmented, 0, augmented.length, maxWidth)) {
+    for (const [rawStart, rawEnd] of wrapGlyphs(augmented, 0, augmented.length, maxWidth, (i) => augmentedIsland[i])) {
       const [rangeStart, rangeEnd] = trimEdgeWhitespace(augmented, rawStart, rawEnd)
-      const augmentedGlyphs: number[] = []
-      for (let i = rangeStart; i < rangeEnd; i++) {
-        if (!augmented[i].control) augmentedGlyphs.push(i)
-      }
-      const count = augmentedGlyphs.length
 
-      if (count === 0) {
-        registerLine({ cells: [], width: 0, rtl, start: paraStart, end: paraStart, boundaryCols: [0], logicalWidths: [0] })
-        continue
-      }
-
-      // Visual order starts logical; UAX #9 L2 flip segments are applied as
-      // glyph-range reversals derived from the resolved levels.
-      const order = augmentedGlyphs.slice()
+      // Visual order starts logical over the FULL augmented stream, isolate
+      // controls included. UAX #9 L2 flips move LRI/PDI along with content;
+      // excluding controls first and clamping afterwards corrupts the order
+      // (words rotate, punctuation jumps). Controls are zero-width and are
+      // skipped when emitting cells below.
+      const order: number[] = []
+      for (let i = rangeStart; i < rangeEnd; i++) order.push(i)
       if (embedding) {
         const unitStart = starts[rangeStart]
         const unitEnd = starts[rangeEnd - 1] + augmented[rangeEnd - 1].char.length - 1
         for (const [fromUnits, toUnits] of bidi.getReorderSegments(augmentedText, embedding, unitStart, unitEnd)) {
-          // Flip endpoints may land on LRI/PDI control glyphs, which are not
-          // part of the visual order; clamp to the non-control glyphs inside
-          // the flip range.
-          const fromGlyph = unitToGlyph(starts, fromUnits!)
-          const toGlyph = unitToGlyph(starts, toUnits!)
-          let from = -1
-          let to = -1
-          for (let i = 0; i < order.length; i++) {
-            const glyph = order[i]
-            if (glyph < fromGlyph || glyph > toGlyph) continue
-            if (from === -1) from = i
-            to = i
+          // Map the inclusive unit flip onto the augmented glyphs it covers.
+          // Flip boundaries always align to grapheme boundaries because every
+          // code unit of one grapheme shares a single embedding level.
+          let gFrom = -1
+          let gTo = -1
+          for (let g = rangeStart; g < rangeEnd; g++) {
+            const gStart = starts[g]
+            const gEnd = gStart + augmented[g].char.length - 1
+            if (gEnd < fromUnits || gStart > toUnits) continue
+            if (gFrom === -1) gFrom = g
+            gTo = g
           }
-          if (from === -1 || to === -1) continue
-          for (let i = from, j = to; i < j; i++, j--) {
+          if (gFrom === -1 || gTo === -1) continue
+          let posFrom = -1
+          let posTo = -1
+          for (let p = 0; p < order.length; p++) {
+            if (order[p] < gFrom || order[p] > gTo) continue
+            if (posFrom === -1) posFrom = p
+            posTo = p
+          }
+          if (posFrom === -1 || posTo === -1) continue
+          for (let i = posFrom, j = posTo; i < j; i++, j--) {
             const tmp = order[i]
             order[i] = order[j]
             order[j] = tmp
@@ -349,6 +430,7 @@ export function layoutBidiText(text: string, maxWidth: number, isolateRanges: Bi
       let col = 0
       let width = 0
       for (const augmentedIndex of order) {
+        if (augmented[augmentedIndex].control) continue
         const glyphIndex = augmentedToLogical[augmentedIndex]
         const glyph = glyphs[glyphIndex]
         const rtlCell = embedding ? (levels[starts[augmentedIndex]] & 1) === 1 : false
@@ -360,7 +442,18 @@ export function layoutBidiText(text: string, maxWidth: number, isolateRanges: Bi
 
       // Logical (unwrapped) glyph sequence of this line; boundary indices are
       // logical positions, independent of visual order.
-      const logicalGlyphs = augmentedGlyphs.map((index) => augmentedToLogical[index])
+      const logicalGlyphs: number[] = []
+      for (let i = rangeStart; i < rangeEnd; i++) {
+        if (augmented[i].control) continue
+        logicalGlyphs.push(augmentedToLogical[i])
+      }
+      const count = logicalGlyphs.length
+
+      if (count === 0) {
+        registerLine({ cells: [], width: 0, rtl, start: paraStart, end: paraStart, boundaryCols: [0], logicalWidths: [0] })
+        continue
+      }
+
       const localOfGlyph = new Map(logicalGlyphs.map((glyph, index) => [glyph, index]))
       const boundaryCols = Array.from({ length: count + 1 }, () => -1)
       const logicalWidths = Array.from({ length: count + 1 }, () => 0)
