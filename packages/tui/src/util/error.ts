@@ -1,3 +1,4 @@
+import { ClientError } from "@opencode-ai/client"
 import { isRecord } from "./record"
 
 type ConfigIssue = { message: string; path: string[] }
@@ -8,6 +9,11 @@ export function cliErrorMessage(input: unknown): string | undefined {
     if (formatted) return formatted
   }
 
+  if (input instanceof ClientError) {
+    process.exitCode = 1
+    const detail = input.cause instanceof Error ? `: ${input.cause.message}` : ""
+    return `Could not reach the OpenCode server${detail}. If it was updating or restarting, wait a moment and try again.`
+  }
   if (tagged(input, "CliError")) {
     if (typeof input.exitCode === "number") process.exitCode = input.exitCode
     return field(input, "message") ?? ""

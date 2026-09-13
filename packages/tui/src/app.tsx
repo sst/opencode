@@ -211,7 +211,11 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
   const location = yield* Effect.tryPromise(() => api.file.list({ location: { directory: process.cwd() } })).pipe(
     Effect.map((response) => response.location),
     Effect.catch(() => Effect.tryPromise(() => api.location.get())),
+    // A server that is electing or cold-booting after an update can be unreachable for longer
+    // than both probes; exit through the CLI error channel instead of escaping as a raw defect.
+    Effect.catch((error) => Effect.succeed({ error })),
   )
+  if ("error" in location) return { epilogue: undefined, reason: location.error }
   const directory = location.directory
   const pluginDirectories = yield* Effect.promise(() => localPluginDirectories(process.cwd(), global.config))
   const handoff = input.terminalHandoff ? yield* Effect.promise(input.terminalHandoff) : undefined
