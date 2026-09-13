@@ -310,7 +310,7 @@ describe("Composer submission", () => {
     { text: "/show-me\nexplain caching", slash: true, expected: ["show-me"] },
     { text: "/show-me\texplain caching", slash: true, expected: ["show-me"] },
     { text: "/show-me", slash: false, expected: [] },
-    { text: "/show-me", slash: undefined, expected: [] },
+    { text: "/show-me", expected: ["show-me"] },
     { text: "/show-me-extra", slash: true, expected: [] },
     { text: "Explain /show-me", slash: true, expected: [] },
   ])("resolves raw slash skill input $text with slash=$slash", async ({ text, slash, expected }) => {

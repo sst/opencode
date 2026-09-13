@@ -244,7 +244,7 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
       })),
   ])
   const slashSkills = createMemo(() =>
-    skills().filter((skill) => skill.slash === true && !slashCommands().some((item) => item.trigger === skill.id)),
+    skills().filter((skill) => skill.slash !== false && !slashCommands().some((item) => item.trigger === skill.id)),
   )
   const commands = createMemo<ComposerSuggestion[]>(() => [
     ...slashCommands().map((item) => ({

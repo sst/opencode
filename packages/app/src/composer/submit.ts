@@ -296,7 +296,7 @@ export function withSlashSkill(prompt: Prompt, skills: ReturnType<ComposerSubmit
   const first = prompt[0]
   if (first?.type !== "text") return prompt
   const name = /^\/(\S+)(?:\s|$)/.exec(first.content)?.[1]
-  const skill = skills?.find((item) => item.slash === true && item.id === name)
+  const skill = skills?.find((item) => item.slash !== false && item.id === name)
   if (!skill || prompt.some((part) => part.type === "skill" && part.id === skill.id)) return prompt
   const content = `/${skill.id}`
   return [
