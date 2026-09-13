@@ -83,6 +83,7 @@ import BrowserPlugin from "@opencode/plugin-browser"
 import { CommandPlugin } from "./command.js"
 import { PlanPlugin } from "./plan.js"
 import { ModelsDevPlugin } from "./models-dev.js"
+import { GptDelegationPlugin } from "./gpt-delegation.js"
 import { McpCodeModeExclusionPlugin } from "./mcp-codemode-exclusion.js"
 import { ProviderPlugins } from "./provider.js"
 import { WebSearchPlugins } from "./websearch/index.js"
@@ -241,6 +242,7 @@ const post = [
   ConfigWebSearchPlugin.Plugin,
   ConfigWorktreePlugin.Plugin,
   VariantPlugin.Plugin,
+  GptDelegationPlugin.Plugin,
   ConfigPolicyPlugin.Plugin,
 ] as const satisfies readonly InternalPlugin[]
 

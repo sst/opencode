@@ -63,12 +63,7 @@ import { Document, Info } from "@opencode/schema/config"
 import { ConfigCompaction } from "@opencode/schema/config/compaction"
 import { Tool } from "@opencode/core/tool"
 import type { Info as ToolInfo } from "@opencode/schema/tool"
-import {
-  InstructionStateTable,
-  SessionInboxTable,
-  SessionMessageTable,
-  SessionTable,
-} from "@opencode/core/session/sql"
+import { InstructionStateTable, SessionInboxTable, SessionMessageTable, SessionTable } from "@opencode/core/session/sql"
 import { InstructionEntry } from "@opencode/core/session/instruction-entry"
 import { SessionStore } from "@opencode/core/session/store"
 import { Instructions } from "@opencode/core/instructions/index"
@@ -1700,7 +1695,7 @@ describe("SessionRunnerLLM", () => {
     yield* s.resume
 
     expect(s.requests.at(-1)?.system.map((part) => part.text)).toEqual([
-      expect.stringContaining("# Delegation"),
+      expect.stringContaining("## Final Answer"),
       "Initial context",
     ])
   })
@@ -1720,7 +1715,7 @@ describe("SessionRunnerLLM", () => {
     yield* s.resume
 
     expect(s.requests.at(-1)?.system.map((part) => part.text)).toEqual([
-      expect.stringContaining("# Delegation"),
+      expect.stringContaining("## Final Answer"),
       "Initial context",
     ])
   })
