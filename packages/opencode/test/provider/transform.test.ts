@@ -5088,6 +5088,25 @@ describe("ProviderTransform.variants", () => {
         high: { reasoningEffort: "high" },
       })
     })
+
+    test("deepseek-v4 includes none (thinking disabled) and low/medium/high/max with reasoningEffort", () => {
+      const model = createMockModel({
+        id: "openai-compatible/deepseek-v4-1",
+        providerID: "openai-compatible",
+        api: {
+          id: "deepseek-v4-1-latest",
+          url: "https://api.deepseek.com",
+          npm: "@ai-sdk/openai-compatible",
+        },
+      })
+      const result = ProviderTransform.variants(model)
+      expect(Object.keys(result).sort()).toEqual(["high", "low", "max", "medium", "none"].sort())
+      expect(result.none).toEqual({ thinking: { type: "disabled" } })
+      expect(result.low).toEqual({ reasoningEffort: "low" })
+      expect(result.medium).toEqual({ reasoningEffort: "medium" })
+      expect(result.high).toEqual({ reasoningEffort: "high" })
+      expect(result.max).toEqual({ reasoningEffort: "max" })
+    })
   })
 
   describe("@ai-sdk/azure", () => {

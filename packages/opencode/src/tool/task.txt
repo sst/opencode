@@ -8,12 +8,23 @@ When NOT to use the Task tool:
 - If you are searching for code within a specific file or set of 2-3 files, use the Read tool instead of the Task tool, to find the match more quickly
 - If no available agent is a good fit for the task, use other tools directly
 
+Model selection:
+- Each agent has a default model (usually inherited from the parent session).
+- You can override the model by passing the `model` parameter in `provider/model` format (e.g. `anthropic/claude-sonnet-4`, `openai/gpt-4o`, `google/gemini-2.5-pro`).
+- Model overrides require the `model_override` permission. By default this permission is denied. The user can allow specific models or providers in their config (e.g. `"model_override": { "anthropic/*": "allow" }`).
+- Model selection precedence is `model` parameter, then the subagent's configured model, then the parent assistant message model.
+- The optional `variant` parameter selects a model-specific reasoning preset for this dispatch (e.g. "thinking" to force extended thinking on models that support toggling it). Unknown variants are ignored.
+
+Reliability:
+- `timeout` (ms) bounds a single subagent attempt; on expiry the attempt is interrupted.
+- `fallback_model` (provider/model) retries the task once on the fallback when the primary attempt times out or fails. Requires the model_override permission. Parent-initiated aborts never trigger the fallback.
 
 Usage notes:
 1. Launch multiple agents concurrently whenever possible, to maximize performance; to do that, use a single message with multiple tool uses
 2. Once you have delegated work to an agent, do not duplicate that work yourself. Continue with non-overlapping tasks, or wait for the result. For background tasks, you will be notified automatically when the result is ready.
-3. When the agent is done, it will return a single message back to you. The result returned by the agent is not visible to the user. To show the user the result, you should send a text message back to the user with a concise summary of the result. The output includes a task_id you can reuse later to continue the same subagent session.
-4. Each agent invocation starts with a fresh context unless you provide task_id to resume the same subagent session (which continues with its previous messages and tool outputs). When starting fresh, your prompt should contain a highly detailed task description for the agent to perform autonomously and you should specify exactly what information the agent should return back to you in its final and only message to you.
+3. When the agent is done, it will return a single message back to you. The result returned by the agent is not visible to the user. To show the user the result, you should send a text message back to the user with a concise summary of the result. The output includes a task_id you can reuse later to continue the same subagent session. You can also pass a human-readable slug (e.g. "explore-auth") as task_id to create or resume a named task within the current root session — if the slug has not been used yet, a new task is created; if it already exists, the existing session is resumed.
+4. Each agent invocation starts with a fresh context unless you provide task_id to resume the same subagent session (which continues with its previous messages and tool outputs). Resuming an idle (finished) task session additionally requires resume: true — without it the dispatch fails instead of silently continuing an old session. A live background task accepts follow-up prompts by task_id without the flag. When starting fresh, your prompt should contain a highly detailed task description for the agent to perform autonomously and you should specify exactly what information the agent should return back to you in its final and only message to you.
 5. The agent's outputs should generally be trusted
 6. Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user's intent. Tell it how to verify its work if possible (e.g., relevant test commands).
 7. If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.
+- The optional `metadata` parameter attaches opaque structured metadata to the task session for plugins and analytics (not shown to the subagent). On resume, keys are shallow-merged.

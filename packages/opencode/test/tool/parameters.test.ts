@@ -243,8 +243,40 @@ describe("tool parameters", () => {
       const parsed = parse(Task, { description: "d", prompt: "p", subagent_type: "general", background: true })
       expect(parsed.background).toBe(true)
     })
+    test("accepts optional model override", () => {
+      const parsed = parse(Task, { description: "d", prompt: "p", subagent_type: "general", model: "openai/gpt-4o" })
+      expect(parsed.model).toBe("openai/gpt-4o")
+    })
+    test("accepts optional variant", () => {
+      const parsed = parse(Task, { description: "d", prompt: "p", subagent_type: "general", variant: "thinking" })
+      expect(parsed.variant).toBe("thinking")
+    })
+    test("accepts optional metadata object", () => {
+      const parsed = parse(Task, {
+        description: "d",
+        prompt: "p",
+        subagent_type: "general",
+        metadata: { domain: "code-review", family: "anthropic" },
+      })
+      expect(parsed.metadata).toEqual({ domain: "code-review", family: "anthropic" })
+    })
     test("rejects missing prompt", () => {
       expect(accepts(Task, { description: "d", subagent_type: "general" })).toBe(false)
+    })
+    test("accepts optional resume flag", () => {
+      const parsed = parse(Task, { description: "d", prompt: "p", subagent_type: "general", task_id: "x-y", resume: true })
+      expect(parsed.resume).toBe(true)
+    })
+    test("accepts optional timeout and fallback_model", () => {
+      const parsed = parse(Task, {
+        description: "d", prompt: "p", subagent_type: "general",
+        timeout: 60000, fallback_model: "openai/gpt-4o",
+      })
+      expect(parsed.timeout).toBe(60000)
+      expect(parsed.fallback_model).toBe("openai/gpt-4o")
+    })
+    test("rejects non-positive timeout", () => {
+      expect(accepts(Task, { description: "d", prompt: "p", subagent_type: "general", timeout: 0 })).toBe(false)
     })
   })
 
