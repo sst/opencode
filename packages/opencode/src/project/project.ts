@@ -234,7 +234,12 @@ const layer = Layer.effect(
 
       const result: Info = {
         ...existing,
-        worktree: projectID === ProjectV2.ID.global ? worktree : existing.worktree,
+        worktree:
+          projectID === ProjectV2.ID.global
+            ? worktree
+            : (yield* fs.exists(existing.worktree).pipe(Effect.orDie))
+              ? existing.worktree
+              : data.directory,
         vcs: data.vcs?.type ?? fakeVcs,
         time: { ...existing.time, updated: Date.now() },
       }

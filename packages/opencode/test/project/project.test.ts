@@ -15,6 +15,7 @@ import { WorkspaceV2 } from "@opencode-ai/core/workspace"
 import { Cause, Effect, Exit, Layer, Stream } from "effect"
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process"
 import { ProjectV2 } from "@opencode-ai/core/project"
+import { AbsolutePath } from "@opencode-ai/core/schema"
 import { CrossSpawnSpawner } from "@opencode-ai/core/cross-spawn-spawner"
 import { testEffect } from "../lib/effect"
 import { RuntimeFlags } from "@/effect/runtime-flags"
@@ -155,6 +156,50 @@ describe("Project.fromDirectory", () => {
       const result = yield* project.fromDirectory(tmp)
       const next = yield* project.fromDirectory(tmp)
       expect(next.project.id).toBe(result.project.id)
+    }),
+  )
+
+  it.live("replaces missing stored worktree with the opened directory", () =>
+    Effect.gen(function* () {
+      const { db } = yield* Database.Service
+      const project = yield* Project.Service
+      const tmp = yield* tmpdirScoped({ git: true })
+      const result = yield* project.fromDirectory(tmp)
+
+      yield* db
+        .update(ProjectTable)
+        .set({ worktree: AbsolutePath.make(path.join(tmp, "moved-away")) })
+        .where(eq(ProjectTable.id, result.project.id))
+        .run()
+        .pipe(Effect.orDie)
+
+      const next = yield* project.fromDirectory(tmp)
+
+      expect(next.project.worktree).toBe(tmp)
+      expect(
+        (yield* db.select().from(ProjectTable).where(eq(ProjectTable.id, result.project.id)).get().pipe(Effect.orDie))
+          ?.worktree,
+      ).toBe(AbsolutePath.make(tmp))
+    }),
+  )
+
+  it.live("keeps stored worktree when another clone exists on disk", () =>
+    Effect.gen(function* () {
+      const { db } = yield* Database.Service
+      const project = yield* Project.Service
+      const first = yield* tmpdirScoped({ git: true })
+      yield* project.fromDirectory(first)
+      const second = yield* tmpdirScoped()
+      yield* Effect.promise(() => $`git clone ${first} ${second}`.quiet())
+
+      const result = yield* project.fromDirectory(second)
+
+      expect(result.project.worktree).toBe(first)
+      expect(result.project.sandboxes).toContain(second)
+      expect(
+        (yield* db.select().from(ProjectTable).where(eq(ProjectTable.id, result.project.id)).get().pipe(Effect.orDie))
+          ?.worktree,
+      ).toBe(AbsolutePath.make(first))
     }),
   )
 
