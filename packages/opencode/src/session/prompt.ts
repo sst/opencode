@@ -141,6 +141,11 @@ const layer = Layer.effect(
     const flags = yield* RuntimeFlags.Service
     const database = yield* Database.Service
     const { db } = database
+    // Freeze the system prompt per session after the first LLM call, so that
+    // mid-session changes to the instruction files (AGENTS.md / memory.md), git
+    // status or the calendar date do not invalidate the provider's prefix cache
+    // for the whole conversation. Adapted from anomalyco/opencode#33246.
+    const frozenSystemPrompts = new Map<SessionID, string[]>()
     const ops = Effect.fn("SessionPrompt.ops")(function* () {
       return {
         cancel: (sessionID: SessionID) => cancel(sessionID),
@@ -1254,19 +1259,30 @@ const layer = Layer.effect(
 
             yield* plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
 
-            const [skills, env, instructions, mcpInstructions, modelMsgs] = yield* Effect.all([
+            const [skills, frozenSystem, modelMsgs] = yield* Effect.all([
               sys.skills(agent),
-              sys.environment(model),
-              instruction.system().pipe(Effect.orDie),
-              sys.mcp(agent, session.permission),
+              Effect.suspend(() => {
+                const cached = frozenSystemPrompts.get(sessionID)
+                if (cached) return Effect.succeed(cached)
+                return Effect.all([
+                  sys.environment(model),
+                  instruction.system().pipe(Effect.orDie),
+                  sys.mcp(agent, session.permission),
+                ]).pipe(
+                  Effect.map(([env, instructions, mcpInstructions]) => {
+                    const computed = [...env, ...instructions, ...(mcpInstructions ? [mcpInstructions] : [])]
+                    if (frozenSystemPrompts.size >= 2048) {
+                      const oldest = frozenSystemPrompts.keys().next().value
+                      if (oldest !== undefined) frozenSystemPrompts.delete(oldest)
+                    }
+                    frozenSystemPrompts.set(sessionID, computed)
+                    return computed
+                  }),
+                )
+              }),
               MessageV2.toModelMessagesEffect(msgs, model),
             ])
-            const system = [
-              ...env,
-              ...instructions,
-              ...(mcpInstructions ? [mcpInstructions] : []),
-              ...(skills ? [skills] : []),
-            ]
+            const system = [...frozenSystem, ...(skills ? [skills] : [])]
             const format = lastUser.format ?? { type: "text" as const }
             if (format.type === "json_schema") system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
             const result = yield* handle.process({
