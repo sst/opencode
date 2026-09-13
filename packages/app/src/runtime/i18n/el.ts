@@ -285,6 +285,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "{{provider}} αποσυνδέθηκε",
   "provider.disconnect.toast.disconnected.description": "{{provider}} μοντέλα δεν είναι πλέον διαθέσιμα.",
   "model.tag.free": "Δωρεάν",
+  "model.tag.variable": "Μεταβλητή",
   "model.tag.latest": "Τελευταία",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

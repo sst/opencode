@@ -186,6 +186,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "{{provider}} 연결 해제됨",
   "provider.disconnect.toast.disconnected.description": "{{provider}} 모델을 더 이상 사용할 수 없습니다.",
   "model.tag.free": "무료",
+  "model.tag.variable": "변동",
   "model.tag.latest": "최신",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

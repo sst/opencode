@@ -283,6 +283,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "{{provider}} on katkestatud",
   "provider.disconnect.toast.disconnected.description": "{{provider}} mudelit pole enam saadaval.",
   "model.tag.free": "Tasuta",
+  "model.tag.variable": "Muutuv",
   "model.tag.latest": "Viimased",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

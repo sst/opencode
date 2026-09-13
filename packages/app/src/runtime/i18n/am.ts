@@ -280,6 +280,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "{{provider}} ተቋርጧል",
   "provider.disconnect.toast.disconnected.description": "{{provider}} ሞዴሎች ከአሁን በኋላ አይገኙም።",
   "model.tag.free": "ነጻ",
+  "model.tag.variable": "ተለዋዋጭ",
   "model.tag.latest": "የቅርብ",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

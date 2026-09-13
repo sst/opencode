@@ -283,6 +283,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "{{provider}} ຕັດການເຊື່ອມຕໍ່ແລ້ວ",
   "provider.disconnect.toast.disconnected.description": "ໂມເດວ {{provider}} ບໍ່ມີແລ້ວ.",
   "model.tag.free": "ຟຣີ",
+  "model.tag.variable": "ປ່ຽນແປງໄດ້",
   "model.tag.latest": "ຫຼ້າສຸດ",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

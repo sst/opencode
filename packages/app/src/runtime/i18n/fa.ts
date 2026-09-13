@@ -284,6 +284,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "{{provider}} قطع شد",
   "provider.disconnect.toast.disconnected.description": "مدل های {{provider}} دیگر در دسترس نیستند.",
   "model.tag.free": "رایگان",
+  "model.tag.variable": "متغیر",
   "model.tag.latest": "آخرین",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

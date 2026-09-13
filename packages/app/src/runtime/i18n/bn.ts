@@ -284,6 +284,7 @@ export const dict: Record<string, string> = {
   "provider.disconnect.toast.disconnected.title": "{{provider}} সংযোগ বিচ্ছিন্ন",
   "provider.disconnect.toast.disconnected.description": "{{provider}} মডেল আর উপলব্ধ নেই৷",
   "model.tag.free": "বিনামূল্যে",
+  "model.tag.variable": "পরিবর্তনশীল",
   "model.tag.latest": "সর্বশেষ",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

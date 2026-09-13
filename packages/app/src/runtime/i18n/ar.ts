@@ -290,6 +290,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "تم فصل {{provider}}",
   "provider.disconnect.toast.disconnected.description": "لم تعد نماذج {{provider}} متاحة.",
   "model.tag.free": "مجاني",
+  "model.tag.variable": "متغير",
   "model.tag.latest": "الأحدث",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

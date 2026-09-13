@@ -312,6 +312,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.description": "{{provider}} modelleri artık kullanılamıyor.",
 
   "model.tag.free": "Ücretsiz",
+  "model.tag.variable": "Değişken",
   "model.tag.latest": "En yeni",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

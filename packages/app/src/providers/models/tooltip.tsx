@@ -1,4 +1,5 @@
 import { Show, type Component, type JSX } from "solid-js"
+import { isOrganizationRouteProvider } from "@opencode/util/organization-routes"
 import { useLanguage } from "@/runtime/i18n/language"
 
 type InputKey = "text" | "image" | "audio" | "video" | "pdf"
@@ -8,6 +9,7 @@ type ModelInfo = {
   id: string
   name: string
   provider: {
+    id?: string
     name: string
   }
   capabilities?: {
@@ -36,7 +38,9 @@ export const ModelTooltip: Component<{ model: ModelInfo; latest?: boolean; free?
   props,
 ) => {
   const language = useLanguage()
+  const route = () => isOrganizationRouteProvider(props.model.provider.id ?? "")
   const sourceName = (model: ModelInfo) => {
+    if (route()) return model.provider.name
     const value = `${model.id} ${model.name}`.toLowerCase()
 
     if (/claude|anthropic/.test(value)) return language.t("model.provider.anthropic")
@@ -58,14 +62,16 @@ export const ModelTooltip: Component<{ model: ModelInfo; latest?: boolean; free?
   const title = () => {
     const tags: Array<string> = []
     if (props.latest) tags.push(language.t("model.tag.latest"))
-    if (props.free) tags.push(language.t("model.tag.free"))
+    if (route()) tags.push(language.t("model.tag.variable"))
+    if (!route() && props.free) tags.push(language.t("model.tag.free"))
     const suffix = tags.length ? ` (${tags.join(", ")})` : ""
     return `${sourceName(props.model)} ${props.model.name}${suffix}`
   }
   const name = () => {
     const tags: Array<string> = []
     if (props.latest) tags.push(language.t("model.tag.latest"))
-    if (props.free) tags.push(language.t("model.tag.free"))
+    if (route()) tags.push(language.t("model.tag.variable"))
+    if (!route() && props.free) tags.push(language.t("model.tag.free"))
     const suffix = tags.length ? ` (${tags.join(", ")})` : ""
     return `${props.model.name}${suffix}`
   }
@@ -98,11 +104,13 @@ export const ModelTooltip: Component<{ model: ModelInfo; latest?: boolean; free?
       <div class="flex w-[180px] flex-col gap-2">
         <ModelTooltipRow name={language.t("model.tooltip.model")} value={name()} />
         <ModelTooltipRow name={language.t("model.tooltip.provider")} value={props.model.provider.name} />
-        <Show when={inputs()}>
-          {(value) => <ModelTooltipRow name={language.t("model.tooltip.inputs")} value={value()} />}
+        <Show when={!route()}>
+          <Show when={inputs()}>
+            {(value) => <ModelTooltipRow name={language.t("model.tooltip.inputs")} value={value()} />}
+          </Show>
+          <ModelTooltipRow name={language.t("model.tooltip.reasoning")} value={reasoning()} />
+          <ModelTooltipRow name={language.t("model.tooltip.context.label")} value={contextLimit()} />
         </Show>
-        <ModelTooltipRow name={language.t("model.tooltip.reasoning")} value={reasoning()} />
-        <ModelTooltipRow name={language.t("model.tooltip.context.label")} value={contextLimit()} />
       </div>
     )
   }
@@ -110,15 +118,17 @@ export const ModelTooltip: Component<{ model: ModelInfo; latest?: boolean; free?
   return (
     <div class="flex flex-col gap-1 py-1">
       <div class="text-13-medium">{title()}</div>
-      <Show when={inputs()}>
-        {(value) => (
-          <div class="text-12-regular text-text-invert-base">
-            {language.t("model.tooltip.allows", { inputs: value() })}
-          </div>
-        )}
+      <Show when={!route()}>
+        <Show when={inputs()}>
+          {(value) => (
+            <div class="text-12-regular text-text-invert-base">
+              {language.t("model.tooltip.allows", { inputs: value() })}
+            </div>
+          )}
+        </Show>
+        <div class="text-12-regular text-text-invert-base">{reasoning()}</div>
+        <div class="text-12-regular text-text-invert-base">{context()}</div>
       </Show>
-      <div class="text-12-regular text-text-invert-base">{reasoning()}</div>
-      <div class="text-12-regular text-text-invert-base">{context()}</div>
     </div>
   )
 }

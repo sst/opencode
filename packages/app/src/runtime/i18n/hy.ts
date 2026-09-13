@@ -286,6 +286,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "{{provider}} անջատված է",
   "provider.disconnect.toast.disconnected.description": "{{provider}} մոդելներն այլևս հասանելի չեն:",
   "model.tag.free": "Անվճար",
+  "model.tag.variable": "Փոփոխական",
   "model.tag.latest": "Վերջին",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

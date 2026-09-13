@@ -1,5 +1,6 @@
 import { type Accessor, createMemo } from "solid-js"
 import { DateTime } from "luxon"
+import { isOrganizationRouteProvider } from "@opencode/util/organization-routes"
 import { filter, firstBy, flat, groupBy, mapValues, pipe, uniqueBy, values } from "remeda"
 import { createSimpleContext } from "@opencode/ui/context"
 import { useProviders } from "@/providers/catalog/providers"
@@ -79,8 +80,8 @@ const createModelsController = (directory: Accessor<string | undefined>) => {
   const list = createMemo(() =>
     available().map((m) => ({
       ...m,
-      name: m.name.replace("(latest)", "").trim(),
-      latest: m.name.includes("(latest)"),
+      name: isOrganizationRouteProvider(m.provider.id) ? m.name : m.name.replace("(latest)", "").trim(),
+      latest: !isOrganizationRouteProvider(m.provider.id) && m.name.includes("(latest)"),
     })),
   )
 
@@ -100,6 +101,7 @@ const createModelsController = (directory: Accessor<string | undefined>) => {
     const state = visibility().get(key)
     if (state === "hide") return false
     if (state === "show") return true
+    if (isOrganizationRouteProvider(model.providerID)) return true
     if (latestSet().has(key)) return true
     const date = release().get(key)
     if (!date?.isValid) return true

@@ -291,6 +291,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "{{provider}} bị ngắt kết nối",
   "provider.disconnect.toast.disconnected.description": "Các mô hình {{provider}} không còn khả dụng.",
   "model.tag.free": "Miễn phí",
+  "model.tag.variable": "Giá thay đổi",
   "model.tag.latest": "Mới nhất",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

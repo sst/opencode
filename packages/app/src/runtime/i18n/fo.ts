@@ -283,6 +283,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "{{provider}} slitið",
   "provider.disconnect.toast.disconnected.description": "{{provider}} modellir eru ikki tøkir longur.",
   "model.tag.free": "Ókeypis",
+  "model.tag.variable": "Skiftandi",
   "model.tag.latest": "Nýggjasta",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

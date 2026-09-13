@@ -191,6 +191,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "Yhteys palveluntarjoajaan {{provider}} katkaistu",
   "provider.disconnect.toast.disconnected.description": "{{provider}}-mallit eivät ole enää saatavilla.",
   "model.tag.free": "Ilmainen",
+  "model.tag.variable": "Muuttuva",
   "model.tag.latest": "Uusin",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

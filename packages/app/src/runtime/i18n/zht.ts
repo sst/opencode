@@ -305,6 +305,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "{{provider}} 已中斷連線",
   "provider.disconnect.toast.disconnected.description": "{{provider}} 模型已不再可用。",
   "model.tag.free": "免費",
+  "model.tag.variable": "浮動價格",
   "model.tag.latest": "最新",
 
   "model.provider.anthropic": "Anthropic",

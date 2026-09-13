@@ -283,6 +283,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "{{provider}} prekinjen",
   "provider.disconnect.toast.disconnected.description": "Modeli {{provider}} niso več na voljo.",
   "model.tag.free": "Brezplačno",
+  "model.tag.variable": "Spremenljiva cena",
   "model.tag.latest": "Zadnje",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

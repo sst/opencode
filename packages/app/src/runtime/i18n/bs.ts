@@ -308,6 +308,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.description": "{{provider}} modeli više nisu dostupni.",
 
   "model.tag.free": "Besplatno",
+  "model.tag.variable": "Promjenjiva",
   "model.tag.latest": "Najnovije",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

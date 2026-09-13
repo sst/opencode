@@ -287,6 +287,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "{{provider}} ချိတ်ဆက်မှု ပြတ်တောက်သွားသည်။",
   "provider.disconnect.toast.disconnected.description": "{{provider}} မော်ဒယ်များကို မရနိုင်တော့ပါ။",
   "model.tag.free": "အခမဲ့",
+  "model.tag.variable": "ပြောင်းလဲနိုင်သော",
   "model.tag.latest": "နောက်ဆုံးထွက်",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

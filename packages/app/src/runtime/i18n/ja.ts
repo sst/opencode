@@ -289,6 +289,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "{{provider}}が切断されました",
   "provider.disconnect.toast.disconnected.description": "{{provider}}のモデルは利用できなくなりました。",
   "model.tag.free": "無料",
+  "model.tag.variable": "変動",
   "model.tag.latest": "最新",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

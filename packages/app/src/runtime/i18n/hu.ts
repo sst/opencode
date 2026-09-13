@@ -288,6 +288,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "{{provider}} leválasztva",
   "provider.disconnect.toast.disconnected.description": "A {{provider}} modellek már nem kaphatók.",
   "model.tag.free": "Ingyenes",
+  "model.tag.variable": "Változó",
   "model.tag.latest": "Legújabb",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

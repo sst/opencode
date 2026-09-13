@@ -62,7 +62,7 @@ mock.module("@/runtime/platform/platform", () => ({
 }))
 
 const { LocalProvider, useLocal } = await import("@/providers/models/selection")
-const { ModelsProvider } = await import("@/providers/models/models")
+const { ModelsProvider, useModels } = await import("@/providers/models/models")
 const { Persist } = await import("@/runtime/persistence/storage")
 const { createMemoryComposerState } = await import("@/composer/state")
 const { createComposerModelSelection } = await import("@/composer/selection")
@@ -150,11 +150,13 @@ function fixture(input: { session?: Commit; agents?: Agent[]; config?: ConfigMod
     mount(draft = false) {
       active = result
       let local!: ReturnType<typeof useLocal>
+      let models!: ReturnType<typeof useModels>
       let composer: ReturnType<typeof createComposerModelSelection> | undefined
       const dispose = createRoot((dispose) => {
         createComponent(ModelsProvider, {
           directory,
           get children() {
+            models = useModels()
             return createComponent(LocalProvider, {
               get children() {
                 local = useLocal()
@@ -167,7 +169,7 @@ function fixture(input: { session?: Commit; agents?: Agent[]; config?: ConfigMod
         return dispose
       })
       cleanups.push(dispose)
-      return { local, composer, dispose }
+      return { local, models, composer, dispose }
     },
   }
   const target = Persist.serverWorkspace(ServerScope.local, directory, "model-selection")
@@ -456,4 +458,48 @@ test.each([1, -1] as const)("cycles %p from outside recents to the correct end a
   expect(local.model.current()?.id).toBe(direction === 1 ? "c" : "b")
   local.model.cycle(direction)
   expect(local.model.current()?.id).toBe(direction === 1 ? "b" : "c")
+})
+
+test("organization routes stay visible and selected by stable ID across catalog refreshes", () => {
+  const f = fixture()
+  const providerID = "opencode-routes-org_first"
+  const ref = { providerID, modelID: "route_1" }
+  f.set("providers", [{ ...f.state.providers[0], id: providerID, name: "First / Routes" }])
+  f.set("models", [{ ...f.state.models[0], providerID, id: ref.modelID, modelID: "coding", name: "Coding (latest)" }])
+  const { local, models } = f.mount()
+  expect(models.visible(ref)).toBe(true)
+  expect(local.model.list()).toHaveLength(1)
+  expect(local.model.list()[0]).toMatchObject({ id: "route_1", name: "Coding (latest)", latest: false })
+  local.model.set(ref, { recent: true })
+  expect(local.model.current()).toMatchObject({ id: "route_1", api: { id: "coding" } })
+  f.set("models", [{ ...f.state.models[0], modelID: "coding-renamed", name: "Renamed route" }])
+  expect(local.model.current()).toMatchObject({ id: "route_1", name: "Renamed route", api: { id: "coding-renamed" } })
+  expect(f.preferences.recent()).toEqual([ref])
+  models.setVisibility(ref, false)
+  expect(models.visible(ref)).toBe(false)
+  f.set("models", [{ ...f.state.models[0], name: "Updated route" }])
+  expect(models.visible(ref)).toBe(false)
+  f.set("models", [])
+  expect(local.model.list()).toEqual([])
+  expect(local.model.current()).toBeUndefined()
+})
+
+test("organization switches replace route catalogs without reusing visibility or recent references", () => {
+  const f = fixture()
+  const firstID = "opencode-routes-org_first"
+  const secondID = "opencode-routes-org_second"
+  const ref = { providerID: firstID, modelID: "route_1" }
+  f.set("providers", [{ ...f.state.providers[0], id: firstID, name: "First / Routes" }])
+  f.set("models", [{ ...f.state.models[0], providerID: firstID, id: ref.modelID, modelID: "coding" }])
+  const { local, models } = f.mount()
+  local.model.set(ref, { recent: true })
+  models.setVisibility(ref, false)
+  f.set("providers", [{ ...f.state.providers[0], id: secondID, name: "Second / Routes" }])
+  f.set("models", [{ ...f.state.models[0], providerID: secondID }])
+  expect(models.find(ref)).toBeUndefined()
+  expect(models.visible({ providerID: secondID, modelID: "route_1" })).toBe(true)
+  expect(local.model.list()).toHaveLength(1)
+  expect(local.model.list()[0].provider.id).toBe(secondID)
+  expect(local.model.current()?.provider.id).not.toBe(firstID)
+  expect(f.preferences.recent()).toEqual([ref])
 })

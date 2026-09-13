@@ -69,6 +69,7 @@ const builtins = new Map<string, () => Promise<unknown>>([
   ["@opencode/ai/providers/openai/chat", () => import("@opencode/ai/providers/openai/chat")],
   ["@opencode/ai/providers/openai/responses", () => import("@opencode/ai/providers/openai/responses")],
   ["@opencode/ai/providers/openai-compatible", () => import("@opencode/ai/providers/openai-compatible")],
+  ["@opencode/ai/providers/organization-routes", () => import("@opencode/ai/providers/organization-routes")],
   ["@opencode/ai/providers/openrouter", () => import("@opencode/ai/providers/openrouter")],
   ["@opencode/ai/providers/togetherai", () => import("@opencode/ai/providers/togetherai")],
   ["@opencode/ai/providers/xai", () => import("@opencode/ai/providers/xai")],

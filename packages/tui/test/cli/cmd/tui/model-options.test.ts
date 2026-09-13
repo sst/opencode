@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { go } from "fuzzysort"
-import { prioritizeFavorites, sortModelOptions } from "../../../../src/component/dialog-model"
+import { modelPriceLabel, prioritizeFavorites, sortModelOptions } from "../../../../src/component/dialog-model"
 
 describe("prioritizeFavorites", () => {
   test("uses the favorite order captured when the dialog opened", () => {
@@ -80,5 +80,24 @@ describe("sortModelOptions", () => {
     ])
 
     expect(sorted.map((model) => model.title)).toEqual(["Claude Opus 4", "Claude Sonnet 4"])
+  })
+})
+
+describe("organization route options", () => {
+  test("shows variable pricing even when an empty or zero price is supplied", () => {
+    expect(modelPriceLabel({ providerID: "opencode-routes-org_first", cost: [] })).toBe("Variable")
+    expect(modelPriceLabel({ providerID: "opencode-routes-org_first", cost: [{ input: 0 }] })).toBe("Variable")
+    expect(modelPriceLabel({ providerID: "opencode", cost: [{ input: 0 }] })).toBe("Free")
+    expect(modelPriceLabel({ providerID: "opencode", cost: [] })).toBeUndefined()
+    expect(modelPriceLabel({ providerID: "anthropic", cost: [{ input: 3 }] })).toBeUndefined()
+  })
+
+  test("keeps favorites isolated when organizations have the same route key", () => {
+    const first = { value: { providerID: "opencode-routes-org_first", modelID: "route_1" } }
+    const second = { value: { providerID: "opencode-routes-org_second", modelID: "route_1" } }
+    expect(prioritizeFavorites([second, first], new Set(["opencode-routes-org_first/route_1"]))).toEqual([
+      first,
+      second,
+    ])
   })
 })

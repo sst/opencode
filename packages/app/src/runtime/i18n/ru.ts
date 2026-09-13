@@ -306,6 +306,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "{{provider}} отключён",
   "provider.disconnect.toast.disconnected.description": "Модели {{provider}} больше недоступны.",
   "model.tag.free": "Бесплатно",
+  "model.tag.variable": "Цена меняется",
   "model.tag.latest": "Последняя",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

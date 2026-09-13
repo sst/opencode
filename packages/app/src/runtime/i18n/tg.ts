@@ -285,6 +285,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "{{provider}} ҷудо карда шудааст",
   "provider.disconnect.toast.disconnected.description": "{{provider}} моделҳо дигар дастрас нестанд.",
   "model.tag.free": "Озод",
+  "model.tag.variable": "Тағйирёбанда",
   "model.tag.latest": "Охирин",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

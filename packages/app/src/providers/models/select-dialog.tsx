@@ -1,4 +1,5 @@
 import { Popover } from "@kobalte/core/popover"
+import { isOrganizationRouteProvider } from "@opencode/util/organization-routes"
 import { Component, ComponentProps, createEffect, createMemo, For, JSX, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLocal, type ModelSelection } from "@/providers/models/selection"
@@ -197,6 +198,9 @@ const ModelList: Component<{
                                   >
                                     <span class="min-w-0 truncate">{item.name}</span>
                                   </Tooltip>
+                                  <Show when={isOrganizationRouteProvider(item.provider.id)}>
+                                    <Badge class="shrink-0">{language.t("model.tag.variable")}</Badge>
+                                  </Show>
                                   <Show when={isFree(item.provider.id, item.cost)}>
                                     <Badge class="shrink-0">{language.t("model.tag.free")}</Badge>
                                   </Show>
@@ -489,6 +493,9 @@ function ModelSelectorPopoverView(props: {
                                 onSelect={() => selectModel(item)}
                               >
                                 <span class="min-w-0 truncate leading-5">{item.name}</span>
+                                <Show when={isOrganizationRouteProvider(item.provider.id)}>
+                                  <Badge class="shrink-0">{language.t("model.tag.variable")}</Badge>
+                                </Show>
                                 <Show when={isFree(item.provider.id, item.cost)}>
                                   <Badge class="shrink-0">{language.t("model.tag.free")}</Badge>
                                 </Show>

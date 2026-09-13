@@ -1,4 +1,5 @@
 import { createMemo, createSignal } from "solid-js"
+import { isOrganizationRouteProvider } from "@opencode/util/organization-routes"
 import { useLocal } from "../context/local"
 import { DialogSelect } from "../ui/dialog-select"
 import { useDialog } from "../ui/dialog"
@@ -46,7 +47,7 @@ export function DialogModel(props: { providerID?: string }) {
             releaseDate: model.time.released,
             description: provider?.name ?? model.providerID,
             category,
-            footer: free(model) ? "Free" : undefined,
+            footer: modelPriceLabel(model),
             onSelect: () => {
               onSelect(model.providerID, model.id)
             },
@@ -79,7 +80,7 @@ export function DialogModel(props: { providerID?: string }) {
             releaseDate: model.time.released,
             description: favorite ? "(Favorite)" : undefined,
             category: connected() ? (provider?.name ?? model.providerID) : undefined,
-            footer: free(model) ? "Free" : undefined,
+            footer: modelPriceLabel(model),
             onSelect() {
               onSelect(model.providerID, model.id)
             },
@@ -211,6 +212,7 @@ export function sortModelOptions<
   })
 }
 
-function free(model: { cost: Array<{ input: number }> }) {
-  return model.cost.length > 0 && model.cost.every((cost) => cost.input === 0)
+export function modelPriceLabel(model: { providerID: string; cost: Array<{ input: number }> }) {
+  if (isOrganizationRouteProvider(model.providerID)) return "Variable"
+  return model.cost.length > 0 && model.cost.every((cost) => cost.input === 0) ? "Free" : undefined
 }

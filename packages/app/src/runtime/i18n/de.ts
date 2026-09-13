@@ -196,6 +196,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "{{provider}} getrennt",
   "provider.disconnect.toast.disconnected.description": "Die {{provider}}-Modelle sind nicht mehr verfügbar.",
   "model.tag.free": "Kostenlos",
+  "model.tag.variable": "Variabel",
   "model.tag.latest": "Neueste",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

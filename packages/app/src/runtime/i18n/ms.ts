@@ -284,6 +284,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "{{provider}} telah diputuskan",
   "provider.disconnect.toast.disconnected.description": "Model {{provider}} tidak lagi tersedia.",
   "model.tag.free": "Percuma",
+  "model.tag.variable": "Berubah-ubah",
   "model.tag.latest": "Terkini",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

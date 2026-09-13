@@ -291,6 +291,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "{{provider}} डिस्कनेक्ट हो गया",
   "provider.disconnect.toast.disconnected.description": "{{provider}} मॉडल अब उपलब्ध नहीं हैं।",
   "model.tag.free": "निःशुल्क",
+  "model.tag.variable": "परिवर्तनशील",
   "model.tag.latest": "नवीनतम",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

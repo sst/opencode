@@ -282,6 +282,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "{{provider}} מנותק",
   "provider.disconnect.toast.disconnected.description": "המודלים של {{provider}} אינם זמינים עוד.",
   "model.tag.free": "חינם",
+  "model.tag.variable": "משתנה",
   "model.tag.latest": "העדכני ביותר",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

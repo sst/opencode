@@ -288,6 +288,7 @@ export const dict = {
   "provider.disconnect.toast.disconnected.title": "{{provider}} aftengdur",
   "provider.disconnect.toast.disconnected.description": "{{provider}} gerðir eru ekki lengur fáanlegar.",
   "model.tag.free": "Ókeypis",
+  "model.tag.variable": "Breytilegt",
   "model.tag.latest": "Nýjasta",
   "model.provider.anthropic": "Anthropic",
   "model.provider.openai": "OpenAI",

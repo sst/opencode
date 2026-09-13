@@ -1151,3 +1151,62 @@ Recent work
     ])
   })
 })
+
+test("organization route history keeps opaque continuation state on its stable model identity", () => {
+  const route = Model.Ref.make({
+    id: Model.ID.make("route_coding"),
+    providerID: Provider.ID.make("opencode-routes-org_test"),
+  })
+  const metadata = {
+    protocol: "google",
+    model: "native-model",
+    group_id: "resp_1",
+    content: [{ functionCall: { name: "lookup", args: {} }, thoughtSignature: "opaque-signature" }],
+  }
+  const marker = { group_id: "resp_1" }
+  const history = [
+    SessionMessage.Assistant.make({
+      id: id("route-tool"),
+      type: "assistant",
+      agent: build,
+      model: route,
+      content: [
+        SessionMessage.AssistantReasoning.make({
+          type: "reasoning",
+          text: "",
+          state: { itemId: "rs_1", providerMetadata: metadata },
+        }),
+        SessionMessage.AssistantText.make({
+          type: "text",
+          text: "Checking.",
+          state: { itemId: "msg_1", providerMetadata: marker },
+        }),
+        SessionMessage.AssistantTool.make({
+          type: "tool",
+          id: "call_1",
+          name: "lookup",
+          providerState: { itemId: "fc_1", providerMetadata: marker },
+          state: SessionMessage.ToolStateCompleted.make({
+            status: "completed",
+            input: {},
+            content: [{ type: "text", text: "Done" }],
+          }),
+          time: { created, completed: created },
+        }),
+      ],
+      time: { created, completed: created },
+    }),
+  ]
+  const replay = toLLMMessages(history, route)
+  expect(
+    replay[0]?.content.map((part) =>
+      part.type === "compaction" ? undefined : part.providerMetadata?.[route.providerID]?.providerMetadata,
+    ),
+  ).toEqual([metadata, marker, marker])
+  expect(replay[1]?.role).toBe("tool")
+  const other = toLLMMessages(history, Model.Ref.make({ ...route, id: Model.ID.make("route_other") }))
+  expect(other[0]?.content.map((part) => (part.type === "compaction" ? undefined : part.providerMetadata))).toEqual([
+    undefined,
+    undefined,
+  ])
+})
