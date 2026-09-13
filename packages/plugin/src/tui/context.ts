@@ -191,6 +191,7 @@ export interface PanelInput {
 export interface SlotMap {
   readonly app: Readonly<Record<string, never>>
   readonly "home.footer": Readonly<Record<string, never>>
+  readonly "home.footer.status": Readonly<Record<string, never>>
   readonly "prompt.footer": PromptFooterInput
   readonly "prompt.footer.status": PromptFooterInput
   readonly "prompt.footer.file": PromptFooterInput

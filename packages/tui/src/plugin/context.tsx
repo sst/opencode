@@ -27,7 +27,6 @@ import { useTuiLifecycle } from "../context/runtime"
 import { useClient } from "../context/client"
 import { useData } from "../context/data"
 import { errorMessage } from "../util/error"
-import { builtins } from "./builtins"
 import { createPluginContext, usePluginHost, type Dispose, type RegisteredSlot, type SlotRender } from "./api"
 import { createSourceWatcher } from "./watch"
 import { discoverPluginTargets, localSource } from "./discovery"
@@ -306,6 +305,7 @@ export function PluginProvider(props: ParentProps<{ packages: PackageSource; dir
 
     // Resolve: fold entries into one desired generation. A source that fails
     // to import keeps its running previous version and only reports failure.
+    const { builtins } = await import("./builtins")
     const desired = new Map<string, Desired>()
     for (const plugin of builtins)
       desired.set(plugin.id, { plugin, source: "builtin", version: "builtin", enabled: true })
