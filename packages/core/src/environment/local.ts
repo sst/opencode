@@ -16,6 +16,7 @@ import { Failed, NotFound, WrongKind, type FileInfo, type FilesImpl, type FileTy
  */
 export const makeLocalDriver = (spawner: ChildProcessSpawner["Service"]): Driver => {
   const overrides: FilesImpl = {
+    realpath: (value) => attempt(value, () => fs.realpath(value), true),
     read: (value, range) =>
       Effect.gen(function* () {
         const info = yield* stat(value, true)

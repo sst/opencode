@@ -39,6 +39,8 @@ export interface FilesImpl {
     path: string,
     range?: { readonly offset: number; readonly length: number },
   ) => Effect.Effect<{ readonly info: FileInfo; readonly bytes: Uint8Array }, NotFound | WrongKind | Failed>
+  /** Resolves every symlink and requires the resulting path to exist. */
+  readonly realpath: (path: string) => Effect.Effect<string, NotFound | Failed>
   readonly write: (path: string, bytes: Uint8Array) => Effect.Effect<void, Failed>
   /** Describes the path entry itself, so a final symlink is reported as `symlink` rather than followed. */
   readonly stat: (path: string) => Effect.Effect<FileInfo, NotFound | Failed>

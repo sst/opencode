@@ -34,6 +34,16 @@ ${loadMetadata()}
 printf '%s\n' "$metadata"
 `
 
+const realpathScript = `
+resolved=$(realpath -e -- "$1" 2>&1) || {
+  case "$resolved" in
+    *'No such file or directory'*|*'Not a directory'*) exit ${NOT_FOUND} ;;
+    *) printf '%s' "$resolved" >&2; exit ${FAILED} ;;
+  esac
+}
+printf '%s\\0' "$resolved"
+`
+
 const readScript = `
 ${loadMetadata("-L")}
 kind=\${metadata%%${TAB}*}
@@ -117,6 +127,15 @@ export const execDefaults = (spawner: ChildProcessSpawner["Service"]): FilesImpl
     result.exitCode === 0 ? Effect.void : Effect.fail(processFailure(path, result))
 
   return {
+    realpath: (path) =>
+      run(path, realpathScript).pipe(
+        Effect.flatMap((result) =>
+          classifyPlain(path, result, (stdout) => {
+            if (stdout.at(-1) !== 0) throw new Error("Missing realpath terminator")
+            return new TextDecoder().decode(stdout.subarray(0, -1))
+          }),
+        ),
+      ),
     stat: (path) => run(path, statScript).pipe(Effect.flatMap((result) => classifyPlain(path, result, parseInfo))),
     read: (path, range) =>
       run(

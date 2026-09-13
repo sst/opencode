@@ -76,6 +76,7 @@ export const environmentConformance = <E>(
       Effect.gen(function* () {
         const target = `${harness.root}/missing`
         expect(yield* Effect.flip(harness.files.read(target))).toBeInstanceOf(NotFound)
+        expect(yield* Effect.flip(harness.files.realpath(target))).toBeInstanceOf(NotFound)
         expect(yield* Effect.flip(harness.files.stat(target))).toBeInstanceOf(NotFound)
         expect(yield* Effect.flip(harness.files.list(target))).toBeInstanceOf(NotFound)
         expect(yield* Effect.flip(harness.files.move(target, `${harness.root}/other`))).toBeInstanceOf(NotFound)
@@ -140,6 +141,9 @@ export const environmentConformance = <E>(
         yield* harness.symlink("target", `${harness.root}/link`)
         yield* harness.symlink("target-dir", `${harness.root}/link-dir`)
         yield* harness.symlink("missing", `${harness.root}/dangling-link`)
+        expect(yield* harness.files.realpath(`${harness.root}/link`)).toBe(`${harness.root}/target`)
+        expect(yield* harness.files.realpath(`${harness.root}/link-dir/file`)).toBe(`${harness.root}/target-dir/file`)
+        expect(yield* Effect.flip(harness.files.realpath(`${harness.root}/dangling-link`))).toBeInstanceOf(NotFound)
         expect((yield* harness.files.stat(`${harness.root}/link`)).type).toBe("symlink")
         expect(yield* harness.files.list(harness.root)).toContainEqual({ name: "link", type: "symlink" })
         expect(text((yield* harness.files.read(`${harness.root}/link-dir/file`)).bytes)).toBe("through link")
