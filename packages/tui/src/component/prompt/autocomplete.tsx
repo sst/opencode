@@ -44,7 +44,7 @@ export type AutocompleteOption = {
   path?: string
   absolute?: string
   destructive?: { id: string; confirm: string; run: () => void }
-  kind?: "skill"
+  kind?: "skill" | "agent" | "file" | "directory" | "reference"
   queueable?: boolean
 }
 
@@ -376,6 +376,7 @@ export function Autocomplete(props: {
           const { filename, part } = createFilePart(item, path.join(result.location.directory, item.path), lineRange)
           return {
             display: Locale.truncateMiddle(filename, width),
+            kind: item.type === "directory" ? "directory" : "file",
             value: filename,
             isDirectory: item.type === "directory",
             path: item.path,
@@ -405,41 +406,13 @@ export function Autocomplete(props: {
     return { options: [], failed: false, query: "", resolved: false }
   })
 
-  const mcpResources = createMemo(() => {
-    if (store.visible !== "reference") return []
-
-    const options: AutocompleteOption[] = []
-    const width = props.anchor().width - 4
-
-    for (const res of data.location.mcp.resource.list(location.current) ?? []) {
-      options.push({
-        display: Locale.truncateMiddle(res.name, width),
-        // Match the name only; matching the URI caused unrelated fuzzy hits.
-        value: res.name,
-        description: res.description,
-        onSelect: () => {
-          insertPart(res.name, {
-            type: "file",
-            value: {
-              uri: res.uri,
-              name: res.name,
-              description: res.description,
-              mention: { start: 0, end: 0, text: "" },
-            },
-          })
-        },
-      })
-    }
-
-    return options
-  })
-
   const agents = createMemo(() => {
     return (data.location.agent.list() ?? [])
       .filter((agent) => !agent.hidden && agent.mode !== "primary")
       .map(
         (agent): AutocompleteOption => ({
           display: "@" + agent.id,
+          kind: "agent",
           onSelect: () => {
             insertPart(agent.id, {
               type: "agent",
@@ -475,6 +448,7 @@ export function Autocomplete(props: {
       .map(
         (reference): AutocompleteOption => ({
           display: "@" + reference.name,
+          kind: "reference",
           description: ` ${reference.source.type === "git" ? reference.source.repository : reference.source.path}`,
           onSelect: () => {
             insertPart(reference.name, {
@@ -579,7 +553,7 @@ export function Autocomplete(props: {
     const fileOptions: AutocompleteOption[] = store.visible === "reference" ? fileSearch.options : []
     const nonFileOptions: AutocompleteOption[] =
       store.visible === "reference"
-        ? [...skillOptions(), ...referenceAliasesValue, ...agentsValue, ...mcpResources()]
+        ? [...skillOptions(), ...referenceAliasesValue, ...agentsValue]
         : store.index === 0
           ? [...commandsValue]
           : []
@@ -881,6 +855,13 @@ export function Autocomplete(props: {
     return "No matching files, agents, or references"
   })
   const emptyError = createMemo(() => store.visible === "reference" && !files.loading && visibleFiles().failed)
+  const labels = {
+    skill: "Skill",
+    agent: "Agent",
+    file: "File",
+    directory: "Dir",
+    reference: "Reference",
+  }
 
   return (
     <box
@@ -914,6 +895,14 @@ export function Autocomplete(props: {
         >
           {(option, index) => {
             const destructive = () => option().destructive
+            const label = () => {
+              const kind = option().kind
+              return kind ? labels[kind] : undefined
+            }
+            const contentWidth = () => {
+              const text = label()
+              return Math.max(1, position().width - 4 - (text ? stringWidth(text) + 2 : 0))
+            }
             const confirmingAction = () => {
               const action = destructive()
               return action !== undefined && action.id === confirming()
@@ -943,15 +932,30 @@ export function Autocomplete(props: {
                         : theme.text.default
                   }
                   flexShrink={0}
+                  wrapMode="none"
                 >
-                  {confirmingAction() ? destructive()?.confirm : option().display}
+                  {Locale.truncateMiddle(
+                    confirmingAction() ? (destructive()?.confirm ?? "") : option().display,
+                    contentWidth(),
+                  )}
                 </text>
                 <Show when={!confirmingAction() && option().description}>
                   <text
                     fg={index === store.selected ? theme.text.action.primary.focused : theme.text.subdued}
                     wrapMode="none"
+                    flexShrink={1}
+                    minWidth={0}
                   >
                     {" " + option().description?.replace(/\s+/g, " ").trim()}
+                  </text>
+                </Show>
+                <Show when={!confirmingAction() && label()}>
+                  <box flexGrow={1} minWidth={2} />
+                  <text
+                    flexShrink={0}
+                    fg={index === store.selected ? theme.text.action.primary.focused : theme.text.subdued}
+                  >
+                    {label()}
                   </text>
                 </Show>
               </box>
