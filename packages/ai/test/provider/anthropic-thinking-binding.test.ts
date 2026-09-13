@@ -80,3 +80,21 @@ it.effect("allows model compatibility to disable thinking block binding", () =>
     expect(prepared.request.headers["anthropic-beta"]).toBe("existing-beta,interleaved-thinking-2025-05-14")
   }),
 )
+
+it.effect("allows provider options to opt out of thinking block binding", () =>
+  Effect.gen(function* () {
+    const request = LLM.request({
+      model: AnthropicMessages.route.model({ id: "claude-fable-5-1" }),
+      prompt: "Hello",
+      providerOptions: {
+        thinking: { type: "adaptive", blockBinding: false },
+      },
+      http: { headers: { "anthropic-beta": "existing-beta" } },
+    })
+    const compiled = yield* compileRequest(request)
+    const prepared = yield* AnthropicMessages.route.prepareTransport(compiled.body, request)
+
+    expect(compiled.body.thinking).toEqual({ type: "adaptive" })
+    expect(prepared.request.headers["anthropic-beta"]).toBe("existing-beta,interleaved-thinking-2025-05-14")
+  }),
+)

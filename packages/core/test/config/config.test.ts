@@ -837,6 +837,26 @@ describe("Config", () => {
     expect(migrated.providers?.custom?.models?.boolean?.compatibility).toBeUndefined()
   })
 
+  test("preserves v1 thinking block binding opt-outs in model settings", () => {
+    const migrated = ConfigMigrateV1.migrate({
+      provider: {
+        anthropic: {
+          models: {
+            claude: {
+              options: {
+                thinking: { type: "adaptive", blockBinding: false },
+              },
+            },
+          },
+        },
+      },
+    })
+
+    expect(migrated.providers?.anthropic?.models?.claude?.settings).toEqual({
+      thinking: { type: "adaptive", blockBinding: false },
+    })
+  })
+
   for (const subtask of [true, false]) {
     test(`migrates v1 command configuration with subtask: ${subtask}`, () => {
       expect(
