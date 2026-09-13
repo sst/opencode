@@ -1,3 +1,5 @@
+export { matchKeybind } from "../../../../../app/src/shell/commands/command"
+
 const keybinds: Record<string, string> = {
   "file.attach": "mod+u",
   "prompt.mode.shell": "mod+shift+x",

@@ -1,4 +1,4 @@
-import { Show, createMemo, onMount, type JSX } from "solid-js"
+import { Show, createMemo, onCleanup, onMount, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import type { ModelSelection } from "@/providers/models/selection"
 import { STORY_MODEL, emptySessionDocument, pendingAndQueuedDocument } from "@opencode/session-ui/storybook"
@@ -11,6 +11,10 @@ import { promptLength } from "./prompt-parts"
 import { SessionPreview } from "@/session/story-model"
 import { Skill } from "@opencode/schema/skill"
 import { resolveSessionComposerSelection } from "@/session/composer/selection"
+import { useSettings } from "@/settings/model"
+import { useCommand } from "@/shell/commands/command"
+import { useLanguage } from "@/runtime/i18n/language"
+import { PROMPT_KEYBINDS, promptKeybindOptions } from "./keybinds"
 
 const selectedModel = {
   id: STORY_MODEL.id,
@@ -224,6 +228,61 @@ export default {
 export const EmptyDraft = { render: () => <ComposerStory /> }
 
 export const TextDraft = { render: () => <ComposerStory prompt={text("Explain this change")} /> }
+
+export const ConfigurableShortcuts = {
+  render: () => {
+    const settings = useSettings()
+    const command = useCommand()
+    const language = useLanguage()
+    const original = {
+      submit: settings.keybinds.get(PROMPT_KEYBINDS.submit.id),
+      newline: settings.keybinds.get(PROMPT_KEYBINDS.newline.id),
+    }
+    command.register("prompt", () =>
+      promptKeybindOptions({
+        submit: language.t(PROMPT_KEYBINDS.submit.title),
+        newline: language.t(PROMPT_KEYBINDS.newline.title),
+        alternate: language.t(PROMPT_KEYBINDS.alternate.title),
+      }),
+    )
+    onCleanup(() => {
+      for (const action of ["submit", "newline"] as const) {
+        const value = original[action]
+        if (value === undefined) settings.keybinds.reset(PROMPT_KEYBINDS[action].id)
+        if (value !== undefined) settings.keybinds.set(PROMPT_KEYBINDS[action].id, value)
+      }
+    })
+    return (
+      <div>
+        <button
+          onClick={() => {
+            settings.keybinds.reset(PROMPT_KEYBINDS.submit.id)
+            settings.keybinds.reset(PROMPT_KEYBINDS.newline.id)
+          }}
+        >
+          Default shortcuts
+        </button>
+        <button
+          onClick={() => {
+            settings.keybinds.set(PROMPT_KEYBINDS.submit.id, "ctrl+enter")
+            settings.keybinds.set(PROMPT_KEYBINDS.newline.id, "enter")
+          }}
+        >
+          Enter for newline
+        </button>
+        <button
+          onClick={() => {
+            settings.keybinds.set(PROMPT_KEYBINDS.submit.id, "none")
+            settings.keybinds.set(PROMPT_KEYBINDS.newline.id, "none")
+          }}
+        >
+          Disable shortcuts
+        </button>
+        <ComposerStory prompt={text("Explain this change")} />
+      </div>
+    )
+  },
+}
 
 export const MultilineDraft = {
   render: () => <ComposerStory prompt={text("Review the implementation\nThen run the focused tests")} />,

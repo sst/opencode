@@ -12,6 +12,7 @@ import { MarkedProvider } from "@opencode/ui/context/marked"
 import { ThemeProvider, useTheme, type ColorScheme } from "@opencode/ui/theme"
 import { Font } from "@opencode/ui/font"
 import { LanguageProvider, UiI18nBridge, useLanguage } from "@/runtime/i18n/language"
+import { SettingsProvider } from "@/settings/model"
 
 function resolveScheme(value: unknown): ColorScheme {
   if (value === "light" || value === "dark" || value === "system") return value
@@ -84,7 +85,9 @@ const frame = createJSXDecorator((Story, context) => {
                     color: "var(--text-base)",
                   }}
                 >
-                  <Story />
+                  <SettingsProvider>
+                    <Story />
+                  </SettingsProvider>
                 </div>
               </MarkedProvider>
             </DialogProvider>
