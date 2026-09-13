@@ -326,6 +326,10 @@ const name = await context.ui.dialog.prompt({ title: "Name", placeholder: "relea
 const mode = await context.ui.dialog.select({
   title: "Mode",
   current: "safe",
+  shortcuts: [
+    { title: "select", key: "enter" },
+    { title: "close", key: "esc", side: "right" },
+  ],
   options: [
     { title: "Safe", value: "safe", description: "Ask before changes" },
     { title: "Fast", value: "fast", disabled: false, category: "Advanced" },

@@ -358,9 +358,17 @@ export interface DialogSelectOption<Value> {
   readonly disabled?: boolean
 }
 
+export interface DialogSelectShortcut {
+  readonly title: string
+  readonly key: string
+  readonly side?: "left" | "right"
+}
+
 export interface DialogSelectOptions<Value> {
   readonly title: string
   readonly placeholder?: string
+  /** Shortcut hints shown beneath the options. */
+  readonly shortcuts?: readonly DialogSelectShortcut[]
   readonly options: readonly DialogSelectOption<Value>[]
   readonly current?: Value
 }

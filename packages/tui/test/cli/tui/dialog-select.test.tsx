@@ -166,6 +166,66 @@ async function mountSelect<T>(
   return { app, moved, replaceOptions, replaceCurrent, selected }
 }
 
+async function mountPluginSelect(root: string) {
+  const state = path.join(root, "state")
+  await mkdir(state, { recursive: true })
+  const config = createTuiResolvedConfig()
+  const [
+    { ConfigProvider },
+    { ThemeProvider },
+    { Keymap },
+    { DialogProvider, useDialog },
+    { ToastProvider },
+    { createDialogApi },
+  ] = await Promise.all([
+    import("../../../src/config"),
+    import("../../../src/context/theme"),
+    import("../../../src/context/keymap"),
+    import("../../../src/ui/dialog"),
+    import("../../../src/ui/toast"),
+    import("../../../src/plugin/api"),
+  ])
+
+  function Harness() {
+    function Select() {
+      const dialog = useDialog()
+      onMount(() => {
+        void createDialogApi(dialog, (render) => render()).select({
+          title: "Plugin items",
+          shortcuts: [
+            { title: "delete", key: "ctrl+d" },
+            { title: "rename", key: "ctrl+r" },
+            { title: "current directory", key: "ctrl+a", side: "right" },
+          ],
+          options: [{ title: "Alpha", value: "alpha" }],
+        })
+      })
+      return null
+    }
+
+    return (
+      <TestTuiContexts directory={root} paths={{ home: root, state, worktree: root }}>
+        <ConfigProvider config={config}>
+          <Keymap.Provider>
+            <ThemeProvider mode="dark" source={emptyThemeSource}>
+              <ToastProvider>
+                <DialogProvider>
+                  <Select />
+                </DialogProvider>
+              </ToastProvider>
+            </ThemeProvider>
+          </Keymap.Provider>
+        </ConfigProvider>
+      </TestTuiContexts>
+    )
+  }
+
+  const app = await testRender(() => <Harness />, { width: 80, height: 20, kittyKeyboard: true })
+  app.renderer.start()
+  await app.waitForFrame((frame) => frame.includes("current directory"))
+  return app
+}
+
 test.each([true, false])("filter refs are ready when published with renderFilter=%s", async (renderFilter) => {
   await using tmp = await tmpdir()
   const queries: string[] = []
@@ -299,6 +359,22 @@ test("renders the complete truncated footer within the option row", async () => 
     expect(select.app.captureCharFrame()).toContain(footer)
   } finally {
     select.app.renderer.destroy()
+  }
+})
+
+test("renders plugin select shortcuts on both sides", async () => {
+  await using tmp = await tmpdir()
+  const app = await mountPluginSelect(tmp.path)
+
+  try {
+    const footer = app
+      .captureCharFrame()
+      .split("\n")
+      .find((line) => line.includes("delete ctrl+d"))
+    expect(footer).toContain("rename ctrl+r")
+    expect(footer).toContain("current directory ctrl+a")
+  } finally {
+    app.renderer.destroy()
   }
 })
 

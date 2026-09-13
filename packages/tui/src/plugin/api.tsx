@@ -326,6 +326,11 @@ export function createDialogApi(
             <DialogSelect
               title={options.title}
               placeholder={options.placeholder}
+              footerHints={options.shortcuts?.map((item) => ({
+                title: item.title,
+                label: item.key,
+                side: item.side,
+              }))}
               options={options.options.map((option) => ({ ...option }))}
               current={options.current}
               onSelect={(option) => {
