@@ -229,6 +229,49 @@ it.instance(
   { config: { provider: { "amazon-bedrock": { options: { region: "us-east-1" } } } } },
 )
 
+it.instance(
+  "Bedrock: preserves explicit DeepSeek model identifiers",
+  () =>
+    Effect.gen(function* () {
+      yield* set("AWS_BEARER_TOKEN_BEDROCK", "test-bearer-token")
+      const provider = yield* Provider.Service
+      const deepseek = yield* provider.getLanguage(
+        yield* provider.getModel(ProviderV2.ID.amazonBedrock, ModelV2.ID.make("deepseek.v3.2")),
+      )
+      const r1 = yield* provider.getLanguage(
+        yield* provider.getModel(ProviderV2.ID.amazonBedrock, ModelV2.ID.make("deepseek.r1-v1:0")),
+      )
+      const profile = yield* provider.getLanguage(
+        yield* provider.getModel(ProviderV2.ID.amazonBedrock, ModelV2.ID.make("us.deepseek.r1-v1:0")),
+      )
+      const arn = yield* provider.getLanguage(
+        yield* provider.getModel(ProviderV2.ID.amazonBedrock, ModelV2.ID.make("deepseek-v3-2-arn")),
+      )
+      expect((deepseek as { modelId: string }).modelId).toBe("deepseek.v3.2")
+      expect((r1 as { modelId: string }).modelId).toBe("us.deepseek.r1-v1:0")
+      expect((profile as { modelId: string }).modelId).toBe("us.deepseek.r1-v1:0")
+      expect((arn as { modelId: string }).modelId).toBe("arn:aws:bedrock:us-east-1::foundation-model/deepseek.v3.2")
+    }),
+  {
+    config: {
+      provider: {
+        "amazon-bedrock": {
+          options: { region: "us-east-1" },
+          models: {
+            "deepseek.v3.2": { name: "DeepSeek V3.2" },
+            "deepseek.r1-v1:0": { name: "DeepSeek R1" },
+            "us.deepseek.r1-v1:0": { name: "DeepSeek R1 US" },
+            "deepseek-v3-2-arn": {
+              id: "arn:aws:bedrock:us-east-1::foundation-model/deepseek.v3.2",
+              name: "DeepSeek V3.2 ARN",
+            },
+          },
+        },
+      },
+    },
+  },
+)
+
 // Cross-region inference profile prefix handling.
 // Models from models.dev may come with prefixes already (e.g. us., eu., global.).
 // These should NOT be double-prefixed when passed to the SDK.

@@ -1,0 +1,280 @@
+diff --git a/dist/index.js b/dist/index.js
+index 5fc82d7ca0f5fba1da3b24c15bb714f51b5aa178..e1a3e2c97774af3a5688c7052bd9a07d692fcc8f 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1035,22 +1035,6 @@ var OpenAIChatLanguageModel = class {
+         });
+       }
+     }
+-    if (openaiOptions.serviceTier === "flex" && !modelCapabilities.supportsFlexProcessing) {
+-      warnings.push({
+-        type: "unsupported",
+-        feature: "serviceTier",
+-        details: "flex processing is only available for o3, o4-mini, and gpt-5 models"
+-      });
+-      baseArgs.service_tier = void 0;
+-    }
+-    if (openaiOptions.serviceTier === "priority" && !modelCapabilities.supportsPriorityProcessing) {
+-      warnings.push({
+-        type: "unsupported",
+-        feature: "serviceTier",
+-        details: "priority processing is only available for supported models (gpt-4, gpt-5, gpt-5-mini, o3, o4-mini) and requires Enterprise access. gpt-5-nano is not supported"
+-      });
+-      baseArgs.service_tier = void 0;
+-    }
+     const {
+       tools: openaiTools2,
+       toolChoice: openaiToolChoice,
+@@ -5454,22 +5438,6 @@ var OpenAIResponsesLanguageModel = class {
+         });
+       }
+     }
+-    if ((openaiOptions == null ? void 0 : openaiOptions.serviceTier) === "flex" && !modelCapabilities.supportsFlexProcessing) {
+-      warnings.push({
+-        type: "unsupported",
+-        feature: "serviceTier",
+-        details: "flex processing is only available for o3, o4-mini, and gpt-5 models"
+-      });
+-      delete baseArgs.service_tier;
+-    }
+-    if ((openaiOptions == null ? void 0 : openaiOptions.serviceTier) === "priority" && !modelCapabilities.supportsPriorityProcessing) {
+-      warnings.push({
+-        type: "unsupported",
+-        feature: "serviceTier",
+-        details: "priority processing is only available for supported models (gpt-4, gpt-5, gpt-5-mini, o3, o4-mini) and requires Enterprise access. gpt-5-nano is not supported"
+-      });
+-      delete baseArgs.service_tier;
+-    }
+     const shellToolEnvType = (_k = (_j = (_i = tools == null ? void 0 : tools.find(
+       (tool) => tool.type === "provider" && tool.id === "openai.shell"
+     )) == null ? void 0 : _i.args) == null ? void 0 : _j.environment) == null ? void 0 : _k.type;
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 589c4f76955bee692b8af36ea1d9a15121695d4a..6838ea0a362c8fe774527bb1126b8031ebfd3fab 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -1031,22 +1031,6 @@ var OpenAIChatLanguageModel = class {
+         });
+       }
+     }
+-    if (openaiOptions.serviceTier === "flex" && !modelCapabilities.supportsFlexProcessing) {
+-      warnings.push({
+-        type: "unsupported",
+-        feature: "serviceTier",
+-        details: "flex processing is only available for o3, o4-mini, and gpt-5 models"
+-      });
+-      baseArgs.service_tier = void 0;
+-    }
+-    if (openaiOptions.serviceTier === "priority" && !modelCapabilities.supportsPriorityProcessing) {
+-      warnings.push({
+-        type: "unsupported",
+-        feature: "serviceTier",
+-        details: "priority processing is only available for supported models (gpt-4, gpt-5, gpt-5-mini, o3, o4-mini) and requires Enterprise access. gpt-5-nano is not supported"
+-      });
+-      baseArgs.service_tier = void 0;
+-    }
+     const {
+       tools: openaiTools2,
+       toolChoice: openaiToolChoice,
+@@ -5557,22 +5541,6 @@ var OpenAIResponsesLanguageModel = class {
+         });
+       }
+     }
+-    if ((openaiOptions == null ? void 0 : openaiOptions.serviceTier) === "flex" && !modelCapabilities.supportsFlexProcessing) {
+-      warnings.push({
+-        type: "unsupported",
+-        feature: "serviceTier",
+-        details: "flex processing is only available for o3, o4-mini, and gpt-5 models"
+-      });
+-      delete baseArgs.service_tier;
+-    }
+-    if ((openaiOptions == null ? void 0 : openaiOptions.serviceTier) === "priority" && !modelCapabilities.supportsPriorityProcessing) {
+-      warnings.push({
+-        type: "unsupported",
+-        feature: "serviceTier",
+-        details: "priority processing is only available for supported models (gpt-4, gpt-5, gpt-5-mini, o3, o4-mini) and requires Enterprise access. gpt-5-nano is not supported"
+-      });
+-      delete baseArgs.service_tier;
+-    }
+     const shellToolEnvType = (_k = (_j = (_i = tools == null ? void 0 : tools.find(
+       (tool) => tool.type === "provider" && tool.id === "openai.shell"
+     )) == null ? void 0 : _i.args) == null ? void 0 : _j.environment) == null ? void 0 : _k.type;
+diff --git a/dist/internal/index.js b/dist/internal/index.js
+index ad78b5df9359509091f4b8a1751dc34c03c74e32..ed92f56d8fe9c1442f741ef8d42d592ce9b28643 100644
+--- a/dist/internal/index.js
++++ b/dist/internal/index.js
+@@ -1070,22 +1070,6 @@ var OpenAIChatLanguageModel = class {
+         });
+       }
+     }
+-    if (openaiOptions.serviceTier === "flex" && !modelCapabilities.supportsFlexProcessing) {
+-      warnings.push({
+-        type: "unsupported",
+-        feature: "serviceTier",
+-        details: "flex processing is only available for o3, o4-mini, and gpt-5 models"
+-      });
+-      baseArgs.service_tier = void 0;
+-    }
+-    if (openaiOptions.serviceTier === "priority" && !modelCapabilities.supportsPriorityProcessing) {
+-      warnings.push({
+-        type: "unsupported",
+-        feature: "serviceTier",
+-        details: "priority processing is only available for supported models (gpt-4, gpt-5, gpt-5-mini, o3, o4-mini) and requires Enterprise access. gpt-5-nano is not supported"
+-      });
+-      baseArgs.service_tier = void 0;
+-    }
+     const {
+       tools: openaiTools,
+       toolChoice: openaiToolChoice,
+@@ -5724,22 +5708,6 @@ var OpenAIResponsesLanguageModel = class {
+         });
+       }
+     }
+-    if ((openaiOptions == null ? void 0 : openaiOptions.serviceTier) === "flex" && !modelCapabilities.supportsFlexProcessing) {
+-      warnings.push({
+-        type: "unsupported",
+-        feature: "serviceTier",
+-        details: "flex processing is only available for o3, o4-mini, and gpt-5 models"
+-      });
+-      delete baseArgs.service_tier;
+-    }
+-    if ((openaiOptions == null ? void 0 : openaiOptions.serviceTier) === "priority" && !modelCapabilities.supportsPriorityProcessing) {
+-      warnings.push({
+-        type: "unsupported",
+-        feature: "serviceTier",
+-        details: "priority processing is only available for supported models (gpt-4, gpt-5, gpt-5-mini, o3, o4-mini) and requires Enterprise access. gpt-5-nano is not supported"
+-      });
+-      delete baseArgs.service_tier;
+-    }
+     const shellToolEnvType = (_k = (_j = (_i = tools == null ? void 0 : tools.find(
+       (tool) => tool.type === "provider" && tool.id === "openai.shell"
+     )) == null ? void 0 : _i.args) == null ? void 0 : _j.environment) == null ? void 0 : _k.type;
+diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
+index db7d6741c9ea615d577ea07722b469c144066268..f6b41b2832d2c8392072e0ecc1612e9e18b1b48e 100644
+--- a/dist/internal/index.mjs
++++ b/dist/internal/index.mjs
+@@ -1023,22 +1023,6 @@ var OpenAIChatLanguageModel = class {
+         });
+       }
+     }
+-    if (openaiOptions.serviceTier === "flex" && !modelCapabilities.supportsFlexProcessing) {
+-      warnings.push({
+-        type: "unsupported",
+-        feature: "serviceTier",
+-        details: "flex processing is only available for o3, o4-mini, and gpt-5 models"
+-      });
+-      baseArgs.service_tier = void 0;
+-    }
+-    if (openaiOptions.serviceTier === "priority" && !modelCapabilities.supportsPriorityProcessing) {
+-      warnings.push({
+-        type: "unsupported",
+-        feature: "serviceTier",
+-        details: "priority processing is only available for supported models (gpt-4, gpt-5, gpt-5-mini, o3, o4-mini) and requires Enterprise access. gpt-5-nano is not supported"
+-      });
+-      baseArgs.service_tier = void 0;
+-    }
+     const {
+       tools: openaiTools,
+       toolChoice: openaiToolChoice,
+@@ -5802,22 +5786,6 @@ var OpenAIResponsesLanguageModel = class {
+         });
+       }
+     }
+-    if ((openaiOptions == null ? void 0 : openaiOptions.serviceTier) === "flex" && !modelCapabilities.supportsFlexProcessing) {
+-      warnings.push({
+-        type: "unsupported",
+-        feature: "serviceTier",
+-        details: "flex processing is only available for o3, o4-mini, and gpt-5 models"
+-      });
+-      delete baseArgs.service_tier;
+-    }
+-    if ((openaiOptions == null ? void 0 : openaiOptions.serviceTier) === "priority" && !modelCapabilities.supportsPriorityProcessing) {
+-      warnings.push({
+-        type: "unsupported",
+-        feature: "serviceTier",
+-        details: "priority processing is only available for supported models (gpt-4, gpt-5, gpt-5-mini, o3, o4-mini) and requires Enterprise access. gpt-5-nano is not supported"
+-      });
+-      delete baseArgs.service_tier;
+-    }
+     const shellToolEnvType = (_k = (_j = (_i = tools == null ? void 0 : tools.find(
+       (tool) => tool.type === "provider" && tool.id === "openai.shell"
+     )) == null ? void 0 : _i.args) == null ? void 0 : _j.environment) == null ? void 0 : _k.type;
+diff --git a/src/chat/openai-chat-language-model.ts b/src/chat/openai-chat-language-model.ts
+index 009a58deea236c2be03adc5cd03f98ed9050fd7b..a606675d82fc72a0bab8d52ac99866100e7ffb1d 100644
+--- a/src/chat/openai-chat-language-model.ts
++++ b/src/chat/openai-chat-language-model.ts
+@@ -267,34 +267,6 @@ export class OpenAIChatLanguageModel implements LanguageModelV3 {
+       }
+     }
+ 
+-    // Validate flex processing support
+-    if (
+-      openaiOptions.serviceTier === 'flex' &&
+-      !modelCapabilities.supportsFlexProcessing
+-    ) {
+-      warnings.push({
+-        type: 'unsupported',
+-        feature: 'serviceTier',
+-        details:
+-          'flex processing is only available for o3, o4-mini, and gpt-5 models',
+-      });
+-      baseArgs.service_tier = undefined;
+-    }
+-
+-    // Validate priority processing support
+-    if (
+-      openaiOptions.serviceTier === 'priority' &&
+-      !modelCapabilities.supportsPriorityProcessing
+-    ) {
+-      warnings.push({
+-        type: 'unsupported',
+-        feature: 'serviceTier',
+-        details:
+-          'priority processing is only available for supported models (gpt-4, gpt-5, gpt-5-mini, o3, o4-mini) and requires Enterprise access. gpt-5-nano is not supported',
+-      });
+-      baseArgs.service_tier = undefined;
+-    }
+-
+     const {
+       tools: openaiTools,
+       toolChoice: openaiToolChoice,
+diff --git a/src/responses/openai-responses-language-model.ts b/src/responses/openai-responses-language-model.ts
+index 926e7ec713480353b969901f19c5d1d8cc883dab..ed457ce8f07a60ed48c47a3cbf11b2a7c6cf6415 100644
+--- a/src/responses/openai-responses-language-model.ts
++++ b/src/responses/openai-responses-language-model.ts
+@@ -433,36 +433,6 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV3 {
+       }
+     }
+ 
+-    // Validate flex processing support
+-    if (
+-      openaiOptions?.serviceTier === 'flex' &&
+-      !modelCapabilities.supportsFlexProcessing
+-    ) {
+-      warnings.push({
+-        type: 'unsupported',
+-        feature: 'serviceTier',
+-        details:
+-          'flex processing is only available for o3, o4-mini, and gpt-5 models',
+-      });
+-      // Remove from args if not supported
+-      delete (baseArgs as any).service_tier;
+-    }
+-
+-    // Validate priority processing support
+-    if (
+-      openaiOptions?.serviceTier === 'priority' &&
+-      !modelCapabilities.supportsPriorityProcessing
+-    ) {
+-      warnings.push({
+-        type: 'unsupported',
+-        feature: 'serviceTier',
+-        details:
+-          'priority processing is only available for supported models (gpt-4, gpt-5, gpt-5-mini, o3, o4-mini) and requires Enterprise access. gpt-5-nano is not supported',
+-      });
+-      // Remove from args if not supported
+-      delete (baseArgs as any).service_tier;
+-    }
+-
+     const shellToolEnvType = (
+       tools?.find(
+         tool => tool.type === 'provider' && tool.id === 'openai.shell',

@@ -3,6 +3,8 @@ import { dict as en } from "./en"
 
 export const dict = {
   ...en,
+  "go.promo.deepseek": "DeepSeek V4.1 Flash 사용 한도가 한시적으로 4배 확대됩니다",
+  "go.graph.bonus": "사용량 {{count}}배",
   "nav.github": "GitHub",
   "nav.docs": "문서",
   "nav.changelog": "변경 내역",
@@ -58,6 +60,7 @@ export const dict = {
   "common.cancel": "취소",
   "common.creating": "생성 중...",
   "common.create": "만들기",
+  "common.contactUs": "문의하기",
 
   "common.videoUnsupported": "브라우저가 비디오 태그를 지원하지 않습니다.",
   "common.figure": "그림 {{n}}.",
@@ -222,6 +225,9 @@ export const dict = {
   "zen.faq.q8": "다른 코딩 에이전트와 Zen을 사용할 수 있나요?",
   "zen.faq.a8":
     "Zen은 OpenCode와 훌륭하게 작동하지만, 어떤 에이전트와도 Zen을 사용할 수 있습니다. 선호하는 코딩 에이전트의 설정 지침을 따르세요.",
+  "zen.faq.q9": "환불받을 수 있나요?",
+  "zen.faq.a9":
+    "결제일로부터 14일 이내이며 해당 구매로 받은 크레딧을 전혀 사용하지 않은 경우 환불 대상이 될 수 있습니다. 환불을 요청하려면 {{contact}}를 선택해 주세요.",
 
   "zen.cta.start": "Zen 시작하기",
   "zen.pricing.title": "$20 선불 잔액 추가",
@@ -250,7 +256,6 @@ export const dict = {
   "zen.privacy.exceptionsLink": "다음 예외",
 
   "go.title": "OpenCode Go | 모두를 위한 저비용 코딩 모델",
-  "go.banner.text": "GLM-5.3-Flash 사용 한도가 한시적으로 2배 확대됩니다",
   "go.meta.description": "Go는 월 $10이며, 넉넉한 사용 한도와 주요 코딩 모델에 대한 안정적인 액세스를 제공합니다.",
   "go.hero.title": "모두를 위한 저비용 코딩 모델",
   "go.hero.body":
@@ -266,6 +271,14 @@ export const dict = {
   "go.graph.freePill": "Big Pickle 및 무료 모델",
   "go.graph.go": "Go",
   "go.graph.label": "5시간당 요청 수",
+  "go.graph.period": "사용량",
+  "go.graph.model": "모델",
+  "go.graph.requests": "예상 요청 횟수 / 5시간",
+  "go.graph.allowance": "월간 사용량",
+  "go.graph.new": "신규",
+  "go.graph.scale": "요청 수는 비선형 눈금으로 표시됩니다",
+  "go.graph.showAll": "전체 {{count}}개 모델 보기",
+  "go.graph.showLess": "접기",
   "go.graph.limitedRegions": "일부 지역에서만 제공",
   "go.graph.limitedTime": "한정된 기간",
   "go.graph.usageLimits": "사용 한도",
@@ -362,6 +375,9 @@ export const dict = {
   "go.faq.q9": "무료 모델과 Go의 차이점은 무엇인가요?",
   "go.faq.a9":
     "무료 모델에는 Big Pickle과 당시 사용 가능한 프로모션 모델이 포함되며, 하루 200회 요청 할당량이 적용됩니다. Go는 엄선된 모델 라인업을 제공하며, 롤링 윈도우(5시간, 주간, 월간)에 걸쳐 더 높은 요청 할당량을 적용합니다. 기본 할당량은 대략 5시간당 $12, 주당 $30, 월 $60에 해당하며 모델별 할당량은 다를 수 있습니다(실제 요청 수는 모델 및 사용량에 따라 다름).",
+  "go.faq.q10": "환불받을 수 있나요?",
+  "go.faq.a10":
+    "결제일로부터 14일 이내이며 해당 결제 기간에 Go 사용 한도를 전혀 사용하지 않은 경우 환불 대상이 될 수 있습니다. 환불을 요청하려면 {{contact}}를 선택해 주세요.",
 
   "zen.api.error.rateLimitExceeded": "속도 제한을 초과했습니다. 나중에 다시 시도해 주세요.",
   "zen.api.error.modelNotSupported": "{{model}} 모델은 지원되지 않습니다",

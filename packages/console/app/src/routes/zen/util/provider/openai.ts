@@ -51,7 +51,10 @@ export const openaiHelper: ProviderHelper = ({ workspaceID }) => ({
     const cacheReadTokens = usage.input_tokens_details?.cached_tokens ?? undefined
     const cacheWriteTokens = usage.input_tokens_details?.cache_write_tokens ?? undefined
     return {
-      inputTokens: inputTokens - (cacheReadTokens ?? 0),
+      // OpenAI's input_tokens includes both cached_tokens and cache_write_tokens;
+      // each is billed separately at its own rate. Clamp to zero so a provider
+      // reporting overlapping detail fields cannot drive input cost negative.
+      inputTokens: Math.max(0, inputTokens - (cacheReadTokens ?? 0) - (cacheWriteTokens ?? 0)),
       outputTokens,
       reasoningTokens,
       cacheReadTokens,

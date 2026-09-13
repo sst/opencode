@@ -80,12 +80,12 @@ A lista atual de modelos inclui:
 - **Qwen3.7 Max**
 - **Qwen3.7 Plus**
 - **Qwen3.6 Plus**
+- **DeepSeek V4.1 Flash**
 - **DeepSeek V4 Pro**
 - **DeepSeek V4 Flash**
 - **DeepSeek V4 Flash Vision Exp**
 - **Hy4 preview**
 - **Hy3**
-- **Omen Alpha**
 
 A lista de modelos pode mudar conforme testamos e adicionamos novos.
 
@@ -93,35 +93,109 @@ A lista de modelos pode mudar conforme testamos e adicionamos novos.
 
 ## Onde posso usá-lo?
 
-O OpenCode Go foi projetado para ser usado com o [OpenCode](https://opencode.ai) e outros agentes de programação populares que geram tipos de requisições semelhantes.
+O OpenCode Go foi projetado para o [OpenCode](https://opencode.ai) e outros agentes de programação
+que produzem tipos semelhantes de requisições. O tráfego é monitorado para detectar abusos que
+prejudiquem a experiência de outros usuários.
 
-O tráfego é monitorado para detectar tráfego abusivo que prejudique a experiência de outros usuários.
+Seu cliente deve:
 
-Para evitar que sua conta seja sinalizada, verifique se a ferramenta que você está usando
+1. Enviar o tráfego típico de um agente de programação
+2. Identificar-se com seu próprio user agent, como `my-coding-agent/1.0`, em vez
+   do nome genérico de um SDK ou de uma biblioteca HTTP.
+3. Enviar um ID de sessão estável em `x-opencode-session` para cada conversa, para que possamos otimizar o roteamento e
+   o cache de prompts.
 
-1\. não gera tráfego abusivo  
-2\. se identifica corretamente (sem user agents genéricos)  
-3\. inclui o header `x-opencode-session` para que possamos otimizar o cache de prompts
+### Clientes validados
+
+Além do OpenCode, os clientes a seguir foram validados para funcionar corretamente
+com o OpenCode Go. No entanto, não garantimos que continuarão funcionando no futuro.
+
+| Cliente           | Suporte a sessões                                                                                                                                                                                                                                                     |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Hermes**        | As builds que contêm o [PR #101864](https://github.com/NousResearch/hermes-agent/pull/101864) enviam o header nas requisições principais e auxiliares do OpenCode. A correção foi incorporada após a v0.21.0; essa versão por si só não a inclui.                     |
+| **Claude Code**   | O Go reconhece seu header de sessão nativo. Não é necessário usar um wrapper para headers personalizados.                                                                                                                                                             |
+| **Codex**         | O Go reconhece seu header de sessão nativo. Algumas versões e configurações de proxy ainda o omitem; preserve o header de sessão ao encaminhar requisições.                                                                                                           |
+| **ZCode**         | O Go reconhece seu header de sessão nativo. Nossa [solicitação de `x-opencode-session`](https://github.com/zai-org/feedback/issues/492) continua aberta, mas não é mais necessário enviar especificamente esse header.                                                |
+| **Pi**            | As builds atuais enviam informações de sessão para o OpenCode. Atualize instalações mais antigas.                                                                                                                                                                     |
+| **jcode**         | Atualize para a versão **v0.81.6 ou posterior**, que inclui a [correção do header de sessão](https://github.com/1jehuang/jcode/issues/1167).                                                                                                                          |
+| **Kilo Code CLI** | As builds que contêm o [PR #13752](https://github.com/Kilo-Org/kilocode/pull/13752) restauram os headers de sessão do OpenCode. Essa correção abrange a CLI, não a extensão do VS Code. Consulte a [issue #13723](https://github.com/Kilo-Org/kilocode/issues/13723). |
+
+### Clientes com problemas conhecidos
+
+Esses clientes não têm suporte a sessões ou apresentam suporte incompleto nas versões que
+investigamos. Os relatórios vinculados acompanham correções e soluções alternativas.
+
+| Cliente                 | Status e acompanhamento                                                                                                                                                                                                                                        |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **DeepSeek Harness**    | As informações de sessão chegam por alguns caminhos de modelos, mas não por outros. Reconhecemos seu header nativo; ainda é necessário enviá-lo por todos os adaptadores. [Discussão #5495](https://github.com/deepseek-ai/deepseek-harness/discussions/5495). |
+| **GitHub Copilot Chat** | O suporte automático ao header de sessão foi solicitado na [issue #334186 do VS Code](https://github.com/microsoft/vscode/issues/334186).                                                                                                                      |
+| **Kimi Code**           | O suporte automático ao header de sessão foi solicitado na [issue #3506](https://github.com/MoonshotAI/kimi-code/issues/3506).                                                                                                                                 |
+| **MiMo Code**           | A [issue #2317](https://github.com/XiaomiMiMo/MiMo-Code/issues/2317) tem uma correção proposta no [PR #2327](https://github.com/XiaomiMiMo/MiMo-Code/pull/2327), que ainda não foi incorporada.                                                                |
 
 ## Limites de uso
 
-O OpenCode Go inclui os seguintes limites base:
+Os limites de uso são definidos como valores mensais em dólares. A tabela abaixo mostra o limite mensal e os custos de tokens de cada modelo.
 
-- **Limite de 5 horas** — US$ 12 de uso
-- **Limite semanal** — US$ 30 de uso
-- **Limite mensal** — US$ 60 de uso
+Cada modelo tem os seguintes limites de uso: 5 horas — 20% do limite mensal; semanal — 50%; e mensal — 100%.
 
-A cota efetiva varia conforme o modelo; consulte a tabela abaixo.
+Por exemplo, se um modelo tiver um limite mensal de $60, você poderá gastar até:
 
-Os limites são definidos em valor em dólares. Isso significa que a sua contagem real de requisições depende do modelo que você usa. Modelos mais baratos como o MiMo-V2.5 permitem mais requisições, enquanto modelos de custo mais alto como o GLM-5.2 permitem menos.
+- **Limite de 5 horas** — $12 de uso
+- **Limite semanal** — $30 de uso
+- **Limite mensal** — $60 de uso
 
-A tabela abaixo fornece uma contagem estimada de requisições com base nos padrões típicos de uso do Go:
+Os preços de tokens são indicados por 1M tokens.
+
+| Modelo                                  | Entrada | Saída  | Leitura em cache | Escrita em cache | Limite mensal |
+| --------------------------------------- | ------- | ------ | ---------------- | ---------------- | ------------- |
+| GLM-5.3-Flash                           | $0.15   | $0.50  | $0.03            | -                | **$60**       |
+| GLM-5.3                                 | $1.40   | $4.40  | $0.26            | -                | **$15**       |
+| GLM-5.2                                 | $1.40   | $4.40  | $0.26            | -                | **$60**       |
+| GLM-5.1                                 | $1.40   | $4.40  | $0.26            | -                | **$60**       |
+| Kimi K3                                 | $3.00   | $15.00 | $0.30            | -                | **$15**       |
+| Kimi K2.7 Code                          | $0.95   | $4.00  | $0.19            | -                | **$60**       |
+| Kimi K2.6                               | $0.95   | $4.00  | $0.16            | -                | **$60**       |
+| LongCat-2.0                             | $0.30   | $1.20  | $0.006           | -                | **$60**       |
+| MiMo V2.5                               | $0.14   | $0.28  | $0.0028          | -                | **$60**       |
+| MiMo V2.5 Pro                           | $0.435  | $0.87  | $0.003625        | -                | **$15**       |
+| MiniMax M3                              | $0.30   | $1.20  | $0.06            | -                | **$60**       |
+| MiniMax M2.7                            | $0.30   | $1.20  | $0.06            | $0.375           | **$60**       |
+| MiniMax M2.5                            | $0.30   | $1.20  | $0.06            | $0.375           | **$60**       |
+| Muse Spark 1.3 Contributor              | $0.10   | $0.20  | $0.002           | -                | **$60**       |
+| Muse Spark 1.2 Contributor              | $0.10   | $0.20  | $0.002           | -                | **$60**       |
+| Qwen3.8 Max                             | $2.00   | $6.00  | $0.25            | $2.50            | **$15**       |
+| Qwen3.8 Flash                           | $0.15   | $0.47  | $0.016           | $0.20            | **$30**       |
+| Qwen3.7 Max                             | $2.50   | $7.50  | $0.50            | $3.125           | **$30**       |
+| Qwen3.7 Plus (≤ 256K tokens)            | $0.40   | $1.60  | $0.04            | $0.50            | **$60**       |
+| Qwen3.7 Plus (> 256K tokens)            | $1.20   | $4.80  | $0.12            | $1.50            | **$60**       |
+| Qwen3.6 Plus (≤ 256K tokens)            | $0.50   | $3.00  | $0.05            | $0.625           | **$60**       |
+| Qwen3.6 Plus (> 256K tokens)            | $2.00   | $6.00  | $0.20            | $2.50            | **$60**       |
+| DeepSeek V4.1 Flash (Off-Peak)          | $0.15   | $0.60  | $0.003           | -                | **$15**       |
+| DeepSeek V4.1 Flash (Peak)              | $0.30   | $1.20  | $0.006           | -                | **$15**       |
+| DeepSeek V4 Pro (Off-Peak)              | $0.66   | $1.98  | $0.022           | -                | **$15**       |
+| DeepSeek V4 Pro (Peak)                  | $1.32   | $3.96  | $0.044           | -                | **$15**       |
+| DeepSeek V4 Flash (Off-Peak)            | $0.15   | $0.60  | $0.003           | -                | **$30**       |
+| DeepSeek V4 Flash (Peak)                | $0.30   | $1.20  | $0.006           | -                | **$30**       |
+| DeepSeek V4 Flash Vision Exp (Off-Peak) | $0.15   | $0.60  | $0.003           | -                | **$15**       |
+| DeepSeek V4 Flash Vision Exp (Peak)     | $0.30   | $1.20  | $0.006           | -                | **$15**       |
+| Hy4 preview                             | $0.834  | $2.501 | $0.042           | -                | **$30**       |
+| Hy3                                     | $0.14   | $0.58  | $0.035           | -                | **$60**       |
+| Grok 4.6 (≤ 200K tokens)                | $2.00   | $6.00  | $0.50            | -                | **$15**       |
+| Grok 4.6 (> 200K tokens)                | $4.00   | $12.00 | $1.00            | -                | **$15**       |
+| GPT 5.6 Luna (≤ 272K tokens)            | $0.20   | $1.20  | $0.02            | $0.25            | **$15**       |
+| GPT 5.6 Luna (> 272K tokens)            | $0.40   | $1.80  | $0.04            | $0.50            | **$15**       |
+
+**DeepSeek V4.1 Flash / V4 Pro / V4 Flash / V4 Flash Vision Exp:** Os horários Peak são 01:00-04:00 e 06:00-10:00 UTC, de segunda a sexta-feira; todos os demais horários, incluindo os fins de semana, são Off-Peak. [Saiba mais](https://api-docs.deepseek.com/quick_start/pricing/).
+
+**DeepSeek V4 Flash Vision Exp:** As imagens são convertidas em tokens com base em suas dimensões e cobradas como tokens de entrada junto com os tokens de texto. [Saiba mais](https://api-docs.deepseek.com/quick_start/pricing/).
+
+### Requisições estimadas
+
+A tabela abaixo apresenta uma quantidade estimada de requisições com base nos padrões típicos de uso do Go:
 
 | Model                        | requisições por 5 horas | requisições por semana | requisições por mês |
 | ---------------------------- | ----------------------- | ---------------------- | ------------------- |
-| Grok 4.6                     | 169                     | 423                    | 845                 |
-| GPT 5.6 Luna                 | 2,050                   | 5,100                  | 10,250              |
-| GLM-5.3-Flash                | 1,580                   | 3,950                  | 7,900               |
+| GLM-5.3-Flash                | 6,320                   | 15,790                 | 31,580              |
 | GLM-5.3                      | 220                     | 540                    | 1,080               |
 | GLM-5.2                      | 880                     | 2,150                  | 4,300               |
 | GLM-5.1                      | 880                     | 2,150                  | 4,300               |
@@ -140,12 +214,14 @@ A tabela abaixo fornece uma contagem estimada de requisições com base nos padr
 | Qwen3.7 Max                  | 170                     | 420                    | 840                 |
 | Qwen3.7 Plus                 | 4,300                   | 10,800                 | 21,600              |
 | Qwen3.6 Plus                 | 3,300                   | 8,200                  | 16,300              |
+| DeepSeek V4.1 Flash          | 6,500                   | 16,250                 | 32,500              |
 | DeepSeek V4 Pro              | 1,050                   | 2,600                  | 5,200               |
-| DeepSeek V4 Flash            | 7,600                   | 18,900                 | 37,800              |
-| DeepSeek V4 Flash Vision Exp | 3,800                   | 9,450                  | 18,900              |
+| DeepSeek V4 Flash            | 13,000                  | 32,500                 | 65,000              |
+| DeepSeek V4 Flash Vision Exp | 6,500                   | 16,250                 | 32,500              |
 | Hy4 preview                  | 1,350                   | 3,380                  | 6,770               |
 | Hy3                          | 4,300                   | 10,750                 | 21,500              |
-| Omen Alpha                   | 11,600                  | 29,000                 | 57,900              |
+| Grok 4.6                     | 169                     | 423                    | 845                 |
+| GPT 5.6 Luna                 | 2,050                   | 5,100                  | 10,250              |
 
 As estimativas usam as seguintes quantidades de tokens por requisição; o uso real varia.
 
@@ -156,6 +232,7 @@ As estimativas usam as seguintes quantidades de tokens por requisição; o uso r
 - Kimi K3 — 1.050 tokens de entrada, 76.500 em cache, 300 tokens de saída por requisição
 - Kimi K2.7/K2.6 — 870 tokens de entrada, 55.000 em cache, 200 tokens de saída por requisição
 - LongCat-2.0 — 920 tokens de entrada, 88.900 em cache, 200 tokens de saída por requisição
+- DeepSeek V4.1 Flash — 410 tokens de entrada, 71.300 em cache, 310 tokens de saída por requisição
 - DeepSeek V4 Pro — 750 tokens de entrada, 82.000 em cache, 290 tokens de saída por requisição
 - DeepSeek V4 Flash — 410 tokens de entrada, 71.300 em cache, 310 tokens de saída por requisição
 - DeepSeek V4 Flash Vision Exp — 410 tokens de entrada, 71.300 em cache, 310 tokens de saída por requisição
@@ -172,51 +249,6 @@ As estimativas usam as seguintes quantidades de tokens por requisição; o uso r
 - Hy3 — 830 tokens de entrada, 71.500 em cache, 295 tokens de saída por requisição
 - MiMo-V2.5 — 830 tokens de entrada, 71.500 em cache, 295 tokens de saída por requisição
 - MiMo-V2.5-Pro — 790 tokens de entrada, 86.000 em cache, 305 tokens de saída por requisição
-- Omen Alpha — 300 tokens de entrada, 40.000 em cache, 100 tokens de saída por requisição
-
-As estimativas também se baseiam nos seguintes preços por 1M tokens e no uso mensal incluído com cada modelo:
-
-| Modelo                                  | Entrada | Saída  | Leitura em cache | Escrita em cache | Uso  |
-| --------------------------------------- | ------- | ------ | ---------------- | ---------------- | ---- |
-| Grok 4.6 (≤ 200K tokens)                | $2.00   | $6.00  | $0.50            | -                | $15  |
-| Grok 4.6 (> 200K tokens)                | $4.00   | $12.00 | $1.00            | -                | $15  |
-| GPT 5.6 Luna (≤ 272K tokens)            | $0.20   | $1.20  | $0.02            | $0.25            | $15  |
-| GPT 5.6 Luna (> 272K tokens)            | $0.40   | $1.80  | $0.04            | $0.50            | $15  |
-| GLM-5.3-Flash                           | $0.15   | $0.50  | $0.03            | -                | $15  |
-| GLM-5.3                                 | $1.40   | $4.40  | $0.26            | -                | $15  |
-| GLM-5.2                                 | $1.40   | $4.40  | $0.26            | -                | $60  |
-| GLM-5.1                                 | $1.40   | $4.40  | $0.26            | -                | $60  |
-| Kimi K3                                 | $3.00   | $15.00 | $0.30            | -                | $15  |
-| Kimi K2.7 Code                          | $0.95   | $4.00  | $0.19            | -                | $60  |
-| Kimi K2.6                               | $0.95   | $4.00  | $0.16            | -                | $60  |
-| LongCat-2.0                             | $0.30   | $1.20  | $0.006           | -                | $60  |
-| MiMo V2.5                               | $0.14   | $0.28  | $0.0028          | -                | $60  |
-| MiMo V2.5 Pro                           | $0.435  | $0.87  | $0.003625        | -                | $15  |
-| MiniMax M3                              | $0.30   | $1.20  | $0.06            | -                | $60  |
-| MiniMax M2.7                            | $0.30   | $1.20  | $0.06            | $0.375           | $60  |
-| MiniMax M2.5                            | $0.30   | $1.20  | $0.06            | $0.375           | $60  |
-| Muse Spark 1.3 Contributor              | $0.10   | $0.20  | $0.002           | -                | $60  |
-| Muse Spark 1.2 Contributor              | $0.10   | $0.20  | $0.002           | -                | $60  |
-| Qwen3.8 Max                             | $2.00   | $6.00  | $0.25            | $2.50            | $15  |
-| Qwen3.8 Flash                           | $0.15   | $0.47  | $0.016           | $0.20            | $30  |
-| Qwen3.7 Max                             | $2.50   | $7.50  | $0.50            | $3.125           | $30  |
-| Qwen3.7 Plus (≤ 256K tokens)            | $0.40   | $1.60  | $0.04            | $0.50            | $60  |
-| Qwen3.7 Plus (> 256K tokens)            | $1.20   | $4.80  | $0.12            | $1.50            | $60  |
-| Qwen3.6 Plus (≤ 256K tokens)            | $0.50   | $3.00  | $0.05            | $0.625           | $60  |
-| Qwen3.6 Plus (> 256K tokens)            | $2.00   | $6.00  | $0.20            | $2.50            | $60  |
-| DeepSeek V4 Pro (Off-Peak)              | $0.66   | $1.98  | $0.022           | -                | $15  |
-| DeepSeek V4 Pro (Peak)                  | $1.32   | $3.96  | $0.044           | -                | $15  |
-| DeepSeek V4 Flash (Off-Peak)            | $0.22   | $0.66  | $0.007           | -                | $30  |
-| DeepSeek V4 Flash (Peak)                | $0.44   | $1.32  | $0.014           | -                | $30  |
-| DeepSeek V4 Flash Vision Exp (Off-Peak) | $0.22   | $0.66  | $0.007           | -                | $15  |
-| DeepSeek V4 Flash Vision Exp (Peak)     | $0.44   | $1.32  | $0.014           | -                | $15  |
-| Hy4 preview                             | $0.834  | $2.501 | $0.042           | -                | $30  |
-| Hy3                                     | $0.14   | $0.58  | $0.035           | -                | $60  |
-| Omen Alpha                              | $0.20   | $0.66  | $0.04            | -                | $100 |
-
-**DeepSeek V4 Flash / V4 Flash Vision Exp / V4 Pro:** Os horários Peak são 01:00-04:00 e 06:00-10:00 UTC, de segunda a sexta-feira; todos os demais horários, incluindo os fins de semana, são Off-Peak. [Saiba mais](https://api-docs.deepseek.com/quick_start/pricing/).
-
-**DeepSeek V4 Flash Vision Exp:** As imagens são convertidas em tokens com base em suas dimensões e cobradas como tokens de entrada junto com os tokens de texto. [Saiba mais](https://api-docs.deepseek.com/quick_start/pricing/).
 
 Você pode acompanhar o seu uso atual no **<a href={console}>console</a>**.
 
@@ -238,13 +270,13 @@ após você atingir os seus limites de uso em vez de bloquear as requisições.
 
 ### Por que alguns modelos têm um uso menor
 
-Com o Go, você paga $10/mês e, para a maioria dos modelos, nosso objetivo é oferecer 6x esse valor em uso.
+Com o Go, você paga $10/mês, e o uso mensal incluído varia conforme o modelo.
 
-Para a maioria dos modelos, conseguimos fazer isso por meio de descontos por volume e capacidade reservada de GPU. Repassamos essa economia a você por meio do multiplicador de 6x.
+Para a maioria dos modelos, conseguimos fazer isso por meio de descontos por volume e capacidade reservada de GPU. Repassamos essa economia a você na forma de um uso mensal maior.
 
 Para alguns modelos, ainda não tivemos a oportunidade de negociar um desconto ou hospedá-los a um custo menor, seja porque o modelo é novo ou porque o preço público já tem desconto.
 
-Para esses modelos, você ainda recebe um pouco mais do que receberia se pagasse diretamente aos provedores dos modelos; por isso, o multiplicador de uso deles é menor na tabela acima.
+Para esses modelos, você ainda recebe um pouco mais do que receberia se pagasse diretamente aos provedores dos modelos; por isso, o uso mensal incluído com eles é menor.
 
 ---
 
@@ -264,6 +296,7 @@ Você também pode acessar os modelos do Go através dos seguintes endpoints de 
 | Kimi K2.7 Code               | kimi-k2.7-code               | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
 | Kimi K2.6                    | kimi-k2.6                    | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
 | LongCat-2.0                  | longcat-2.0                  | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| DeepSeek V4.1 Flash          | deepseek-v4.1-flash          | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
 | DeepSeek V4 Pro              | deepseek-v4-pro              | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
 | DeepSeek V4 Flash            | deepseek-v4-flash            | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
 | DeepSeek V4 Flash Vision Exp | deepseek-v4-flash-vision-exp | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
@@ -281,7 +314,6 @@ Você também pode acessar os modelos do Go através dos seguintes endpoints de 
 | Qwen3.6 Plus                 | qwen3.6-plus                 | `https://opencode.ai/zen/go/v1/messages`         | `@ai-sdk/anthropic`         |
 | Hy4 preview                  | hy4-preview                  | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
 | Hy3                          | hy3                          | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
-| Omen Alpha                   | omen-alpha                   | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
 
 O [ID do modelo](/docs/config/#models) na sua configuração do OpenCode
 usa o formato `opencode-go/<model-id>`. Por exemplo, para o Kimi K3, você usaria
@@ -324,18 +356,18 @@ https://opencode.ai/zen/go/v1/models
 | MiniMax M2.7                 | Não usado              | 0 dias            |
 | Muse Spark 1.3 Contributor   | Sim                    | Não é ZDR         |
 | Muse Spark 1.2 Contributor   | Sim                    | Não é ZDR         |
+| DeepSeek V4.1 Flash          | Não usado              | 0 dias            |
 | DeepSeek V4 Pro              | Não usado              | 0 dias            |
 | DeepSeek V4 Flash            | Não usado              | 0 dias            |
 | DeepSeek V4 Flash Vision Exp | Não usado              | 0 dias            |
 | Hy4 preview                  | Não usado              | 0 dias            |
 | Hy3                          | Não usado              | 0 dias            |
-| Omen Alpha                   | Não usado              | 0 dias            |
 
 - **Grok 4.6:** O ZDR desativa recursos importantes da API que dependem de dados armazenados, incluindo a Responses API com estado, Files and Collections e a Batch API. [Saiba mais](https://docs.x.ai/developers/faq/security#what-is-zero-data-retention-zdr).
 - **GPT 5.6 Luna:** Logs de monitoramento de abuso são gerados para todo uso de recursos da API e retidos por até 30 dias. [Saiba mais](https://developers.openai.com/api/docs/guides/your-data#data-retention-controls-for-abuse-monitoring).
 - **Muse Spark 1.3 Contributor:** Preços de tokens com grandes descontos em troca da permissão para usar seus prompts e respostas geradas para treinar futuros modelos da Meta. A disponibilidade é limitada às regiões permitidas pela [Política de Uso Geográfico](https://ai.developer.meta.com/legal/geographic-use-policy) da Meta. [Saiba mais](https://dev.meta.ai/docs/pricing-rate-limits#contributor-tier).
 - **Muse Spark 1.2 Contributor:** Preços de tokens com grandes descontos em troca da permissão para usar seus prompts e respostas geradas para treinar futuros modelos da Meta. A disponibilidade é limitada às regiões permitidas pela [Política de Uso Geográfico](https://ai.developer.meta.com/legal/geographic-use-policy) da Meta. [Saiba mais](https://dev.meta.ai/docs/pricing-rate-limits#contributor-tier).
-- **DeepSeek V4 Flash:** O acordo de ZDR é renovado mensalmente. O acordo atual é válido até 30 de setembro de 2026.
+- **DeepSeek:** O acordo de ZDR é renovado mensalmente. O acordo atual é válido até 30 de setembro de 2026.
 
 ---
 

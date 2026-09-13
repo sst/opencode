@@ -1824,11 +1824,14 @@ function reasoningEffort(model: Provider.Model, effort: string) {
     case "ai-gateway-provider":
     case "merge-gateway-ai-sdk-provider":
       return { reasoningEffort: effort }
+    case "gitlab-ai-provider":
+      if (model.family?.startsWith("gpt")) return { reasoningEffort: effort }
+      if (model.family?.startsWith("claude")) return { thinking: { type: "adaptive", effort } }
+      return
     case "@ai-sdk/cohere":
     case "@ai-sdk/perplexity":
     case "@ai-sdk/vercel":
     case "@ai-sdk/alibaba":
-    case "gitlab-ai-provider":
       return
   }
 }

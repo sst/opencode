@@ -3,6 +3,8 @@ import { dict as en } from "./en"
 
 export const dict = {
   ...en,
+  "go.promo.deepseek": "يحصل DeepSeek V4.1 Flash على حدود استخدام مضاعفة 4 مرات لفترة محدودة",
+  "go.graph.bonus": "استخدام مضاعف {{count}} مرات",
   "nav.github": "GitHub",
   "nav.docs": "الوثائق",
   "nav.changelog": "سجل التغييرات",
@@ -58,6 +60,7 @@ export const dict = {
   "common.cancel": "إلغاء",
   "common.creating": "جارٍ الإنشاء...",
   "common.create": "إنشاء",
+  "common.contactUs": "اتصل بنا",
 
   "common.videoUnsupported": "متصفحك لا يدعم وسم الفيديو.",
   "common.figure": "شكل {{n}}.",
@@ -224,6 +227,9 @@ export const dict = {
   "zen.faq.q8": "هل يمكنني استخدام Zen مع وكلاء برمجة آخرين؟",
   "zen.faq.a8":
     "بينما يعمل Zen بشكل رائع مع OpenCode، يمكنك استخدام Zen مع أي وكيل. اتبع تعليمات الإعداد في وكيل البرمجة المفضل لديك.",
+  "zen.faq.q9": "هل يمكنني استرداد أموالي؟",
+  "zen.faq.a9":
+    "قد تكون مؤهلًا لاسترداد أموالك إذا تم الخصم خلال آخر 14 يومًا ولم تستخدم الرصيد الناتج عن عملية الشراء هذه. {{contact}} لطلب استرداد الأموال.",
 
   "zen.cta.start": "ابدأ مع Zen",
   "zen.pricing.title": "أضف رصيد 20 دولار (دفع حسب الاستخدام)",
@@ -252,7 +258,6 @@ export const dict = {
   "zen.privacy.exceptionsLink": "الاستثناءات التالية",
 
   "go.title": "OpenCode Go | نماذج برمجة منخفضة التكلفة للجميع",
-  "go.banner.text": "يحصل GLM-5.3-Flash على حدود استخدام مضاعفة لفترة محدودة",
   "go.meta.description": "يبلغ سعر Go ‏$10/شهر، مع حدود استخدام سخية ووصول موثوق إلى نماذج البرمجة الرائدة.",
   "go.hero.title": "نماذج برمجة منخفضة التكلفة للجميع",
   "go.hero.body":
@@ -267,6 +272,14 @@ export const dict = {
   "go.graph.freePill": "Big Pickle ونماذج مجانية",
   "go.graph.go": "Go",
   "go.graph.label": "الطلبات كل 5 ساعات",
+  "go.graph.period": "الاستخدام",
+  "go.graph.model": "النموذج",
+  "go.graph.requests": "الطلبات المقدّرة / ٥ ساعات",
+  "go.graph.allowance": "الاستخدام الشهري",
+  "go.graph.new": "جديد",
+  "go.graph.scale": "مقياس غير خطي لعدد الطلبات",
+  "go.graph.showAll": "عرض جميع النماذج ({{count}})",
+  "go.graph.showLess": "عرض نماذج أقل",
   "go.graph.limitedRegions": "مناطق محدودة",
   "go.graph.limitedTime": "لفترة محدودة",
   "go.graph.usageLimits": "حدود الاستخدام",
@@ -363,6 +376,9 @@ export const dict = {
   "go.faq.q9": "ما الفرق بين النماذج المجانية وGo؟",
   "go.faq.a9":
     "تشمل النماذج المجانية Big Pickle بالإضافة إلى النماذج الترويجية المتاحة في ذلك الوقت، مع حصة قدرها 200 طلب/يوم. يقدّم Go مجموعة منسقة من النماذج مع حصص طلبات أعلى مطبقة عبر نوافذ متجددة (5 ساعات، وأسبوعية، وشهرية)، تعادل الحصص الأساسية فيها تقريبًا $12 لكل 5 ساعات و$30 في الأسبوع و$60 في الشهر؛ وقد تختلف الحصص حسب النموذج (تختلف أعداد الطلبات الفعلية حسب النموذج والاستخدام).",
+  "go.faq.q10": "هل يمكنني استرداد أموالي؟",
+  "go.faq.a10":
+    "قد تكون مؤهلًا لاسترداد أموالك إذا تم الخصم خلال آخر 14 يومًا ولم تستخدم مخصصات Go خلال فترة الفوترة تلك. {{contact}} لطلب استرداد الأموال.",
 
   "zen.api.error.rateLimitExceeded": "تم تجاوز حد الطلبات. يرجى المحاولة مرة أخرى لاحقًا.",
   "zen.api.error.modelNotSupported": "النموذج {{model}} غير مدعوم",

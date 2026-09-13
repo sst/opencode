@@ -70,12 +70,12 @@ Mevcut model listesi şunları içerir:
 - **Qwen3.7 Max**
 - **Qwen3.7 Plus**
 - **Qwen3.6 Plus**
+- **DeepSeek V4.1 Flash**
 - **DeepSeek V4 Pro**
 - **DeepSeek V4 Flash**
 - **DeepSeek V4 Flash Vision Exp**
 - **Hy4 preview**
 - **Hy3**
-- **Omen Alpha**
 
 Test edip yenilerini ekledikçe model listesi değişebilir.
 
@@ -83,35 +83,106 @@ Test edip yenilerini ekledikçe model listesi değişebilir.
 
 ## Nerede kullanabilirim?
 
-OpenCode Go, [OpenCode](https://opencode.ai) ve benzer türde istekler üreten diğer popüler kodlama aracılarıyla kullanılmak üzere tasarlanmıştır.
+OpenCode Go, [OpenCode](https://opencode.ai) ve benzer türde istekler üreten diğer kodlama aracıları için tasarlanmıştır.
+Trafik, diğer kullanıcıların deneyimini olumsuz etkileyen kötüye kullanımlara karşı izlenir.
 
-Trafik, diğer kullanıcıların deneyimini olumsuz etkileyen kötüye kullanım amaçlı trafiğe karşı izlenir.
+İstemciniz şunları yapmalıdır:
 
-Hesabınızın işaretlenmemesi için kullandığınız aracın
+1. Tipik kodlama aracısı trafiği göndermelidir.
+2. Genel bir SDK veya HTTP kitaplığı adı yerine `my-coding-agent/1.0` gibi kendine ait bir user agent ile kendini tanıtmalıdır.
+3. Yönlendirmeyi ve istem önbelleğe almayı optimize edebilmemiz için her konuşmada `x-opencode-session` içinde değişmeyen bir oturum kimliği göndermelidir.
 
-1\. kötüye kullanım amaçlı trafik oluşturmadığından  
-2\. kendisini doğru şekilde tanıttığından (genel kapsamlı kullanıcı aracıları kullanmadığından)  
-3\. istem önbelleğe almayı optimize edebilmemiz için `x-opencode-session` başlığını içerdiğinden emin olun
+### Doğrulanmış İstemciler
+
+OpenCode'un yanı sıra aşağıdaki istemcilerin OpenCode Go ile düzgün çalıştığı doğrulanmıştır.
+Ancak gelecekte de çalışmaya devam edeceklerini garanti etmiyoruz.
+
+| İstemci           | Oturum desteği                                                                                                                                                                                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Hermes**        | [PR #101864](https://github.com/NousResearch/hermes-agent/pull/101864) içeren derlemeler, ana ve yardımcı OpenCode isteklerinde başlığı gönderir. Düzeltme v0.21.0'dan sonra birleştirilmiştir; dolayısıyla v0.21.0 sürümü tek başına bu düzeltmeyi içermez. |
+| **Claude Code**   | Go, Claude Code'un yerel oturum başlığını tanır. Özel başlık ekleyen bir sarmalayıcı gerekmez.                                                                                                                                                               |
+| **Codex**         | Go, Codex'in yerel oturum başlığını tanır. Bazı sürümler ve proxy yapılandırmaları hâlâ bu başlığı göndermemektedir; istekleri iletirken oturum başlığını koruyun.                                                                                           |
+| **ZCode**         | Go, ZCode'un yerel oturum başlığını tanır. [`x-opencode-session` talebimiz](https://github.com/zai-org/feedback/issues/492) hâlâ açıktır ancak artık özellikle bu başlığın gönderilmesi gerekli değildir.                                                    |
+| **Pi**            | Güncel derlemeler OpenCode için oturum bilgilerini gönderir. Eski kurulumları güncelleyin.                                                                                                                                                                   |
+| **jcode**         | [Oturum başlığı düzeltmesini](https://github.com/1jehuang/jcode/issues/1167) içeren **v0.81.6 veya sonraki bir sürüme** güncelleyin.                                                                                                                         |
+| **Kilo Code CLI** | [PR #13752](https://github.com/Kilo-Org/kilocode/pull/13752) içeren derlemeler OpenCode oturum başlıklarını geri getirir. Bu düzeltme CLI'ı kapsar, VS Code uzantısını kapsamaz. Bkz. [issue #13723](https://github.com/Kilo-Org/kilocode/issues/13723).     |
+
+### Sorunlu Olduğu Bilinen İstemciler
+
+Bu istemcilerin incelediğimiz sürümlerinde oturum desteği eksik veya tamamlanmamıştır.
+Bağlantı verilen bildirimlerden düzeltmeleri ve geçici çözümleri takip edebilirsiniz.
+
+| İstemci                 | Durum ve takip                                                                                                                                                                                                                                                                 |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **DeepSeek Harness**    | Oturum bilgileri bazı model yollarında ulaşırken diğerlerinde eksiktir. Go, DeepSeek Harness'ın yerel başlığını tanır; yapılması gereken, bu başlığın tüm adaptörlerden gönderilmesidir. [Discussion #5495](https://github.com/deepseek-ai/deepseek-harness/discussions/5495). |
+| **GitHub Copilot Chat** | Otomatik oturum başlığı desteği [VS Code issue #334186](https://github.com/microsoft/vscode/issues/334186) içinde talep edilmiştir.                                                                                                                                            |
+| **Kimi Code**           | Otomatik oturum başlığı desteği [issue #3506](https://github.com/MoonshotAI/kimi-code/issues/3506) içinde talep edilmiştir.                                                                                                                                                    |
+| **MiMo Code**           | [Issue #2317](https://github.com/XiaomiMiMo/MiMo-Code/issues/2317) için [PR #2327](https://github.com/XiaomiMiMo/MiMo-Code/pull/2327) içinde bir düzeltme önerilmiştir ancak henüz birleştirilmemiştir.                                                                        |
 
 ## Kullanım limitleri
 
-OpenCode Go aşağıdaki temel limitleri içerir:
+Kullanım limitleri aylık dolar tutarları olarak tanımlanır. Aşağıdaki tabloda her modelin aylık limiti ve token maliyetleri gösterilmektedir.
 
-- **5 saatlik limit** — 12$ kullanım
-- **Haftalık limit** — 30$ kullanım
-- **Aylık limit** — 60$ kullanım
+Her model için şu kullanım limitleri geçerlidir: 5 saatlik — aylık limitin %20'si; haftalık — %50'si; aylık — %100'ü.
 
-Etkin kullanım limiti modele göre değişir; aşağıdaki tabloya bakın.
+Örneğin bir modelin aylık limiti $60 ise şu tutarlara kadar kullanım yapabilirsiniz:
 
-Limitler dolar değeri üzerinden belirlenmiştir. Bu, gerçek istek sayınızın kullandığınız modele bağlı olduğu anlamına gelir. MiMo-V2.5 gibi daha ucuz modeller daha fazla isteğe izin verirken, GLM-5.2 gibi yüksek maliyetli modeller daha azına izin verir.
+- **5 saatlik limit** — $12 tutarında kullanım
+- **Haftalık limit** — $30 tutarında kullanım
+- **Aylık limit** — $60 tutarında kullanım
 
-Aşağıdaki tablo, tipik Go kullanım modellerine dayalı tahmini bir istek sayısı sunmaktadır:
+Token fiyatları 1M token başına verilmiştir.
+
+| Model                                   | Input  | Output | Cached Read | Cached Write | Aylık limit |
+| --------------------------------------- | ------ | ------ | ----------- | ------------ | ----------- |
+| GLM-5.3-Flash                           | $0.15  | $0.50  | $0.03       | -            | **$60**     |
+| GLM-5.3                                 | $1.40  | $4.40  | $0.26       | -            | **$15**     |
+| GLM-5.2                                 | $1.40  | $4.40  | $0.26       | -            | **$60**     |
+| GLM-5.1                                 | $1.40  | $4.40  | $0.26       | -            | **$60**     |
+| Kimi K3                                 | $3.00  | $15.00 | $0.30       | -            | **$15**     |
+| Kimi K2.7 Code                          | $0.95  | $4.00  | $0.19       | -            | **$60**     |
+| Kimi K2.6                               | $0.95  | $4.00  | $0.16       | -            | **$60**     |
+| LongCat-2.0                             | $0.30  | $1.20  | $0.006      | -            | **$60**     |
+| MiMo V2.5                               | $0.14  | $0.28  | $0.0028     | -            | **$60**     |
+| MiMo V2.5 Pro                           | $0.435 | $0.87  | $0.003625   | -            | **$15**     |
+| MiniMax M3                              | $0.30  | $1.20  | $0.06       | -            | **$60**     |
+| MiniMax M2.7                            | $0.30  | $1.20  | $0.06       | $0.375       | **$60**     |
+| MiniMax M2.5                            | $0.30  | $1.20  | $0.06       | $0.375       | **$60**     |
+| Muse Spark 1.3 Contributor              | $0.10  | $0.20  | $0.002      | -            | **$60**     |
+| Muse Spark 1.2 Contributor              | $0.10  | $0.20  | $0.002      | -            | **$60**     |
+| Qwen3.8 Max                             | $2.00  | $6.00  | $0.25       | $2.50        | **$15**     |
+| Qwen3.8 Flash                           | $0.15  | $0.47  | $0.016      | $0.20        | **$30**     |
+| Qwen3.7 Max                             | $2.50  | $7.50  | $0.50       | $3.125       | **$30**     |
+| Qwen3.7 Plus (≤ 256K tokens)            | $0.40  | $1.60  | $0.04       | $0.50        | **$60**     |
+| Qwen3.7 Plus (> 256K tokens)            | $1.20  | $4.80  | $0.12       | $1.50        | **$60**     |
+| Qwen3.6 Plus (≤ 256K tokens)            | $0.50  | $3.00  | $0.05       | $0.625       | **$60**     |
+| Qwen3.6 Plus (> 256K tokens)            | $2.00  | $6.00  | $0.20       | $2.50        | **$60**     |
+| DeepSeek V4.1 Flash (Off-Peak)          | $0.15  | $0.60  | $0.003      | -            | **$15**     |
+| DeepSeek V4.1 Flash (Peak)              | $0.30  | $1.20  | $0.006      | -            | **$15**     |
+| DeepSeek V4 Pro (Off-Peak)              | $0.66  | $1.98  | $0.022      | -            | **$15**     |
+| DeepSeek V4 Pro (Peak)                  | $1.32  | $3.96  | $0.044      | -            | **$15**     |
+| DeepSeek V4 Flash (Off-Peak)            | $0.15  | $0.60  | $0.003      | -            | **$30**     |
+| DeepSeek V4 Flash (Peak)                | $0.30  | $1.20  | $0.006      | -            | **$30**     |
+| DeepSeek V4 Flash Vision Exp (Off-Peak) | $0.15  | $0.60  | $0.003      | -            | **$15**     |
+| DeepSeek V4 Flash Vision Exp (Peak)     | $0.30  | $1.20  | $0.006      | -            | **$15**     |
+| Hy4 preview                             | $0.834 | $2.501 | $0.042      | -            | **$30**     |
+| Hy3                                     | $0.14  | $0.58  | $0.035      | -            | **$60**     |
+| Grok 4.6 (≤ 200K tokens)                | $2.00  | $6.00  | $0.50       | -            | **$15**     |
+| Grok 4.6 (> 200K tokens)                | $4.00  | $12.00 | $1.00       | -            | **$15**     |
+| GPT 5.6 Luna (≤ 272K tokens)            | $0.20  | $1.20  | $0.02       | $0.25        | **$15**     |
+| GPT 5.6 Luna (> 272K tokens)            | $0.40  | $1.80  | $0.04       | $0.50        | **$15**     |
+
+**DeepSeek V4.1 Flash / V4 Pro / V4 Flash / V4 Flash Vision Exp:** Peak saatleri pazartesiden cumaya 01:00-04:00 ve 06:00-10:00 UTC'dir; hafta sonları dahil diğer tüm saatler Off-Peak'tir. [Daha fazla bilgi](https://api-docs.deepseek.com/quick_start/pricing/).
+
+**DeepSeek V4 Flash Vision Exp:** Görseller boyutlarına göre token'lara dönüştürülür ve metin token'larıyla birlikte girdi token'ları olarak ücretlendirilir. [Daha fazla bilgi](https://api-docs.deepseek.com/quick_start/pricing/).
+
+### Tahmini istek sayısı
+
+Aşağıdaki tabloda tipik Go kullanım modellerine dayalı tahmini istek sayısı verilmiştir:
 
 | Model                        | 5 saatte bir istek | haftalık istek | aylık istek |
 | ---------------------------- | ------------------ | -------------- | ----------- |
-| Grok 4.6                     | 169                | 423            | 845         |
-| GPT 5.6 Luna                 | 2,050              | 5,100          | 10,250      |
-| GLM-5.3-Flash                | 1,580              | 3,950          | 7,900       |
+| GLM-5.3-Flash                | 6,320              | 15,790         | 31,580      |
 | GLM-5.3                      | 220                | 540            | 1,080       |
 | GLM-5.2                      | 880                | 2,150          | 4,300       |
 | GLM-5.1                      | 880                | 2,150          | 4,300       |
@@ -130,12 +201,14 @@ Aşağıdaki tablo, tipik Go kullanım modellerine dayalı tahmini bir istek say
 | Qwen3.7 Max                  | 170                | 420            | 840         |
 | Qwen3.7 Plus                 | 4,300              | 10,800         | 21,600      |
 | Qwen3.6 Plus                 | 3,300              | 8,200          | 16,300      |
+| DeepSeek V4.1 Flash          | 6,500              | 16,250         | 32,500      |
 | DeepSeek V4 Pro              | 1,050              | 2,600          | 5,200       |
-| DeepSeek V4 Flash            | 7,600              | 18,900         | 37,800      |
-| DeepSeek V4 Flash Vision Exp | 3,800              | 9,450          | 18,900      |
+| DeepSeek V4 Flash            | 13,000             | 32,500         | 65,000      |
+| DeepSeek V4 Flash Vision Exp | 6,500              | 16,250         | 32,500      |
 | Hy4 preview                  | 1,350              | 3,380          | 6,770       |
 | Hy3                          | 4,300              | 10,750         | 21,500      |
-| Omen Alpha                   | 11,600             | 29,000         | 57,900      |
+| Grok 4.6                     | 169                | 423            | 845         |
+| GPT 5.6 Luna                 | 2,050              | 5,100          | 10,250      |
 
 Tahminler istek başına aşağıdaki token sayılarını kullanır; gerçek kullanım değişir.
 
@@ -146,6 +219,7 @@ Tahminler istek başına aşağıdaki token sayılarını kullanır; gerçek kul
 - Kimi K3 — İstek başına 1.050 girdi, 76.500 önbelleğe alınmış, 300 çıktı token'ı
 - Kimi K2.7/K2.6 — İstek başına 870 girdi, 55.000 önbelleğe alınmış, 200 çıktı token'ı
 - LongCat-2.0 — İstek başına 920 girdi, 88.900 önbelleğe alınmış, 200 çıktı token'ı
+- DeepSeek V4.1 Flash — İstek başına 410 girdi, 71.300 önbelleğe alınmış, 310 çıktı token'ı
 - DeepSeek V4 Pro — İstek başına 750 girdi, 82.000 önbelleğe alınmış, 290 çıktı token'ı
 - DeepSeek V4 Flash — İstek başına 410 girdi, 71.300 önbelleğe alınmış, 310 çıktı token'ı
 - DeepSeek V4 Flash Vision Exp — İstek başına 410 girdi, 71.300 önbelleğe alınmış, 310 çıktı token'ı
@@ -162,51 +236,6 @@ Tahminler istek başına aşağıdaki token sayılarını kullanır; gerçek kul
 - Hy3 — İstek başına 830 girdi, 71.500 önbelleğe alınmış, 295 çıktı token'ı
 - MiMo-V2.5 — İstek başına 830 girdi, 71.500 önbelleğe alınmış, 295 çıktı token'ı
 - MiMo-V2.5-Pro — İstek başına 790 girdi, 86.000 önbelleğe alınmış, 305 çıktı token'ı
-- Omen Alpha — İstek başına 300 girdi, 40.000 önbelleğe alınmış, 100 çıktı token'ı
-
-Tahminler ayrıca 1M token başına aşağıdaki fiyatlara ve her modelle birlikte sunulan aylık kullanıma dayanır:
-
-| Model                                   | Input  | Output | Cached Read | Cached Write | Kullanım |
-| --------------------------------------- | ------ | ------ | ----------- | ------------ | -------- |
-| Grok 4.6 (≤ 200K tokens)                | $2.00  | $6.00  | $0.50       | -            | $15      |
-| Grok 4.6 (> 200K tokens)                | $4.00  | $12.00 | $1.00       | -            | $15      |
-| GPT 5.6 Luna (≤ 272K tokens)            | $0.20  | $1.20  | $0.02       | $0.25        | $15      |
-| GPT 5.6 Luna (> 272K tokens)            | $0.40  | $1.80  | $0.04       | $0.50        | $15      |
-| GLM-5.3-Flash                           | $0.15  | $0.50  | $0.03       | -            | $15      |
-| GLM-5.3                                 | $1.40  | $4.40  | $0.26       | -            | $15      |
-| GLM-5.2                                 | $1.40  | $4.40  | $0.26       | -            | $60      |
-| GLM-5.1                                 | $1.40  | $4.40  | $0.26       | -            | $60      |
-| Kimi K3                                 | $3.00  | $15.00 | $0.30       | -            | $15      |
-| Kimi K2.7 Code                          | $0.95  | $4.00  | $0.19       | -            | $60      |
-| Kimi K2.6                               | $0.95  | $4.00  | $0.16       | -            | $60      |
-| LongCat-2.0                             | $0.30  | $1.20  | $0.006      | -            | $60      |
-| MiMo V2.5                               | $0.14  | $0.28  | $0.0028     | -            | $60      |
-| MiMo V2.5 Pro                           | $0.435 | $0.87  | $0.003625   | -            | $15      |
-| MiniMax M3                              | $0.30  | $1.20  | $0.06       | -            | $60      |
-| MiniMax M2.7                            | $0.30  | $1.20  | $0.06       | $0.375       | $60      |
-| MiniMax M2.5                            | $0.30  | $1.20  | $0.06       | $0.375       | $60      |
-| Muse Spark 1.3 Contributor              | $0.10  | $0.20  | $0.002      | -            | $60      |
-| Muse Spark 1.2 Contributor              | $0.10  | $0.20  | $0.002      | -            | $60      |
-| Qwen3.8 Max                             | $2.00  | $6.00  | $0.25       | $2.50        | $15      |
-| Qwen3.8 Flash                           | $0.15  | $0.47  | $0.016      | $0.20        | $30      |
-| Qwen3.7 Max                             | $2.50  | $7.50  | $0.50       | $3.125       | $30      |
-| Qwen3.7 Plus (≤ 256K tokens)            | $0.40  | $1.60  | $0.04       | $0.50        | $60      |
-| Qwen3.7 Plus (> 256K tokens)            | $1.20  | $4.80  | $0.12       | $1.50        | $60      |
-| Qwen3.6 Plus (≤ 256K tokens)            | $0.50  | $3.00  | $0.05       | $0.625       | $60      |
-| Qwen3.6 Plus (> 256K tokens)            | $2.00  | $6.00  | $0.20       | $2.50        | $60      |
-| DeepSeek V4 Pro (Off-Peak)              | $0.66  | $1.98  | $0.022      | -            | $15      |
-| DeepSeek V4 Pro (Peak)                  | $1.32  | $3.96  | $0.044      | -            | $15      |
-| DeepSeek V4 Flash (Off-Peak)            | $0.22  | $0.66  | $0.007      | -            | $30      |
-| DeepSeek V4 Flash (Peak)                | $0.44  | $1.32  | $0.014      | -            | $30      |
-| DeepSeek V4 Flash Vision Exp (Off-Peak) | $0.22  | $0.66  | $0.007      | -            | $15      |
-| DeepSeek V4 Flash Vision Exp (Peak)     | $0.44  | $1.32  | $0.014      | -            | $15      |
-| Hy4 preview                             | $0.834 | $2.501 | $0.042      | -            | $30      |
-| Hy3                                     | $0.14  | $0.58  | $0.035      | -            | $60      |
-| Omen Alpha                              | $0.20  | $0.66  | $0.04       | -            | $100     |
-
-**DeepSeek V4 Flash / V4 Flash Vision Exp / V4 Pro:** Peak saatleri pazartesiden cumaya 01:00-04:00 ve 06:00-10:00 UTC'dir; hafta sonları dahil diğer tüm saatler Off-Peak'tir. [Daha fazla bilgi](https://api-docs.deepseek.com/quick_start/pricing/).
-
-**DeepSeek V4 Flash Vision Exp:** Görseller boyutlarına göre token'lara dönüştürülür ve metin token'larıyla birlikte girdi token'ları olarak ücretlendirilir. [Daha fazla bilgi](https://api-docs.deepseek.com/quick_start/pricing/).
 
 Mevcut kullanımınızı **<a href={console}>konsoldan</a>** takip edebilirsiniz.
 
@@ -226,13 +255,13 @@ Eğer Zen bakiyenizde kredileriniz varsa, konsoldan **Bakiye kullan (Use balance
 
 ### Bazı modellerin kullanımı neden daha düşük?
 
-Go ile aylık 10$ ödersiniz ve çoğu model için size bunun 6 katı değerinde kullanım sunmayı hedefleriz.
+Go ile aylık 10$ ödersiniz ve sunulan aylık kullanım modele göre değişir.
 
-Çoğu modelde bunu toplu indirimler ve ayrılmış GPU kapasitesi sayesinde mümkün kılıyoruz. Ardından bu tasarrufları 6 katlık çarpanla size aktarıyoruz.
+Çoğu modelde bunu toplu indirimler ve ayrılmış GPU kapasitesi sayesinde mümkün kılıyoruz. Ardından bu tasarrufları daha fazla aylık kullanım olarak size aktarıyoruz.
 
 Bazı modellerde ise model yeni olduğu veya herkese açık fiyatlandırması zaten indirimli olduğu için henüz indirim pazarlığı yapma ya da modeli daha düşük maliyetle barındırma fırsatımız olmadı.
 
-Bu modellerde bile model sağlayıcılarına doğrudan ödeme yaptığınız duruma kıyasla biraz daha fazla kullanım elde edersiniz; bu nedenle yukarıdaki tabloda kullanım çarpanları daha düşüktür.
+Bu modellerde bile model sağlayıcılarına doğrudan ödeme yaptığınız duruma kıyasla biraz daha fazla kullanım elde edersiniz; bu nedenle sunulan aylık kullanım daha azdır.
 
 ---
 
@@ -252,6 +281,7 @@ Go modellerine aşağıdaki API uç noktaları aracılığıyla da erişebilirsi
 | Kimi K2.7 Code               | kimi-k2.7-code               | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
 | Kimi K2.6                    | kimi-k2.6                    | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
 | LongCat-2.0                  | longcat-2.0                  | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
+| DeepSeek V4.1 Flash          | deepseek-v4.1-flash          | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
 | DeepSeek V4 Pro              | deepseek-v4-pro              | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
 | DeepSeek V4 Flash            | deepseek-v4-flash            | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
 | DeepSeek V4 Flash Vision Exp | deepseek-v4-flash-vision-exp | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
@@ -269,7 +299,6 @@ Go modellerine aşağıdaki API uç noktaları aracılığıyla da erişebilirsi
 | Qwen3.6 Plus                 | qwen3.6-plus                 | `https://opencode.ai/zen/go/v1/messages`         | `@ai-sdk/anthropic`         |
 | Hy4 preview                  | hy4-preview                  | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
 | Hy3                          | hy3                          | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
-| Omen Alpha                   | omen-alpha                   | `https://opencode.ai/zen/go/v1/chat/completions` | `@ai-sdk/openai-compatible` |
 
 OpenCode yapılandırmanızdaki [model id](/docs/config/#models) formatı `opencode-go/<model-id>` şeklindedir. Örneğin, Kimi K3 için yapılandırmanızda `opencode-go/kimi-k3` kullanmalısınız.
 
@@ -310,18 +339,18 @@ https://opencode.ai/zen/go/v1/models
 | MiniMax M2.7                 | Kullanılmaz   | 0 gün        |
 | Muse Spark 1.3 Contributor   | Evet          | ZDR değil    |
 | Muse Spark 1.2 Contributor   | Evet          | ZDR değil    |
+| DeepSeek V4.1 Flash          | Kullanılmaz   | 0 gün        |
 | DeepSeek V4 Pro              | Kullanılmaz   | 0 gün        |
 | DeepSeek V4 Flash            | Kullanılmaz   | 0 gün        |
 | DeepSeek V4 Flash Vision Exp | Kullanılmaz   | 0 gün        |
 | Hy4 preview                  | Kullanılmaz   | 0 gün        |
 | Hy3                          | Kullanılmaz   | 0 gün        |
-| Omen Alpha                   | Kullanılmaz   | 0 gün        |
 
 - **Grok 4.6:** ZDR, durum bilgisi tutan Responses API, Files and Collections ve Batch API dahil olmak üzere saklanan verilere bağlı önemli API özelliklerini devre dışı bırakır. [Daha fazla bilgi](https://docs.x.ai/developers/faq/security#what-is-zero-data-retention-zdr).
 - **GPT 5.6 Luna:** Tüm API özelliklerinin kullanımı için kötüye kullanım izleme günlükleri oluşturulur ve 30 güne kadar saklanır. [Daha fazla bilgi](https://developers.openai.com/api/docs/guides/your-data#data-retention-controls-for-abuse-monitoring).
 - **Muse Spark 1.3 Contributor:** İstemlerinizi ve tamamlamalarınızı gelecekteki Meta modellerini eğitmek için kullanma izni karşılığında büyük ölçüde indirimli token fiyatları. Kullanılabilirlik, Meta'nın [Coğrafi Kullanım Politikası](https://ai.developer.meta.com/legal/geographic-use-policy) kapsamında izin verilen bölgelerle sınırlıdır. [Daha fazla bilgi](https://dev.meta.ai/docs/pricing-rate-limits#contributor-tier).
 - **Muse Spark 1.2 Contributor:** İstemlerinizi ve tamamlamalarınızı gelecekteki Meta modellerini eğitmek için kullanma izni karşılığında büyük ölçüde indirimli token fiyatları. Kullanılabilirlik, Meta'nın [Coğrafi Kullanım Politikası](https://ai.developer.meta.com/legal/geographic-use-policy) kapsamında izin verilen bölgelerle sınırlıdır. [Daha fazla bilgi](https://dev.meta.ai/docs/pricing-rate-limits#contributor-tier).
-- **DeepSeek V4 Flash:** ZDR anlaşması aylık olarak yenilenir. Mevcut anlaşma 30 Eylül 2026 tarihine kadar geçerlidir.
+- **DeepSeek:** ZDR anlaşması aylık olarak yenilenir. Mevcut anlaşma 30 Eylül 2026 tarihine kadar geçerlidir.
 
 ---
 

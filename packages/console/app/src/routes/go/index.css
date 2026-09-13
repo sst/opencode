@@ -363,10 +363,6 @@ body {
     [data-slot="text"] {
       color: var(--color-text-strong);
       line-height: 1.4;
-
-      @media (max-width: 30.625rem) {
-        display: none;
-      }
     }
   }
 

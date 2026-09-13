@@ -51,6 +51,7 @@ Vous pouvez également accéder à nos modèles via les points de terminaison AP
 
 | Modèle                          | ID du modèle                    | Point de terminaison                                      | Package AI SDK              |
 | ------------------------------- | ------------------------------- | --------------------------------------------------------- | --------------------------- |
+| GPT 6 Astra                     | gpt-6-astra                     | `https://opencode.ai/zen/v1/responses`                    | `@ai-sdk/openai`            |
 | GPT 5.6 Sol                     | gpt-5.6-sol                     | `https://opencode.ai/zen/v1/responses`                    | `@ai-sdk/openai`            |
 | GPT 5.6 Terra                   | gpt-5.6-terra                   | `https://opencode.ai/zen/v1/responses`                    | `@ai-sdk/openai`            |
 | GPT 5.6 Luna                    | gpt-5.6-luna                    | `https://opencode.ai/zen/v1/responses`                    | `@ai-sdk/openai`            |
@@ -92,6 +93,7 @@ Vous pouvez également accéder à nos modèles via les points de terminaison AP
 | Grok 4.6                        | grok-4.6                        | `https://opencode.ai/zen/v1/responses`                    | `@ai-sdk/openai`            |
 | Grok 4.5                        | grok-4.5                        | `https://opencode.ai/zen/v1/responses`                    | `@ai-sdk/openai`            |
 | Grok Build 0.1                  | grok-build-0.1                  | `https://opencode.ai/zen/v1/responses`                    | `@ai-sdk/openai`            |
+| Muse Spark 1.3                  | muse-spark-1.3                  | `https://opencode.ai/zen/v1/responses`                    | `@ai-sdk/openai`            |
 | Muse Spark 1.2                  | muse-spark-1.2                  | `https://opencode.ai/zen/v1/responses`                    | `@ai-sdk/openai`            |
 | Qwen3.7 Max                     | qwen3.7-max                     | `https://opencode.ai/zen/v1/messages`                     | `@ai-sdk/anthropic`         |
 | Qwen3.7 Plus                    | qwen3.7-plus                    | `https://opencode.ai/zen/v1/messages`                     | `@ai-sdk/anthropic`         |
@@ -99,9 +101,12 @@ Vous pouvez également accéder à nos modèles via les points de terminaison AP
 | Qwen3.5 Plus                    | qwen3.5-plus                    | `https://opencode.ai/zen/v1/messages`                     | `@ai-sdk/anthropic`         |
 | DeepSeek V4 Pro                 | deepseek-v4-pro                 | `https://opencode.ai/zen/v1/chat/completions`             | `@ai-sdk/openai-compatible` |
 | DeepSeek V4 Flash               | deepseek-v4-flash               | `https://opencode.ai/zen/v1/chat/completions`             | `@ai-sdk/openai-compatible` |
+| DeepSeek V4 Flash Vision Exp    | deepseek-v4-flash-vision-exp    | `https://opencode.ai/zen/v1/chat/completions`             | `@ai-sdk/openai-compatible` |
 | MiniMax M3                      | minimax-m3                      | `https://opencode.ai/zen/v1/chat/completions`             | `@ai-sdk/openai-compatible` |
 | MiniMax M2.7                    | minimax-m2.7                    | `https://opencode.ai/zen/v1/chat/completions`             | `@ai-sdk/openai-compatible` |
 | MiniMax M2.5                    | minimax-m2.5                    | `https://opencode.ai/zen/v1/chat/completions`             | `@ai-sdk/openai-compatible` |
+| GLM 5.3 Flash                   | glm-5.3-flash                   | `https://opencode.ai/zen/v1/chat/completions`             | `@ai-sdk/openai-compatible` |
+| GLM 5.3                         | glm-5.3                         | `https://opencode.ai/zen/v1/chat/completions`             | `@ai-sdk/openai-compatible` |
 | GLM 5.2                         | glm-5.2                         | `https://opencode.ai/zen/v1/chat/completions`             | `@ai-sdk/openai-compatible` |
 | GLM 5.1                         | glm-5.1                         | `https://opencode.ai/zen/v1/chat/completions`             | `@ai-sdk/openai-compatible` |
 | GLM 5                           | glm-5                           | `https://opencode.ai/zen/v1/chat/completions`             | `@ai-sdk/openai-compatible` |
@@ -115,7 +120,6 @@ Vous pouvez également accéder à nos modèles via les points de terminaison AP
 | Nemotron 3 Ultra Free           | nemotron-3-ultra-free           | `https://opencode.ai/zen/v1/chat/completions`             | `@ai-sdk/openai-compatible` |
 | Nemotron 3.5 Lightning Free     | nemotron-3.5-lightning-free     | `https://opencode.ai/zen/v1/chat/completions`             | `@ai-sdk/openai-compatible` |
 | Muse Spark 1.3 Contributor Free | muse-spark-1.3-contributor-free | `https://opencode.ai/zen/v1/responses`                    | `@ai-sdk/openai`            |
-| Muse Spark 1.2 Contributor Free | muse-spark-1.2-contributor-free | `https://opencode.ai/zen/v1/responses`                    | `@ai-sdk/openai`            |
 
 Le [model id](/docs/config/#models) dans votre configuration OpenCode utilise le format `opencode/<model-id>`. Par exemple, pour GPT 5.5, vous utiliseriez `opencode/gpt-5.5` dans votre configuration.
 
@@ -143,10 +147,11 @@ Nous prenons en charge un modèle de paiement à l'utilisation. Vous trouverez c
 | Nemotron 3 Ultra Free             | Free   | Free    | Free        | -            |
 | Nemotron 3.5 Lightning Free       | Free   | Free    | Free        | -            |
 | Muse Spark 1.3 Contributor Free   | Free   | Free    | Free        | -            |
-| Muse Spark 1.2 Contributor Free   | Free   | Free    | Free        | -            |
 | MiniMax M3                        | $0.30  | $1.20   | $0.06       | -            |
 | MiniMax M2.7                      | $0.30  | $1.20   | $0.06       | -            |
 | MiniMax M2.5                      | $0.30  | $1.20   | $0.06       | -            |
+| GLM 5.3 Flash                     | $0.15  | $0.50   | $0.03       | -            |
+| GLM 5.3                           | $1.40  | $4.40   | $0.26       | -            |
 | GLM 5.2                           | $1.40  | $4.40   | $0.26       | -            |
 | GLM 5.1                           | $1.40  | $4.40   | $0.26       | -            |
 | GLM 5                             | $1.00  | $3.20   | $0.20       | -            |
@@ -158,10 +163,9 @@ Nous prenons en charge un modèle de paiement à l'utilisation. Vous trouverez c
 | Qwen3.7 Plus                      | $0.40  | $1.60   | $0.04       | $0.50        |
 | Qwen3.6 Plus                      | $0.50  | $3.00   | $0.05       | $0.625       |
 | Qwen3.5 Plus                      | $0.20  | $1.20   | $0.02       | $0.25        |
-| DeepSeek V4 Pro (Off-Peak)        | $0.66  | $1.98   | $0.022      | -            |
-| DeepSeek V4 Pro (Peak)            | $1.32  | $3.96   | $0.044      | -            |
-| DeepSeek V4 Flash (Off-Peak)      | $0.22  | $0.66   | $0.007      | -            |
-| DeepSeek V4 Flash (Peak)          | $0.44  | $1.32   | $0.014      | -            |
+| DeepSeek V4 Pro                   | $1.74  | $3.48   | $0.145      | -            |
+| DeepSeek V4 Flash                 | $0.14  | $0.28   | $0.028      | -            |
+| DeepSeek V4 Flash Vision Exp      | $0.14  | $0.28   | $0.028      | -            |
 | Claude Fable 5.1                  | $10.00 | $50.00  | $0.25       | $12.50       |
 | Claude Fable 5                    | $10.00 | $50.00  | $1.00       | $12.50       |
 | Claude Opus 5                     | $5.00  | $25.00  | $0.50       | $6.25        |
@@ -187,7 +191,10 @@ Nous prenons en charge un modèle de paiement à l'utilisation. Vous trouverez c
 | Grok 4.5 (≤ 200K tokens)          | $2.00  | $6.00   | $0.30       | -            |
 | Grok 4.5 (> 200K tokens)          | $4.00  | $12.00  | $0.60       | -            |
 | Grok Build 0.1                    | $1.00  | $2.00   | $0.20       | -            |
+| Muse Spark 1.3                    | $1.25  | $4.25   | $0.15       | -            |
 | Muse Spark 1.2                    | $1.25  | $4.25   | $0.15       | -            |
+| GPT 6 Astra (≤ 272K tokens)       | $10.00 | $50.00  | $1.00       | $12.50       |
+| GPT 6 Astra (> 272K tokens)       | $20.00 | $75.00  | $2.00       | $25.00       |
 | GPT 5.6 Sol (≤ 272K tokens)       | $2.00  | $10.00  | $0.20       | $2.50        |
 | GPT 5.6 Sol (> 272K tokens)       | $4.00  | $15.00  | $0.40       | $5.00        |
 | GPT 5.6 Terra (≤ 272K tokens)     | $2.00  | $12.00  | $0.20       | $2.50        |
@@ -216,7 +223,7 @@ Nous prenons en charge un modèle de paiement à l'utilisation. Vous trouverez c
 
 **GPT 5.6 Sol:** Les prix affichés incluent une réduction de 50 % jusqu’au 18 septembre 2026.
 
-**DeepSeek V4 Flash / Pro:** Les heures Peak sont 01:00-04:00 et 06:00-10:00 UTC ; toutes les autres heures sont Off-Peak. [En savoir plus](https://api-docs.deepseek.com/quick_start/pricing/).
+**DeepSeek V4 Flash Vision Exp:** Les images sont converties en tokens selon leurs dimensions et facturées comme tokens d’entrée avec les tokens de texte. [En savoir plus](https://api-docs.deepseek.com/quick_start/pricing/).
 
 Vous remarquerez peut-être des [modèles à faible coût](/docs/config/#models), tels que Haiku, Nano ou Flash, dans votre historique d'utilisation. OpenCode utilise ces modèles pour générer les titres des sessions.
 
@@ -232,7 +239,6 @@ Les modèles gratuits :
 - Nemotron 3.5 Lightning Free est disponible sur OpenCode pour une durée limitée. L'équipe utilise cette période pour recueillir des retours et améliorer le modèle.
 - Big Pickle est un modèle stealth gratuit sur OpenCode pour une durée limitée. L'équipe utilise cette période pour recueillir des retours et améliorer le modèle.
 - Muse Spark 1.3 Contributor Free est disponible sur OpenCode pour une durée limitée. L'équipe utilise cette période pour recueillir des retours et améliorer le modèle.
-- Muse Spark 1.2 Contributor Free est disponible sur OpenCode pour une durée limitée. L'équipe utilise cette période pour recueillir des retours et améliorer le modèle.
 
 <a href={email}>Contactez-nous</a> si vous avez des questions.
 
@@ -291,7 +297,6 @@ Tous nos modèles sont hébergés aux US. Nos fournisseurs suivent une politique
 - OpenAI APIs : Les requêtes sont conservées pendant 30 jours conformément à [OpenAI's Data Policies](https://platform.openai.com/docs/guides/your-data).
 - Anthropic APIs : Les requêtes sont conservées pendant 30 jours conformément à [Anthropic's Data Policies](https://docs.anthropic.com/en/docs/claude-code/data-usage).
 - Muse Spark 1.3 Contributor Free : Tarification des tokens fortement réduite en échange de l'autorisation d'utiliser vos prompts et complétions pour entraîner les futurs modèles Meta. [En savoir plus](https://dev.meta.ai/docs/pricing-rate-limits#contributor-tier).
-- Muse Spark 1.2 Contributor Free : Tarification des tokens fortement réduite en échange de l'autorisation d'utiliser vos prompts et complétions pour entraîner les futurs modèles Meta. [En savoir plus](https://dev.meta.ai/docs/pricing-rate-limits#contributor-tier).
 
 ---
 

@@ -56,13 +56,12 @@ export function buildRetentionQueries(periodStart: Date, periodEnd: Date, input?
     dataset: Resource.StatsSyncConfig.dataset,
   }
   const periods = retentionPeriods(periodStart, periodEnd)
-  if (periods.length === 0) return []
-  return [
-    {
-      cohortDates: periods.map((period) => period.start.toISOString().slice(0, 10)),
-      query: buildRetentionQuery(periods, source),
-    },
-  ]
+  // Bound the user-level joins to one activity week and its return week.
+  // Combining the entire display window makes full syncs much more expensive.
+  return periods.map((period) => ({
+    cohortDates: [period.start.toISOString().slice(0, 10)],
+    query: buildRetentionQuery([period], source),
+  }))
 }
 
 function buildRetentionQuery(
